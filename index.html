@@ -123,6 +123,8 @@ body.cockpit #infoBox{opacity:.75}
       <div>
         <label>Time of day</label>
         <select id="todSelect"><option value="noon">Midday</option><option value="morning">Morning</option><option value="golden">Golden hour</option><option value="dusk">Dusk</option><option value="night">Night</option></select>
+        <label style="margin-top:10px">Start</label>
+        <select id="startSel"><option value="cruise">Cruise (airborne)</option><option value="takeoff">Takeoff (on runway, flaps 5)</option><option value="final">Short final approach (2.5 nm, gear down, flaps 30)</option></select>
         <label style="margin-top:10px">Google Maps API Key (optional)</label>
         <input id="keyInput" type="password" placeholder="AIzaSy..." autocomplete="off">
       </div>
@@ -188,6 +190,7 @@ const LOCS={
   EHAM:{lat:52.3105,lon:4.7683,elev:-3},ALPS:{lat:46.5,lon:7.9,elev:3600},
   EVEREST:{lat:27.9881,lon:86.925,elev:5300},GRANDCANYON:{lat:35.9524,lon:-112.147,elev:2000}
 };
+const FINAL_HDG={LSZH:140,EGLL:270,KJFK:310,OMDB:300,RJTT:340,YSSY:160,KSFO:280,LFPG:270,EHAM:180};
 const CFG={origin:{lat:47.4647,lon:8.5492},terrainExtent:18000,terrainGrid:193,texSize:2048,
   maxImageryTiles:64,maxHeightTiles:12,heightZoom:13,rebuildDist:3000,tileTimeout:12000};
 let M_PER_DEG_LAT=111132,M_PER_DEG_LON=111320*Math.cos(CFG.origin.lat*Math.PI/180);
@@ -358,7 +361,7 @@ M.dark.metallic=.5;M.dark.roughness=.5;
 
 M.glass=new BABYLON.PBRMaterial('glassM',scene);
 M.glass.albedoColor=new BABYLON.Color3(.4,.5,.6);
-M.glass.metallic=.95;M.glass.roughness=.04;M.glass.alpha=.18;
+M.glass.metallic=0;M.glass.roughness=.05;M.glass.alpha=.05;M.glass.environmentIntensity=.1;
 M.glass.transparencyMode=BABYLON.PBRMaterial.PBRMATERIAL_ALPHABLEND;
 M.glass.backFaceCulling=false;
 
@@ -684,7 +687,7 @@ intBox('cf',3.2,.08,4.5,0,-.95,14.5,0,M.bezel);
 /* Front kick panel (below windshield) */
 intBox('ck',3.2,1.1,.12,0,-.35,15.55,0,M.cockpitBody);
 /* Rear bulkhead */
-intBox('cb',3.2,2.3,.1,0,.25,17.0,0,M.cockpitBody);
+intBox('cb',3.2,2.3,.1,0,.25,12.3,0,M.cockpitBody);
 /* Side walls */
 intBox('cwl',.1,2.3,4.5,-1.6,.25,14.5,0,M.cockpitBody);
 intBox('cwr',.1,2.3,4.5,1.6,.25,14.5,0,M.cockpitBody);
@@ -712,7 +715,7 @@ intBox('swf',3.2,.08,.15,0,.95,15.4,-.35,frameMat);
 function glassPane(name,w,h,x,y,z,rx,ry){
   const p=BABYLON.MeshBuilder.CreatePlane(name,{width:w,height:h,sideOrientation:BABYLON.Mesh.DOUBLESIDE},scene);
   p.position.set(x,y,z);p.rotation.x=rx;if(ry)p.rotation.y=ry;
-  p.material=M.glass;p.parent=interiorRoot;p.isPickable=false;
+  p.material=M.glass;p.parent=interiorRoot;p.isPickable=false;p.isVisible=false;
   return p;
 }
 glassPane('gl1',.55,.8,-.75,.55,15.7,-.15,0);
@@ -726,12 +729,12 @@ glassPane('gsr',.35,.55,1.55,.5,15.2,-.1,Math.PI/2.2);
 /* ===================================================================
    MAIN INSTRUMENT PANEL — textured
    =================================================================== */
-const panelW=1.55,panelH=.65;
-const panelTex=new BABYLON.DynamicTexture('panelTex',{width:1024,height:432},scene,true);
+const panelW=1.55,panelH=.45;
+const panelTex=new BABYLON.DynamicTexture('panelTex',{width:1024,height:297},scene,true);
 const panelCanvas=panelTex.getContext();
 
 function drawMainPanel(){
-  const W=1024,H=432;
+  const W=1024,H=297;
   /* Base metal */
   const grd=panelCanvas.createLinearGradient(0,0,0,H);
   grd.addColorStop(0,'#25282c');
@@ -753,7 +756,7 @@ function drawMainPanel(){
   panelCanvas.globalAlpha=1;
 
   /* Screen bezels (5 displays) */
-  const screens=[{x:.0194,y:.309,w:.161,h:.382},{x:.2194,y:.309,w:.161,h:.382},{x:.3926,y:.309,w:.2148,h:.382},{x:.6194,y:.309,w:.161,h:.382},{x:.8194,y:.309,w:.161,h:.382}];
+  const screens=[{x:.0194,y:.222,w:.161,h:.556},{x:.2194,y:.222,w:.161,h:.556},{x:.3926,y:.222,w:.2148,h:.556},{x:.6194,y:.222,w:.161,h:.556},{x:.8194,y:.222,w:.161,h:.556}];
   screens.forEach(s=>{
     const x=s.x*W,y=s.y*H,w=s.w*W,h=s.h*H;
     /* Outer dark ring */
@@ -791,12 +794,12 @@ function drawMainPanel(){
   const lbls=['MASTER','AP','AT','YD','WARN'];
   lbls.forEach((l,i)=>panelCanvas.fillText(l,W*.44+i*30+13,H*.055));
 
-  panelTex.update(false);
+  panelTex.update(true);
 }
 drawMainPanel();
 
 const panelMesh=BABYLON.MeshBuilder.CreatePlane('panel',{width:panelW,height:panelH,sideOrientation:BABYLON.Mesh.DOUBLESIDE},scene);
-panelMesh.position.set(0,-.35,15.15);
+panelMesh.position.set(0,-.12,15.15);
 panelMesh.rotation.x=-.28; /* tilt nose-up */
 panelMesh.parent=interiorRoot;
 panelMesh.material=M.cockpitPanel.clone('panelM');
@@ -832,8 +835,8 @@ function placeDisplay(name,tex,panelX,panelY,w,h){
      Panel is rotated -0.28 rad around X axis. A point at (lx, ly) in panel space
      maps to world: (lx, ly*cos(-0.28), panelZ + ly*sin(-0.28))... roughly. */
   const cosA=Math.cos(-.28),sinA=Math.sin(-.28);
-  const worldY=-.35+localY*cosA;
-  const worldZ=15.15+localY*sinA+0.01; /* sit 0.01m in front */
+  const worldY=-.12+localY*cosA;
+  const worldZ=15.15+localY*sinA-0.012; /* sit 0.01m in front */
   const m=BABYLON.MeshBuilder.CreatePlane(name,{width:w,height:h,sideOrientation:BABYLON.Mesh.DOUBLESIDE},scene);
   m.position.set(localX,worldY,worldZ);
   m.rotation.x=-.28;
@@ -857,7 +860,7 @@ placeDisplay('dPfdR',displays.pfdR,.40,0,.25,.25);
 /* ===================================================================
    GLARESHIELD
    =================================================================== */
-const glare=intBox('glare',panelW+.2,.06,.4,0,-.02,15.05,-.35,M.cockpitBody);
+const glare=intBox('glare',panelW+.2,.05,.35,0,.1,15.15,-.2,M.bezel);
 
 /* ===================================================================
    PEDESTAL (center console)
@@ -870,25 +873,25 @@ intBox('pedTop',.55,.05,2.0,0,-.32,14.3,0,M.cockpitPanel);
 intBox('thrQ',.5,.12,.7,0,-.28,14.75,0,M.dark);
 const throttleLevers=[];
 for(let i=0;i<2;i++){
-  const t=BABYLON.MeshBuilder.CreateCylinder('thrLv'+i,{height:.4,diameter:.055,tessellation:12},scene);
+  const t=BABYLON.MeshBuilder.CreateCylinder('thrLv'+i,{height:.22,diameter:.055,tessellation:12},scene);
   t.position.set(-.13+i*.13,-.08,14.78);
   t.rotation.x=-.3;t.material=M.metal;t.parent=interiorRoot;
   /* Red knob */
-  const knob=BABYLON.MeshBuilder.CreateSphere('thrK'+i,{diameter:.13},scene);
+  const knob=BABYLON.MeshBuilder.CreateSphere('thrK'+i,{diameter:.08},scene);
   knob.position.set(-.13+i*.13,.12,14.6);
   knob.material=M.throttleKnob;knob.parent=interiorRoot;
   throttleLevers.push({lever:t,knob:knob});
 }
 /* Speed brake lever */
-const sbLever=BABYLON.MeshBuilder.CreateCylinder('sbLv',{height:.35,diameter:.05,tessellation:12},scene);
-sbLever.position.set(.2,-.1,14.6);sbLever.rotation.x=-.3;sbLever.material=M.metal;sbLever.parent=interiorRoot;
+const sbLever=BABYLON.MeshBuilder.CreateCylinder('sbLv',{height:.2,diameter:.05,tessellation:12},scene);
+sbLever.position.set(.2,-.26,14.6);sbLever.rotation.x=-.3;sbLever.material=M.metal;sbLever.parent=interiorRoot;
 const sbKnob=BABYLON.MeshBuilder.CreateSphere('sbK',{diameter:.1},scene);
-sbKnob.position.set(.2,.05,14.45);sbKnob.material=M.dark;sbKnob.parent=interiorRoot;
+sbKnob.position.set(.2,-.15,14.57);sbKnob.material=M.dark;sbKnob.parent=interiorRoot;
 /* Flap lever */
-const flapLever=BABYLON.MeshBuilder.CreateCylinder('flLv',{height:.35,diameter:.05,tessellation:12},scene);
-flapLever.position.set(.2,-.1,14.3);flapLever.rotation.x=-.3;flapLever.material=M.metal;flapLever.parent=interiorRoot;
+const flapLever=BABYLON.MeshBuilder.CreateCylinder('flLv',{height:.2,diameter:.05,tessellation:12},scene);
+flapLever.position.set(.2,-.26,14.3);flapLever.rotation.x=-.3;flapLever.material=M.metal;flapLever.parent=interiorRoot;
 const flapKnob=BABYLON.MeshBuilder.CreateBox('flK',{width:.1,height:.06,depth:.1},scene);
-flapKnob.position.set(.2,.05,14.15);flapKnob.material=M.white;flapKnob.parent=interiorRoot;
+flapKnob.position.set(.2,-.15,14.27);flapKnob.material=M.white;flapKnob.parent=interiorRoot;
 
 /* ===================================================================
    FIRE HANDLES — two red T-handles between the seats
@@ -923,7 +926,7 @@ for(const sgn of [1,-1]){
   lc.fillText('ENG '+(key==='L'?'1':'2'),64,18);
   lc.font='10px monospace';lc.fillStyle='#ff8080';
   lc.fillText('FIRE',64,34);
-  lt.update(false);
+  lt.update(true);
   lm.emissiveTexture=lt;lm.diffuseTexture=lt;
   lbl.material=lm;lbl.isPickable=false;
   fireHandles[key]={pivot:pivot,stem:stem,top:top,pulled:false};
@@ -943,7 +946,7 @@ for(const sgn of [-1,1]){
   const key=sgn<0?'L':'R';
   const grp=new BABYLON.TransformNode('yoke'+key,scene);
   grp.parent=interiorRoot;
-  grp.position.set(sgn*.6,-.1,14.6);
+  grp.position.set(sgn*.6,-.3,14.6);
   /* Column */
   const col=BABYLON.MeshBuilder.CreateCylinder('col'+key,{height:.35,diameter:.07,tessellation:12},scene);
   col.position.y=-.18;col.material=M.dark;col.parent=grp;
@@ -1007,7 +1010,7 @@ const ohpTex=new BABYLON.DynamicTexture('ohpTex',{width:1024,height:256},scene,t
   c.fillText('HYDRAULIC',390,20);c.fillText('AIR',530,20);
   c.fillText('ANTI-ICE',670,20);c.fillText('LIGHTS',810,20);
   c.fillText('CABIN',950,20);
-  ohpTex.update(false);
+  ohpTex.update(true);
 })();
 const ohpMesh=BABYLON.MeshBuilder.CreatePlane('ohp',{width:2.4,height:.6,sideOrientation:BABYLON.Mesh.DOUBLESIDE},scene);
 ohpMesh.position.set(0,1.28,15.0);
@@ -1031,7 +1034,8 @@ for(const sgn of [1,-1]){
 }
 
 const cockpitLight=new BABYLON.PointLight('cpL',new BABYLON.Vector3(0,.7,14),scene);
-cockpitLight.parent=interiorRoot;cockpitLight.intensity=1.6;cockpitLight.range=6;cockpitLight.diffuse=new BABYLON.Color3(1,.95,.85);cockpitLight.setEnabled(false);
+cockpitLight.parent=interiorRoot;cockpitLight.intensity=1.5;cockpitLight.range=6;cockpitLight.diffuse=new BABYLON.Color3(1,.95,.85);cockpitLight.setEnabled(false);
+interiorRoot.getChildMeshes().forEach(m=>{sun.excludedMeshes.push(m);if(m.material&&m.material.environmentIntensity!==undefined&&m.material!==M.glass)m.material.environmentIntensity=.45;});
 /* Hide interior initially */
 interiorRoot.setEnabled(false);
 
@@ -1090,6 +1094,18 @@ function resetAircraft(lat,lon,elev){
   plane.elevTrim=0;plane.ailTrim=0;plane.rudTrim=0;
   plane.alpha=0;plane.gForce=1;plane.speed=0;
   plane.fuel=18000;plane.crashed=false;plane.brakeHold=false;plane.stall=false;
+  {const code=currentLocation.code;
+   if(currentLocation.start==='final'&&FINAL_HDG[code]!==undefined){
+    const h=FINAL_HDG[code]*Math.PI/180,d=4600;
+    plane.pos.set(-Math.sin(h)*d,(sampleTerrain(0,0)||elev)+250,Math.cos(h)*d);
+    plane.vel.set(Math.sin(h)*70,-3.6,-Math.cos(h)*70);
+    plane.quat=BABYLON.Quaternion.RotationAxis(BABYLON.Vector3.Up(),Math.PI-h);
+    plane.throttle=.55;plane.flaps=4;plane.gearDown=true;plane.speed=70;}
+   else if(currentLocation.start==='takeoff'&&FINAL_HDG[code]!==undefined){
+    const h=FINAL_HDG[code]*Math.PI/180,px=-Math.sin(h)*800,pz=Math.cos(h)*800;
+    plane.pos.set(px,(sampleTerrain(px,pz)||elev)+4.2,pz);
+    plane.vel.set(0,0,0);plane.quat=BABYLON.Quaternion.RotationAxis(BABYLON.Vector3.Up(),Math.PI-h);
+    plane.throttle=0;plane.flaps=2;plane.gearDown=true;plane.speed=0;}}
   AP.master=false;AP.hdgMode=false;AP.altMode=false;AP.vsMode=false;AP.spdMode=false;
   /* Reset engines */
   ENG.battery=true;ENG.fuelPumps=true;ENG.apuBleed=true;ENG.ignition=false;
@@ -1170,6 +1186,7 @@ function updateEngines(dt){
       else if(t<12){const p=(t-9)/3;e.n2=58;e.egt=385-5*p;e.n1=22;e.ff=600;}
       else{e.state='RUNNING';e.n2=58;e.egt=380;e.n1=22;e.ff=600;}
     }
+    if(e.state==='RUNNING'){const tn=22+plane.throttle*78;e.n1+=(tn-e.n1)*Math.min(1,dt*.8);e.n2=58+(e.n1-22)*.5;e.egt=380+(e.n1-22)*4;e.ff=600+(e.n1-22)*45;}
     if(e.state==='SHUTDOWN'){
       e.n1=Math.max(0,e.n1-dt*8);
       e.n2=Math.max(0,e.n2-dt*20);
@@ -1207,9 +1224,9 @@ function updateSurfaceVisuals(){
   if(yokes.R){yokes.R.rotation.z=-plane.aileron*.5;yokes.R.rotation.x=plane.elevator*.15;}
   if(throttleLevers){
     for(let i=0;i<2;i++){
-      const y=-.08+plane.throttle*.35;
+      const y=-.33+plane.throttle*.06;
       throttleLevers[i].lever.position.y=y;
-      throttleLevers[i].knob.position.y=y+.2;
+      throttleLevers[i].knob.position.y=y+.105;throttleLevers[i].knob.position.z=14.747;
     }
   }
 }
@@ -1335,7 +1352,7 @@ function updateAutopilot(dt){
    =================================================================== */
 const tmpM=BABYLON.Matrix.Identity();
 function physicsStep(dt){
-  if(plane.crashed)return;
+  if(plane.crashed||plane.hold)return;
   if(dt>.05)dt=.05;
   updateEngines(dt);
   updateAutopilot(dt);
@@ -1421,12 +1438,21 @@ function physicsStep(dt){
   const gc=plane.pos.y-gh,wc=plane.pos.y;
   plane.onGround=(gc<5||wc<1);
   if(gc<4||wc<.5){
-    const impact=Math.abs(plane.vel.y)+plane.speed*.05;
+    const sink=-plane.vel.y;
     const angDev=Math.abs(plane.angVel.x)+Math.abs(plane.angVel.z);
-    if(impact>4||angDev>.5){crash('IMPACT · GROUND');return;}
+    if(sink>8||angDev>1.6){crash('IMPACT · GROUND');return;}
     plane.pos.y=Math.max(gh+4,4);
-    if(plane.vel.y<0)plane.vel.y*=-.1;
-    plane.vel.scaleInPlace(.97);plane.angVel.scaleInPlace(.85);
+    if(plane.vel.y<0)plane.vel.y=0;
+    const hs=Math.hypot(plane.vel.x,plane.vel.z);
+    if(hs>.01){
+      const dec=(.5+(plane.brakeHold?4:0)+plane.spoilerDeploy*1.5+(plane.throttle<.1?.8:0))*dt;
+      const k2=Math.max(0,1-dec/hs);plane.vel.x*=k2;plane.vel.z*=k2;
+      plane.quat.toRotationMatrix(tmpM);
+      const rW=BABYLON.Vector3.TransformNormal(new BABYLON.Vector3(1,0,0),tmpM);
+      const lat=plane.vel.x*rW.x+plane.vel.z*rW.z,kk2=Math.min(1,6*dt);
+      plane.vel.x-=rW.x*lat*kk2;plane.vel.z-=rW.z*lat*kk2;
+    }
+    plane.angVel.scaleInPlace(Math.max(0,1-4*dt));
   }
   if(plane.gForce>4.5){crash('OVER-G');return;}
   if(plane.speed>340&&plane.pos.y<3000){crash('OVERSPEED');return;}
@@ -1951,11 +1977,11 @@ function drawScreens(hdg,pitch,bank){
     drawEICAS(displays.eicas.getContext(),560,420);
     drawND(displays.ndR.getContext(),420,420,hdg);
     drawPFD(displays.pfdR.getContext(),420,420,hdg,pitch,bank);
-    displays.pfdL.update(false);
-    displays.ndL.update(false);
-    displays.eicas.update(false);
-    displays.ndR.update(false);
-    displays.pfdR.update(false);
+    displays.pfdL.update(true);
+    displays.ndL.update(true);
+    displays.eicas.update(true);
+    displays.ndR.update(true);
+    displays.pfdR.update(true);
   }catch(e){}
 }
 
@@ -2225,9 +2251,9 @@ status('ready');
 startBtn.addEventListener('click',async()=>{
   startBtn.disabled=true;overlay.classList.add('hidden');
   const val=locSel.value;setTOD(document.getElementById('todSelect').value);const[latS,lonS,elevS,code]=val.split(',');
-  currentLocation={lat:parseFloat(latS),lon:parseFloat(lonS),elev:parseFloat(elevS),code};
+  currentLocation={lat:parseFloat(latS),lon:parseFloat(lonS),elev:parseFloat(elevS),code,start:document.getElementById('startSel').value};
   resetAircraft(currentLocation.lat,currentLocation.lon,currentLocation.elev);
-  terrainCenter={x:0,z:0};
+  terrainCenter={x:0,z:0};plane.hold=true;
   const key=keyInput.value.trim();
   if(key)localStorage.setItem('gmapsKey',key);else localStorage.removeItem('gmapsKey');
   try{loadEl.textContent='Authenticating imagery…';await Imagery.init(key);
@@ -2238,9 +2264,11 @@ startBtn.addEventListener('click',async()=>{
   try{loadEl.textContent='Streaming satellite imagery…';
     const drawn=await withTimeout(buildTerrainTexture(0,0),30000,'i');
     if(drawn===0)showMsg('IMAGERY UNAVAILABLE',5000);
-    else showMsg('ENGINES RUNNING · E=START · C=CAMERA · F=FLAPS',6000);}
+    else showMsg(currentLocation.start==='takeoff'?'TAKEOFF · SHIFT=THROTTLE · ROTATE AT 140 KT (S) · G=GEAR UP':currentLocation.start==='final'?'SHORT FINAL · FLAPS 30 · GEAR DOWN · FLY IT IN':'ENGINES RUNNING · I=START · C=CAMERA · F=FLAPS',6000);}
   catch(e){showMsg('IMAGERY TIMEOUT',4000);}
-  loadEl.textContent='Ready';status('flying');
+  if(currentLocation.start==='takeoff')plane.pos.y=sampleTerrain(plane.pos.x,plane.pos.z)+4.2;
+  if(currentLocation.start==='final')plane.pos.y=sampleTerrain(0,0)+250;
+  plane.hold=false;loadEl.textContent='Ready';status('flying');
 });
 respawnBtn.addEventListener('click',respawn);
 setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classList.add('hidden');},20000);
