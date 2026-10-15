@@ -16,6 +16,30 @@ body.cockpit #camBadge{opacity:0}
 .panelBox{position:absolute;background:rgba(6,16,26,.5);border:1px solid rgba(120,200,255,.35);border-radius:8px;padding:8px 12px;backdrop-filter:blur(8px)}
 #infoBox{left:18px;top:18px;width:250px;font-size:11px;line-height:1.65}
 #msgBox{left:50%;top:60px;transform:translateX(-50%);font-size:13.5px;letter-spacing:1px;color:#ffd27a;opacity:0;transition:opacity .3s;text-align:center;max-width:80vw;padding:8px 16px;border-radius:6px;background:rgba(6,16,26,.7);border:1px solid rgba(255,210,120,.3)}
+
+/* Airspeed panel (left) */
+#airspeed{left:18px;bottom:120px;width:170px;padding:10px 14px}
+#airspeed .lbl{margin-bottom:2px}
+#airspeed .val{font-size:42px;font-weight:700;line-height:1;color:#eaf6ff}
+#airspeed .sub{margin-top:6px;display:flex;justify-content:space-between;font-size:11px}
+#airspeed .bar{margin-top:6px;height:6px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden;position:relative}
+#airspeed .bar .fill{position:absolute;top:0;left:0;height:100%;background:linear-gradient(90deg,#2dff7a,#ffd400,#ff6060);transition:width .15s}
+#airspeed .bar .mark{position:absolute;top:-3px;width:2px;height:12px;background:#ff60c0}
+
+/* Altitude panel (right) */
+#altitude{right:18px;bottom:120px;width:180px;padding:10px 14px;text-align:right}
+#altitude .lbl{margin-bottom:2px}
+#altitude .val{font-size:42px;font-weight:700;line-height:1;color:#eaf6ff;font-variant-numeric:tabular-nums}
+#altitude .sub{margin-top:6px;display:flex;justify-content:space-between;font-size:11px;direction:ltr}
+#altitude .bar{margin-top:6px;height:6px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden;position:relative}
+#altitude .bar .fill{position:absolute;top:0;left:0;height:100%;background:linear-gradient(90deg,#2dff7a,#52b0f2);transition:width .15s}
+
+/* VSI */
+#vsi{right:18px;bottom:18px;width:180px;padding:8px 14px;text-align:right}
+#vsi .lbl{margin-bottom:2px}
+#vsi .val{font-size:26px;font-weight:600;line-height:1.1;color:#9fd4ff}
+#vsi .sub{margin-top:2px;font-size:11px}
+
 #attitude{left:50%;bottom:76px;transform:translateX(-50%);width:220px;height:220px;padding:0;border-radius:10px;overflow:hidden;background:#050608}
 #compass{left:50%;bottom:18px;transform:translateX(-50%);width:340px;height:52px;padding:0;overflow:hidden}
 .lbl{font-size:10px;letter-spacing:1.5px;color:#7fc7ff;opacity:.85}
@@ -33,7 +57,7 @@ body.cockpit #camBadge{opacity:0}
 #stallWarn{position:absolute;left:50%;top:110px;transform:translateX(-50%);font-size:15px;font-weight:700;letter-spacing:3px;color:#ff4747;opacity:0;transition:opacity .15s;padding:6px 14px;border-radius:6px;background:rgba(120,0,0,.6);border:1px solid #ff8080}
 #stallWarn.on{opacity:1;animation:pulse .5s infinite alternate}
 @keyframes pulse{from{transform:translateX(-50%) scale(1)}to{transform:translateX(-50%) scale(1.08)}}
-body.cockpit #attitude,body.cockpit #compass,body.cockpit #configPanel,body.cockpit #stallWarn{opacity:0;transition:opacity .4s}
+body.cockpit #attitude,body.cockpit #compass,body.cockpit #configPanel,body.cockpit #stallWarn,body.cockpit #airspeed,body.cockpit #altitude,body.cockpit #vsi{opacity:0;transition:opacity .4s}
 body.cockpit #msgBox{top:auto;bottom:80px}
 body.cockpit #infoBox{opacity:.75}
 #overlay{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 35%,#12314f 0%,#050810 70%);overflow:auto;padding:20px}
@@ -78,6 +102,27 @@ body.cockpit #infoBox{opacity:.75}
     <div class="sub" id="engTxt">ENG OFF</div>
     <div class="sub" id="aoaTxt">AOA 0.0°</div>
   </div>
+
+  <div class="panelBox" id="airspeed">
+    <div class="lbl">AIRSPEED · KIAS</div>
+    <div class="val"><span id="spdVal">0</span></div>
+    <div class="sub"><span>M <span id="machVal">0.00</span></span><span id="spdState">GS 0 kt</span></div>
+    <div class="bar"><div class="fill" id="spdBar" style="width:0%"></div><div class="mark" id="spdMark" style="left:0%"></div></div>
+  </div>
+
+  <div class="panelBox" id="altitude">
+    <div class="lbl">ALTITUDE · FT MSL</div>
+    <div class="val"><span id="altVal">0</span></div>
+    <div class="sub"><span id="altState">AGL 0</span><span>STD 1013</span></div>
+    <div class="bar"><div class="fill" id="altBar" style="width:0%"></div></div>
+  </div>
+
+  <div class="panelBox" id="vsi">
+    <div class="lbl">VERT SPEED · FPM</div>
+    <div class="val" id="vsVal">0</div>
+    <div class="sub">G <span id="gVal">1.0</span> · VS <span id="vsState">LVL</span></div>
+  </div>
+
   <div class="panelBox" id="attitude"><canvas id="attitudeCanvas" width="220" height="220"></canvas></div>
   <div class="panelBox" id="compass"><canvas id="compassCanvas" width="680" height="104"></canvas></div>
   <div id="configPanel">
@@ -96,7 +141,7 @@ body.cockpit #infoBox{opacity:.75}
 <div id="overlay">
   <div class="card">
     <h1>BABYLON FLIGHT 737</h1>
-    <h2>Full Cockpit · Real Runways · Bouncy Gear · Reverse Thrust</h2>
+    <h2>Full Cockpit · Sensors · Real Runways · Bouncy Gear · Reverse Thrust</h2>
     <div class="row">
       <div>
         <label>Departure Airport</label>
@@ -123,7 +168,7 @@ body.cockpit #infoBox{opacity:.75}
         <label style="margin-top:10px">Google Maps API Key (optional)</label>
         <input id="keyInput" type="password" placeholder="AIzaSy..." autocomplete="off">
       </div>
-      <div class="hint">A = roll left, D = roll right. Takeoff and approach spawn on the actual runway centerline. Landing suspension is spring-loaded — soft landings bounce slightly. Stall protection reduces pitch authority above ~16° AOA and auto-recovers if you exceed it.</div>
+      <div class="hint">A = roll left, D = roll right. Airspeed and altitude tapes show live sensor data with Vr/Vs bugs and AGL readout. Landing suspension is spring-loaded. Stall protection reduces pitch authority above ~16° AOA.</div>
       <div class="keys rowFull">
         <b>W / S</b><span>Pitch (nose down / nose up)</span><b>A / D</b><span>Roll left / right</span>
         <b>Q / E</b><span>Rudder</span><b>Shift / Ctrl</b><span>Throttle up / down</span>
@@ -155,7 +200,7 @@ body.cockpit #infoBox{opacity:.75}
 <script>
 try{const _gp=navigator.getGamepads;navigator.getGamepads=function(){try{return _gp.call(navigator)||[];}catch(e){return [];}};}catch(e){}
 /* ===================================================================
-   BABYLON FLIGHT 737 · PRO  (self-trim + suspension + stall protection)
+   BABYLON FLIGHT 737 · PRO  (sensors + self-trim + suspension)
    =================================================================== */
 const errEl=document.getElementById('errorBanner'),bootEl=document.getElementById('bootBadge'),loadEl=document.getElementById('loadStatus');
 const camBadge=document.getElementById('camBadge');
@@ -187,7 +232,6 @@ const LOCS={
   EHAM:{lat:52.3105,lon:4.7683,elev:-3},ALPS:{lat:46.5,lon:7.9,elev:3600},
   EVEREST:{lat:27.9881,lon:86.925,elev:5300},GRANDCANYON:{lat:35.9524,lon:-112.147,elev:2000}
 };
-
 const RUNWAYS={
   LSZH:{hdg:156,len:3400,wid:60},EGLL:{hdg:270,len:3900,wid:60},
   KJFK:{hdg:044,len:3400,wid:60},OMDB:{hdg:121,len:4000,wid:60},
@@ -1055,8 +1099,6 @@ function resetAircraft(lat,lon,elev){
       plane.pos.set(-dirX*d, alt, -dirZ*d);
       const spd=77;
       plane.vel.set(dirX*spd, -spd*Math.tan(3*Math.PI/180), dirZ*spd);
-      /* Yaw onto runway heading, then pitch nose up ~6° to the natural
-         approach attitude. Negative rotation around local +X = nose-up. */
       const yawQ  = BABYLON.Quaternion.RotationAxis(BABYLON.Vector3.Up(), Math.PI - h);
       const pitchQ= BABYLON.Quaternion.RotationAxis(new BABYLON.Vector3(1,0,0), -6*Math.PI/180);
       plane.quat  = yawQ.multiply(pitchQ);
@@ -1313,9 +1355,6 @@ function updateAutopilot(dt){
   }
 }
 
-/* ===================================================================
-   PHYSICS  (self-trim + suspension + stall protection)
-   =================================================================== */
 const tmpM=BABYLON.Matrix.Identity();
 function physicsStep(dt){
   if(plane.crashed||plane.hold)return;
@@ -1417,7 +1456,6 @@ function physicsStep(dt){
   plane.angVel.z+=(-effAil*ACFG.maxAilRate*auth-plane.angVel.z)*kk;
   if(AP.yd)plane.angVel.y*=(1-2*dt);
 
-  /* Self-trim: target the alpha that actually produces L = W at this speed */
   if(!plane.onGround&&!AP.master&&Math.abs(input.pitch)<.02&&Va>45){
     const CLneed=(ACFG.mass*9.81)/Math.max(q*ACFG.wingArea,1);
     let alphaTrim=(CLneed-ACFG.CL0-fl.cl)/ACFG.CLa;
@@ -1428,14 +1466,12 @@ function physicsStep(dt){
     const alphaErr=alpha-alphaTrim;
     plane.angVel.x += alphaErr*gain*dt;
   }
-  /* Roll levelling */
   if(plane.assist&&!AP.master&&Math.abs(input.roll)<.02){
     const rW=BABYLON.Vector3.TransformNormal(new BABYLON.Vector3(1,0,0),tmpM);
     const bank=Math.atan2(rW.y,Math.sqrt(Math.max(0,1-rW.y*rW.y)));
     plane.angVel.z+=-bank*.9*dt*BABYLON.Scalar.Clamp(Va/100,0,1);
   }
 
-  /* ---- GROUND HANDLING ---- */
   const gh=sampleSurface(plane.pos.x,plane.pos.z);
   const gearHeight=ACFG.gearHeight;
   const clearance=plane.pos.y-gh-gearHeight;
@@ -1781,10 +1817,15 @@ function updateCamera(dt){
   if(skybox)skybox.position.copyFrom(camera.position);
 }
 
+/* ===================================================================
+   HUD + SENSORS
+   =================================================================== */
 const el={
   spd:document.getElementById('spdVal'),mach:document.getElementById('machVal'),
-  alt:document.getElementById('altVal'),vs:document.getElementById('vsVal'),
-  g:document.getElementById('gVal'),hdg:document.getElementById('hdgTxt'),
+  spdState:document.getElementById('spdState'),spdBar:document.getElementById('spdBar'),spdMark:document.getElementById('spdMark'),
+  alt:document.getElementById('altVal'),altState:document.getElementById('altState'),altBar:document.getElementById('altBar'),
+  vs:document.getElementById('vsVal'),g:document.getElementById('gVal'),vsState:document.getElementById('vsState'),
+  hdg:document.getElementById('hdgTxt'),
   pos:document.getElementById('posTxt'),fps:document.getElementById('fpsTxt'),
   src:document.getElementById('srcTxt'),msg:document.getElementById('msgBox'),
   chipFlaps:document.getElementById('chipFlaps'),chipGear:document.getElementById('chipGear'),
@@ -1798,6 +1839,7 @@ const el={
 const attCtx=document.getElementById('attitudeCanvas').getContext('2d');
 const cmpCtx=document.getElementById('compassCanvas').getContext('2d');
 let lastVS=0,hudTick=0,msgTimer=0;
+let smoothedSpd=0, smoothedAlt=0, smoothedVS=0, smoothedAGL=0;
 function showMsg(t,ms=2000){el.msg.textContent=t;el.msg.style.opacity=1;msgTimer=ms/1000;}
 function updateChips(){
   el.chipFlaps.textContent='FLAPS '+FLAPS[plane.flaps].name;
@@ -1901,6 +1943,27 @@ function drawCompass(h){
   c.fillStyle='#eaf6ff';c.font='bold 24px monospace';c.textAlign='center';
   c.fillText(String(Math.round(h)).padStart(3,'0'),W/2,29);
 }
+
+/* Sensor calculations for speed / altitude / AGL */
+function computeAirspeed(){
+  const m=BABYLON.Matrix.Identity();plane.quat.toRotationMatrix(m);
+  const invM=m.clone().invert();
+  const vB=BABYLON.Vector3.TransformNormal(plane.vel,invM);
+  const Va=Math.sqrt(vB.x*vB.x+vB.y*vB.y+vB.z*vB.z);
+  const alt=Math.max(plane.pos.y,0);
+  const rho=1.225*Math.exp(-alt/8500);
+  const rho0=1.225;
+  /* KIAS = equivalent airspeed from dynamic pressure */
+  const q=0.5*rho0*Va*Va;              /* at sea level for indicator */
+  const qTrue=0.5*rho*Va*Va;
+  const kias=Va*Math.sqrt(rho/rho0);   /* Equivalent airspeed approximation */
+  return {tas:Va*1.94384,kias:kias*1.94384,mach:Va/340};
+}
+function computeAGL(){
+  const gh=sampleSurface(plane.pos.x,plane.pos.z);
+  return Math.max(0,(plane.pos.y-gh)*3.28084);
+}
+
 function updateHUD(){
   const m=BABYLON.Matrix.Identity();plane.quat.toRotationMatrix(m);
   const fwd=BABYLON.Vector3.TransformNormal(new BABYLON.Vector3(0,0,1),m);
@@ -1908,6 +1971,48 @@ function updateHUD(){
   const hdg=(Math.atan2(fwd.x,-fwd.z)*180/Math.PI+360)%360;
   const pitch=Math.asin(BABYLON.Scalar.Clamp(fwd.y,-1,1))*180/Math.PI;
   const bank=Math.atan2(right.y,Math.sqrt(Math.max(0,1-right.y*right.y)))*180/Math.PI;
+
+  /* Sensor readings */
+  const air=computeAirspeed();
+  const aglFt=computeAGL();
+  const altFt=plane.pos.y*3.28084;
+  const vsFpm=plane.vel.y*196.85;
+
+  /* Smoothed sensor outputs (simple low-pass to mimic instrument lag) */
+  smoothedSpd=smoothedSpd+(air.kias-smoothedSpd)*0.25;
+  smoothedAlt=smoothedAlt+(altFt-smoothedAlt)*0.35;
+  smoothedVS=smoothedVS+(vsFpm-smoothedVS)*0.20;
+  smoothedAGL=smoothedAGL+(aglFt-smoothedAGL)*0.30;
+
+  /* Airspeed tape update */
+  el.spd.textContent=Math.round(smoothedSpd);
+  el.mach.textContent=air.mach.toFixed(2);
+  el.spdState.textContent='GS '+Math.round(Math.hypot(plane.vel.x,plane.vel.z)*1.94384)+' kt';
+  /* Color state */
+  if(plane.stall||smoothedSpd<130){el.spd.style.color='#ff6060';}
+  else if(smoothedSpd<170){el.spd.style.color='#ffd060';}
+  else {el.spd.style.color='#eaf6ff';}
+  /* Bar: 0-400 kt */
+  const spdPct=Math.max(0,Math.min(100,smoothedSpd/4));
+  el.spdBar.style.width=spdPct+'%';
+  /* Vr marker at 145 kt */
+  el.spdMark.style.left=(145/4)+'%';
+
+  /* Altitude tape update */
+  el.alt.textContent=Math.round(smoothedAlt).toLocaleString();
+  el.altState.textContent='AGL '+Math.round(smoothedAGL).toLocaleString();
+  /* Bar: 0-45000 ft */
+  const altPct=Math.max(0,Math.min(100,smoothedAlt/450));
+  el.altBar.style.width=altPct+'%';
+
+  /* VSI */
+  const vsRounded=Math.round(smoothedVS/50)*50;
+  el.vs.textContent=(vsRounded>=0?'+':'')+vsRounded;
+  el.g.textContent=plane.gForce.toFixed(1);
+  const absVs=Math.abs(vsRounded);
+  if(absVs<200){el.vsState.textContent='LVL';el.vs.style.color='#9fd4ff';}
+  else if(vsRounded>0){el.vsState.textContent=absVs>1500?'CLIMB':'CLB';el.vs.style.color=absVs>1500?'#2dff7a':'#a0ffd0';}
+  else {el.vsState.textContent=absVs>1500?'DESCENT':'DES';el.vs.style.color=absVs>1500?'#ff8080':'#ffd0a0';}
 
   el.hdg.textContent='HDG '+String(Math.round(hdg)).padStart(3,'0')+'°';
   const ll=worldToLL(plane.pos.x,plane.pos.z);
@@ -1930,7 +2035,7 @@ function updateHUD(){
 
 function drawPFD(ctx,W,H,hdg,pitch,bank){
   const S=Math.min(W,H),u=S/100,cx=W/2;
-  const spd=plane.speed*1.94384,alt=plane.pos.y*3.28084,vs=plane.vel.y*196.85;
+  const spd=smoothedSpd,alt=smoothedAlt,vs=smoothedVS;
   const WT='#fff',GR='#2dff7a',MG='#ff55ff',YL='#ffd400';
   ctx.fillStyle='#050608';ctx.fillRect(0,0,W,H);
   const ay=H*.5,aw=u*27,ah=u*35,ppd=u*1.3;
@@ -2016,7 +2121,7 @@ function drawND(ctx,W,H,hdg){
   ctx.lineTo(cx-W*.007,cy+H*.024);ctx.lineTo(cx+W*.007,cy+H*.024);ctx.lineTo(cx+W*.007,cy+H*.014);
   ctx.lineTo(cx+W*.022,cy+H*.014);ctx.closePath();ctx.fill();
   ctx.fillStyle='#00ff88';ctx.font=Math.round(H*.024)+'px monospace';ctx.textAlign='left';
-  ctx.fillText('GS '+(plane.speed*1.94384).toFixed(0)+' KT',W*.04,H*.94);
+  ctx.fillText('GS '+Math.round(smoothedSpd)+' KT',W*.04,H*.94);
 }
 function drawEICAS(ctx,W,H){
   ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);
@@ -2267,7 +2372,7 @@ scene.registerBeforeRender(()=>{
     if(f<26&&hwScale<2.2){hwScale+=.25;engine.setHardwareScalingLevel(hwScale);}
     else if(f>58&&hwScale>1/Math.min(window.devicePixelRatio||1,1.5)+.01){hwScale=Math.max(1,hwScale-.15);engine.setHardwareScalingLevel(hwScale);}}
   hudTick+=dt;
-  if(hudTick>.06){hudTick=0;updateHUD();updateChips();}
+  if(hudTick>.05){hudTick=0;updateHUD();updateChips();}
   if(msgTimer>0){msgTimer-=dt;if(msgTimer<=0)el.msg.style.opacity=0;}
 
   cloudRoot.position.x=Math.round(plane.pos.x/20000)*20000;
