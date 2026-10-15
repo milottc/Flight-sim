@@ -76,6 +76,7 @@ body.cockpit #infoBox{opacity:.75}
     <div class="sub" id="srcTxt">ESRI</div>
     <div class="sub" id="apTxt">AP OFF</div>
     <div class="sub" id="engTxt">ENG OFF</div>
+    <div class="sub" id="aoaTxt">AOA 0.0°</div>
   </div>
   <div class="panelBox" id="attitude"><canvas id="attitudeCanvas" width="220" height="220"></canvas></div>
   <div class="panelBox" id="compass"><canvas id="compassCanvas" width="680" height="104"></canvas></div>
@@ -95,7 +96,7 @@ body.cockpit #infoBox{opacity:.75}
 <div id="overlay">
   <div class="card">
     <h1>BABYLON FLIGHT 737</h1>
-    <h2>Full Cockpit · Smooth Landings · Reverse Thrust · Realistic Physics</h2>
+    <h2>Full Cockpit · Real Runways · Bouncy Gear · Reverse Thrust</h2>
     <div class="row">
       <div>
         <label>Departure Airport</label>
@@ -122,7 +123,7 @@ body.cockpit #infoBox{opacity:.75}
         <label style="margin-top:10px">Google Maps API Key (optional)</label>
         <input id="keyInput" type="password" placeholder="AIzaSy..." autocomplete="off">
       </div>
-      <div class="hint">A = roll left, D = roll right. Stall protection active: near stall the aircraft limits nose-up authority and pushes the nose down automatically. Keep speed above ~150 kt clean, ~140 kt on approach.</div>
+      <div class="hint">A = roll left, D = roll right. Takeoff and approach spawn on the actual runway centerline. Landing suspension is spring-loaded — soft landings bounce slightly. Stall protection reduces pitch authority above ~16° AOA and auto-recovers if you exceed it.</div>
       <div class="keys rowFull">
         <b>W / S</b><span>Pitch (nose down / nose up)</span><b>A / D</b><span>Roll left / right</span>
         <b>Q / E</b><span>Rudder</span><b>Shift / Ctrl</b><span>Throttle up / down</span>
@@ -154,7 +155,7 @@ body.cockpit #infoBox{opacity:.75}
 <script>
 try{const _gp=navigator.getGamepads;navigator.getGamepads=function(){try{return _gp.call(navigator)||[];}catch(e){return [];}};}catch(e){}
 /* ===================================================================
-   BABYLON FLIGHT 737 · PRO  (stall-protected physics)
+   BABYLON FLIGHT 737 · PRO  (self-trim + suspension + stall protection)
    =================================================================== */
 const errEl=document.getElementById('errorBanner'),bootEl=document.getElementById('bootBadge'),loadEl=document.getElementById('loadStatus');
 const camBadge=document.getElementById('camBadge');
@@ -186,12 +187,20 @@ const LOCS={
   EHAM:{lat:52.3105,lon:4.7683,elev:-3},ALPS:{lat:46.5,lon:7.9,elev:3600},
   EVEREST:{lat:27.9881,lon:86.925,elev:5300},GRANDCANYON:{lat:35.9524,lon:-112.147,elev:2000}
 };
-const FINAL_HDG={LSZH:140,EGLL:270,KJFK:310,OMDB:300,RJTT:340,YSSY:160,KSFO:280,LFPG:270,EHAM:180};
+
+const RUNWAYS={
+  LSZH:{hdg:156,len:3400,wid:60},EGLL:{hdg:270,len:3900,wid:60},
+  KJFK:{hdg:044,len:3400,wid:60},OMDB:{hdg:121,len:4000,wid:60},
+  RJTT:{hdg:156,len:3000,wid:60},YSSY:{hdg:155,len:3960,wid:60},
+  KSFO:{hdg:282,len:3600,wid:60},LFPG:{hdg:270,len:3600,wid:60},
+  EHAM:{hdg:183,len:3400,wid:60}
+};
+let runwayMesh=null, runwayY=0, runwayHdgDeg=0, runwayLenM=0, runwayWidM=0;
+
 const CFG={origin:{lat:47.4647,lon:8.5492},terrainExtent:18000,terrainGrid:193,texSize:2048,
   maxImageryTiles:64,maxHeightTiles:12,heightZoom:13,rebuildDist:3000,tileTimeout:12000};
 let M_PER_DEG_LAT=111132,M_PER_DEG_LON=111320*Math.cos(CFG.origin.lat*Math.PI/180);
 
-/* ================== COORDS ================== */
 const worldToLL=(x,z)=>({lat:CFG.origin.lat-z/M_PER_DEG_LAT,lon:CFG.origin.lon+x/M_PER_DEG_LON});
 const llToWorld=(lat,lon)=>({x:(lon-CFG.origin.lon)*M_PER_DEG_LON,z:-(lat-CFG.origin.lat)*M_PER_DEG_LAT});
 const lon2tx=(lon,z)=>(lon+180)/360*Math.pow(2,z);
@@ -200,7 +209,6 @@ const tx2lon=(x,z)=>x/Math.pow(2,z)*360-180;
 const ty2lat=(y,z)=>{const n=Math.PI-2*Math.PI*y/Math.pow(2,z);return 180/Math.PI*Math.atan(.5*(Math.exp(n)-Math.exp(-n)));};
 const tileRange=(nw,se,z)=>({x0:Math.floor(lon2tx(nw.lon,z)),x1:Math.floor(lon2tx(se.lon,z)),y0:Math.floor(lat2ty(nw.lat,z)),y1:Math.floor(lat2ty(se.lat,z))});
 
-/* ================== IMAGERY ================== */
 const Imagery={mode:'esri',googleSession:null,googleKey:'',maxZoom:19,
   async init(key){
     this.mode='esri';this.maxZoom=19;this.googleSession=null;
@@ -221,7 +229,6 @@ const Imagery={mode:'esri',googleSession:null,googleKey:'',maxZoom:19,
 function fetchT(url,opts,ms){return Promise.race([fetch(url,opts),new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),ms))]);}
 function withTimeout(p,ms,l){return Promise.race([p,new Promise((_,r)=>setTimeout(()=>r(new Error(l+' timeout')),ms))]);}
 
-/* ================== TILE CACHE ================== */
 const imgCache=new Map(),imgPending=new Map();
 function loadImage(key,url){
   if(imgCache.has(key))return Promise.resolve(imgCache.get(key));
@@ -270,8 +277,20 @@ function sampleH(lat,lon){
   return(dec(y0*256+x0)*(1-ax)+dec(y0*256+x1)*ax)*(1-ay)+(dec(y1*256+x0)*(1-ax)+dec(y1*256+x1)*ax)*ay;
 }
 const sampleTerrain=(x,z)=>{const ll=worldToLL(x,z);return sampleH(ll.lat,ll.lon);};
+function sampleSurface(x,z){
+  if(runwayLenM>0){
+    const h=runwayHdgDeg*Math.PI/180;
+    const dirX=Math.sin(h), dirZ=-Math.cos(h);
+    const perpX=Math.cos(h), perpZ=Math.sin(h);
+    const along=x*dirX+z*dirZ;
+    const across=x*perpX+z*perpZ;
+    if(Math.abs(along)<=runwayLenM/2 && Math.abs(across)<=runwayWidM/2){
+      return runwayY;
+    }
+  }
+  return sampleTerrain(x,z);
+}
 
-/* ================== BABYLON ================== */
 status('engine');
 const canvas=document.getElementById('renderCanvas');
 const engine=new BABYLON.Engine(canvas,true,{stencil:true,antialias:true,powerPreference:'high-performance'});
@@ -298,7 +317,6 @@ try{
   scene.environmentTexture=env;scene.environmentIntensity=1.0;
 }catch(e){}
 
-/* ================== SKY + SUN ================== */
 status('sky');
 let skybox=null,skyMat=null;
 const sunIncl=.68,sunAzim=.32;
@@ -340,7 +358,6 @@ function setTOD(name){
 }
 let nightMode=false;
 
-/* ================== MATERIALS ================== */
 const M={};
 M.body=new BABYLON.PBRMaterial('bodyM',scene);
 M.body.albedoColor=new BABYLON.Color3(.96,.97,.99);
@@ -402,7 +419,6 @@ M.reverser=new BABYLON.PBRMaterial('revM',scene);
 M.reverser.albedoColor=new BABYLON.Color3(.55,.55,.58);
 M.reverser.metallic=.85;M.reverser.roughness=.35;
 
-/* ================== AIRCRAFT ROOTS ================== */
 const aircraftRoot=new BABYLON.TransformNode('acRoot',scene);
 aircraftRoot.rotationQuaternion=BABYLON.Quaternion.Identity();
 const exteriorRoot=new BABYLON.TransformNode('extRoot',scene);
@@ -410,9 +426,6 @@ exteriorRoot.parent=aircraftRoot;
 const interiorRoot=new BABYLON.TransformNode('intRoot',scene);
 interiorRoot.parent=aircraftRoot;
 
-/* ===================================================================
-   AIRCRAFT EXTERIOR
-   =================================================================== */
 status('aircraft');
 function airfoil(n,t,c,ch){
   const up=[],lo=[];
@@ -554,7 +567,6 @@ for(const sgn of [1,-1]){
   pylon.position.set(sgn*6.3,.05,.4);pylon.material=M.body;pylon.parent=exteriorRoot;
 }
 
-/* Control surfaces */
 const SURF={flapPivots:{},ailPivots:{},elevPivots:{},spoilerPivots:{},rudPivot:null};
 for(const sgn of [1,-1]){
   const key=sgn>0?'R':'L';
@@ -598,8 +610,8 @@ for(const sgn of [1,-1]){
   }
 }
 
-/* Landing gear */
 const gearPivots={};
+const gearInitialY={};
 function mk_wheel(n,par,x,y,z,r){
   const w=BABYLON.MeshBuilder.CreateCylinder(n,{height:.35,diameter:r*2,tessellation:16},scene);
   w.rotation.z=Math.PI/2;w.position.set(x,y,z);w.material=M.tire;w.parent=par;return w;
@@ -610,6 +622,7 @@ function mk_wheel(n,par,x,y,z,r){
   strut.material=M.metal;strut.position.y=-1.0;strut.parent=p;
   mk_wheel('nW1',p,-.4,-1.9,0,.52);mk_wheel('nW2',p,.4,-1.9,0,.52);
   gearPivots.nose=p;
+  gearInitialY.nose=p.position.y;
 }
 for(const sgn of [1,-1]){
   const key=sgn>0?'R':'L';
@@ -618,9 +631,9 @@ for(const sgn of [1,-1]){
   strut.material=M.metal;strut.position.y=-1.1;strut.parent=p;
   mk_wheel('mW'+key+'1',p,-.55,-2.1,0,.58);mk_wheel('mW'+key+'2',p,.55,-2.1,0,.58);
   gearPivots[key]=p;
+  gearInitialY[key]=p.position.y;
 }
 
-/* Lights */
 const beacon=BABYLON.MeshBuilder.CreateSphere('bc',{diameter:.22},scene);
 beacon.material=M.red;beacon.position.set(0,1.15,-5);beacon.parent=exteriorRoot;
 const strobeL=BABYLON.MeshBuilder.CreateSphere('stL',{diameter:.18},scene);
@@ -630,9 +643,68 @@ const navL=BABYLON.MeshBuilder.CreateSphere('nvL',{diameter:.16},scene);
 navL.material=M.red;navL.position.set(-16.7,1.9,-2.95);navL.parent=exteriorRoot;
 const navR=navL.clone('nvR');navR.material=M.green;navR.position.x=16.7;navR.parent=exteriorRoot;
 
-/* ===================================================================
-   COCKPIT INTERIOR
-   =================================================================== */
+function createRunway(code){
+  if(runwayMesh){runwayMesh.dispose();runwayMesh=null;}
+  const oldSh=scene.getMeshByName('rwShoulder'); if(oldSh)oldSh.dispose();
+  const rw=RUNWAYS[code];
+  if(!rw){runwayLenM=0;return;}
+  runwayHdgDeg=rw.hdg; runwayLenM=rw.len; runwayWidM=rw.wid;
+  const h=rw.hdg*Math.PI/180;
+  const dirX=Math.sin(h), dirZ=-Math.cos(h);
+  runwayY=Math.max(sampleTerrain(0,0),0)+0.15;
+
+  const sh=BABYLON.MeshBuilder.CreateGround('rwShoulder',{width:rw.wid+18,height:rw.len+60,subdivisions:1},scene);
+  sh.position.set(0,runwayY-0.18,0);
+  sh.rotation.y=Math.atan2(dirX,dirZ);
+  sh.isPickable=false;
+  const shM=new BABYLON.StandardMaterial('shM',scene);
+  shM.diffuseColor=new BABYLON.Color3(.11,.12,.10);
+  shM.specularColor=new BABYLON.Color3(0,0,0);
+  sh.material=shM;
+
+  const g=BABYLON.MeshBuilder.CreateGround('runway',{width:rw.wid,height:rw.len,subdivisions:2},scene);
+  g.position.set(0,runwayY,0);
+  g.rotation.y=Math.atan2(dirX,dirZ);
+  g.isPickable=false;
+
+  const tex=new BABYLON.DynamicTexture('rwTex',{width:512,height:2048},scene,true);
+  const c=tex.getContext();
+  c.fillStyle='#28282c';c.fillRect(0,0,512,2048);
+  for(let i=0;i<2500;i++){
+    const v=(40+Math.random()*22)|0;
+    c.fillStyle=`rgba(${v},${v},${v+2},0.45)`;
+    c.fillRect(Math.random()*512,Math.random()*2048,3,3);
+  }
+  c.fillStyle='#f2f2f2';
+  for(let y=90;y<2048-90;y+=185)c.fillRect(246,y,20,115);
+  c.fillStyle='#e6e6e6';c.fillRect(24,0,6,2048);c.fillRect(482,0,6,2048);
+  for(let i=0;i<8;i++){
+    c.fillRect(64+i*52,40,32,140);
+    c.fillRect(64+i*52,2048-180,32,140);
+  }
+  for(let side=0;side<2;side++){
+    const x0=side===0?80:512-260;
+    for(let i=0;i<3;i++){
+      c.fillRect(x0+i*52,300,32,100);
+      c.fillRect(x0+i*52,2048-400,32,100);
+    }
+  }
+  const num=Math.round(((rw.hdg%360)+360)%360/10);
+  c.fillStyle='#f8f8f8';c.font='bold 96px monospace';c.textAlign='center';
+  c.fillText(String(num).padStart(2,'0'),256,260);
+  c.save();c.translate(256,2048-110);c.rotate(Math.PI);
+  c.fillText(String(((num+18-1)%36)+1).padStart(2,'0'),0,0);c.restore();
+  tex.update(false);
+
+  const m=new BABYLON.StandardMaterial('rwM',scene);
+  m.diffuseTexture=tex;
+  m.specularColor=new BABYLON.Color3(.1,.1,.1);
+  m.emissiveColor=new BABYLON.Color3(.18,.18,.19);
+  m.backFaceCulling=false;
+  g.material=m;
+  runwayMesh=g;
+}
+
 status('cockpit');
 function intBox(name,w,h,d,x,y,z,rx,mat,par){
   const m=BABYLON.MeshBuilder.CreateBox(name,{width:w,height:h,depth:d},scene);
@@ -650,11 +722,11 @@ intBox('cc',3.2,.08,4.5,0,1.4,14.5,0,M.cockpitPanel);
 const frameMat=M.cockpitPanel;
 intBox('wsb',3.0,.08,.2,0,.1,15.7,0,frameMat);
 intBox('wst',3.0,.10,.15,0,.95,15.55,-.35,frameMat);
-intBox('wsc',.08,.95,.15,0,.55,15.7,-.15,frameMat);
-intBox('wsl',.08,.95,.15,-1.5,.55,15.7,-.15,frameMat);
-intBox('wsr',.08,.95,.15,1.5,.55,15.7,-.15,frameMat);
-intBox('wsc_l',.06,.85,.13,-.55,.55,15.72,-.15,frameMat);
-intBox('wsc_r',.06,.85,.13,.55,.55,15.72,-.15,frameMat);
+intBox('wsc',.05,.95,.15,0,.55,15.7,-.15,frameMat);
+intBox('wsl',.06,.95,.15,-1.5,.55,15.7,-.15,frameMat);
+intBox('wsr',.06,.95,.15,1.5,.55,15.7,-.15,frameMat);
+intBox('wsc_l',.04,.85,.13,-.55,.55,15.72,-.15,frameMat);
+intBox('wsc_r',.04,.85,.13,.55,.55,15.72,-.15,frameMat);
 intBox('swf',3.2,.08,.15,0,.95,15.4,-.35,frameMat);
 function glassPane(name,w,h,x,y,z,rx,ry){
   const p=BABYLON.MeshBuilder.CreatePlane(name,{width:w,height:h,sideOrientation:BABYLON.Mesh.DOUBLESIDE},scene);
@@ -706,7 +778,7 @@ panelMesh.parent=interiorRoot;
 panelMesh.material=M.cockpitPanel.clone('panelM');
 panelMesh.material.albedoTexture=panelTex;
 panelMesh.material.emissiveTexture=panelTex;
-panelMesh.material.emissiveColor=new BABYLON.Color3(.6,.6,.65);
+panelMesh.material.emissiveColor=new BABYLON.Color3(.75,.75,.8);
 panelMesh.material.metallic=.4;panelMesh.material.roughness=.55;
 panelMesh.isPickable=false;
 
@@ -876,7 +948,7 @@ ohpMesh.parent=interiorRoot;
 ohpMesh.material=M.cockpitPanel.clone('ohpM');
 ohpMesh.material.albedoTexture=ohpTex;
 ohpMesh.material.emissiveTexture=ohpTex;
-ohpMesh.material.emissiveColor=new BABYLON.Color3(.2,.2,.22);
+ohpMesh.material.emissiveColor=new BABYLON.Color3(.4,.4,.42);
 ohpMesh.isPickable=false;
 
 for(const sgn of [1,-1]){
@@ -886,32 +958,33 @@ for(const sgn of [1,-1]){
 }
 
 const cockpitLight=new BABYLON.PointLight('cpL',new BABYLON.Vector3(0,.7,14),scene);
-cockpitLight.parent=interiorRoot;cockpitLight.intensity=1.5;cockpitLight.range=6;
+cockpitLight.parent=interiorRoot;cockpitLight.intensity=1.8;cockpitLight.range=7;
 cockpitLight.diffuse=new BABYLON.Color3(1,.95,.85);cockpitLight.setEnabled(false);
 const cockpitLight2=new BABYLON.PointLight('cpL2',new BABYLON.Vector3(0,-.6,14.2),scene);
-cockpitLight2.parent=interiorRoot;cockpitLight2.intensity=.9;cockpitLight2.range=4;
-cockpitLight2.diffuse=new BABYLON.Color3(.6,.8,1);cockpitLight2.setEnabled(false);
-interiorRoot.getChildMeshes().forEach(m=>{sun.excludedMeshes.push(m);if(m.material&&m.material.environmentIntensity!==undefined&&m.material!==M.glass)m.material.environmentIntensity=.45;});
+cockpitLight2.parent=interiorRoot;cockpitLight2.intensity=1.2;cockpitLight2.range=5;
+cockpitLight2.diffuse=new BABYLON.Color3(.75,.9,1);cockpitLight2.setEnabled(false);
+interiorRoot.getChildMeshes().forEach(m=>{sun.excludedMeshes.push(m);if(m.material&&m.material.environmentIntensity!==undefined&&m.material!==M.glass)m.material.environmentIntensity=.6;});
 interiorRoot.setEnabled(false);
 
 /* ===================================================================
-   FLIGHT MODEL CONSTANTS  (stall-protected)
+   FLIGHT MODEL
    =================================================================== */
 const ACFG={
   mass:65000,
   wingArea:124.6,
-  CL0:.22,          /* raised from .16  */
-  CLa:4.6,          /* softened from 5.2 */
-  CLmax:1.85,       /* raised from 1.65 */
-  stallAlpha:.34,   /* raised from .30 (≈19.5°) */
+  CL0:.22,
+  CLa:4.6,
+  CLmax:1.85,
+  stallAlpha:.34,
   CD0:.020,
   k:.044,
   Cy:.95,
   maxThrust:245000,
-  maxElevRate:.55,  /* HALVED from 1.0 – no more 57°/s slam */
+  maxElevRate:.45,
   maxAilRate:1.6,
   maxRudRate:.45,
-  groundEffectAlt:12
+  groundEffectAlt:12,
+  gearHeight:4.05
 };
 const START_QUAT=BABYLON.Quaternion.RotationAxis(BABYLON.Vector3.Up(),Math.PI);
 
@@ -922,7 +995,7 @@ const plane={
   elevator:0,aileron:0,rudder:0,elevTrim:0,ailTrim:0,rudTrim:0,
   assist:true,alpha:0,gForce:1,speed:135,
   fuel:18000,crashed:false,brakeHold:false,stall:false,onGround:false,
-  gearCompress:0,justTouched:false
+  gearCompress:0,gearSpringVel:0,justTouched:false
 };
 
 const FLAPS=[
@@ -947,9 +1020,6 @@ const AP={master:false,fd:true,athr:false,yd:true,
   hdgMode:false,hdgTarget:0,altMode:false,altTarget:10000,
   vsMode:false,vsTarget:0,spdMode:false,spdTarget:250};
 
-/* ===================================================================
-   RESET  (fixed approach speed)
-   =================================================================== */
 function resetAircraft(lat,lon,elev){
   CFG.origin.lat=lat;CFG.origin.lon=lon;
   M_PER_DEG_LAT=111132;M_PER_DEG_LON=111320*Math.cos(lat*Math.PI/180);
@@ -962,22 +1032,39 @@ function resetAircraft(lat,lon,elev){
   plane.elevTrim=0;plane.ailTrim=0;plane.rudTrim=0;
   plane.alpha=0;plane.gForce=1;plane.speed=0;
   plane.fuel=18000;plane.crashed=false;plane.brakeHold=false;plane.stall=false;
-  plane.gearCompress=0;plane.justTouched=false;
-  {const code=currentLocation.code;
-   if(currentLocation.start==='final'&&FINAL_HDG[code]!==undefined){
-    /* Short final ~1.9 nm on 3° path, 150 kt = 77 m/s (1.35 Vs) */
-    const h=FINAL_HDG[code]*Math.PI/180,d=3500;
-    const baseH=(sampleTerrain(0,0)||elev);
-    plane.pos.set(-Math.sin(h)*d,baseH+183,Math.cos(h)*d);
-    const spd=77;
-    plane.vel.set(Math.sin(h)*spd,-spd*Math.tan(3*Math.PI/180),-Math.cos(h)*spd);
-    plane.quat=BABYLON.Quaternion.RotationAxis(BABYLON.Vector3.Up(),Math.PI-h);
-    plane.throttle=.55;plane.flaps=4;plane.gearDown=true;plane.speed=spd;}
-   else if(currentLocation.start==='takeoff'&&FINAL_HDG[code]!==undefined){
-    const h=FINAL_HDG[code]*Math.PI/180,px=-Math.sin(h)*1200,pz=Math.cos(h)*1200;
-    plane.pos.set(px,(sampleTerrain(px,pz)||elev)+3.9,pz);
-    plane.vel.set(0,0,0);plane.quat=BABYLON.Quaternion.RotationAxis(BABYLON.Vector3.Up(),Math.PI-h);
-    plane.throttle=0;plane.flaps=2;plane.gearDown=true;plane.speed=0;}}
+  plane.gearCompress=0;plane.gearSpringVel=0;plane.justTouched=false;
+
+  const code=currentLocation.code;
+  const start=currentLocation.start;
+  if(RUNWAYS[code] && start!=='cruise'){
+    const rw=RUNWAYS[code];
+    const h=rw.hdg*Math.PI/180;
+    const dirX=Math.sin(h), dirZ=-Math.cos(h);
+    const surfY=(runwayLenM>0)?runwayY:(sampleTerrain(0,0)||elev);
+    const gh=ACFG.gearHeight;
+    if(start==='takeoff'){
+      const startOffset=-(rw.len/2 - 120);
+      const px=dirX*startOffset, pz=dirZ*startOffset;
+      plane.pos.set(px,surfY+gh,pz);
+      plane.vel.set(0,0,0);
+      plane.quat=BABYLON.Quaternion.RotationAxis(BABYLON.Vector3.Up(),Math.PI-h);
+      plane.throttle=0;plane.flaps=2;plane.gearDown=true;plane.speed=0;
+    } else if(start==='final'){
+      const d=rw.len/2 + 5000;
+      const alt=surfY + d*Math.tan(3*Math.PI/180) + 40;
+      plane.pos.set(-dirX*d, alt, -dirZ*d);
+      const spd=77;
+      plane.vel.set(dirX*spd, -spd*Math.tan(3*Math.PI/180), dirZ*spd);
+      /* Yaw onto runway heading, then pitch nose up ~6° to the natural
+         approach attitude. Negative rotation around local +X = nose-up. */
+      const yawQ  = BABYLON.Quaternion.RotationAxis(BABYLON.Vector3.Up(), Math.PI - h);
+      const pitchQ= BABYLON.Quaternion.RotationAxis(new BABYLON.Vector3(1,0,0), -6*Math.PI/180);
+      plane.quat  = yawQ.multiply(pitchQ);
+      plane.throttle=.55;plane.flaps=4;plane.gearDown=true;plane.speed=spd;
+      plane.elevTrim=-0.25;
+    }
+  }
+
   AP.master=false;AP.hdgMode=false;AP.altMode=false;AP.vsMode=false;AP.spdMode=false;
   ENG.battery=true;ENG.fuelPumps=true;ENG.apuBleed=true;ENG.ignition=false;
   ENG.apu.running=true;ENG.apu.n2=100;ENG.apu.egt=380;ENG.apu.spooling=false;
@@ -1061,9 +1148,6 @@ function updateEngines(dt){
   }
 }
 
-/* ===================================================================
-   SURFACE VISUALS
-   =================================================================== */
 function updateSurfaceVisuals(){
   const fl=FLAPS[plane.flaps];
   for(const k in SURF.flapPivots)SURF.flapPivots[k].rotation.x=-fl.angle;
@@ -1082,6 +1166,12 @@ function updateSurfaceVisuals(){
     rd.pivot.position.z = -0.3 + (rd.pivot.position.z + 0.3) * 0.85;
     rd.mesh.scaling.z = plane.reverserOn ? 1.05 : 1.0;
   }
+  const compressOffset = (plane.gearCompress||0) * 0.35;
+  for(const k in gearPivots){
+    if(gearInitialY[k]!==undefined){
+      gearPivots[k].position.y = gearInitialY[k] + compressOffset;
+    }
+  }
   if(yokes.L){yokes.L.rotation.z=-plane.aileron*.5;yokes.L.rotation.x=plane.elevator*.15;}
   if(yokes.R){yokes.R.rotation.z=-plane.aileron*.5;yokes.R.rotation.x=plane.elevator*.15;}
   if(throttleLevers){
@@ -1093,9 +1183,6 @@ function updateSurfaceVisuals(){
   }
 }
 
-/* ===================================================================
-   INPUT
-   =================================================================== */
 const keys=Object.create(null);
 const input={pitch:0,roll:0,yaw:0};
 let camMode=0;
@@ -1108,7 +1195,7 @@ function setCamMode(m){
   const isCockpit=(camMode===1);
   interiorRoot.setEnabled(isCockpit);
   exteriorRoot.setEnabled(true);
-  for(const m of exteriorRoot.getChildMeshes())if(/^(fuselage|cpGlass|cw|stripe|bc|nac|lip|fan|spin|exh|pyl|revD)/.test(m.name))m.setEnabled(!isCockpit);
+  for(const mm of exteriorRoot.getChildMeshes())if(/^(fuselage|cpGlass|cw|stripe|bc|nac|lip|fan|spin|exh|pyl|revD)/.test(mm.name))mm.setEnabled(!isCockpit);
   cockpitLight.setEnabled(isCockpit);
   cockpitLight2.setEnabled(isCockpit);
   document.body.classList.toggle('cockpit',isCockpit);
@@ -1171,10 +1258,10 @@ function readInput(dt){
   if(AP.master){input.pitch=0;input.roll=0;input.yaw=0;}
   else{
     let p=0,r=0,y=0;
-    if(keys['KeyW'])p+=1;      /* W = nose down */
-    if(keys['KeyS'])p-=1;      /* S = nose up */
-    if(keys['KeyA'])r+=1;      /* A = roll left */
-    if(keys['KeyD'])r-=1;      /* D = roll right */
+    if(keys['KeyW'])p+=1;
+    if(keys['KeyS'])p-=1;
+    if(keys['KeyA'])r+=1;
+    if(keys['KeyD'])r-=1;
     if(keys['KeyQ'])y-=1;
     if(keys['KeyE'])y+=1;
     if(mouseDown){p+=mPitch;r+=mRoll;}
@@ -1197,9 +1284,6 @@ function readInput(dt){
   plane.brakeHold=!!keys['Space'];
 }
 
-/* ===================================================================
-   AUTOPILOT
-   =================================================================== */
 function updateAutopilot(dt){
   if(!AP.master)return;
   const m=BABYLON.Matrix.Identity();plane.quat.toRotationMatrix(m);
@@ -1230,7 +1314,7 @@ function updateAutopilot(dt){
 }
 
 /* ===================================================================
-   PHYSICS  –  with alpha limiter & auto stall recovery
+   PHYSICS  (self-trim + suspension + stall protection)
    =================================================================== */
 const tmpM=BABYLON.Matrix.Identity();
 function physicsStep(dt){
@@ -1268,14 +1352,13 @@ function physicsStep(dt){
   const rho=1.225*Math.exp(-alt/8500);
   const fl=FLAPS[plane.flaps];
 
-  const ghPreview=sampleTerrain(plane.pos.x,plane.pos.z);
-  const clearanceNow=plane.pos.y-ghPreview-(plane.gearDown?3.8:0.6);
+  const ghPreview=sampleSurface(plane.pos.x,plane.pos.z);
+  const clearanceNow=plane.pos.y-ghPreview-(plane.gearDown?ACFG.gearHeight:0.6);
   const inGroundEffect=clearanceNow>0 && clearanceNow<ACFG.groundEffectAlt;
-  const geFactor=inGroundEffect ? (1 - clearanceNow/ACFG.groundEffectAlt*0.35) : 1;
+  const geStrength=inGroundEffect ? (1 - clearanceNow/ACFG.groundEffectAlt) : 0;
 
   let CL=ACFG.CL0+ACFG.CLa*alpha+fl.cl;
   const aAbs=Math.abs(alpha),stallA=ACFG.stallAlpha+fl.stall;
-  /* Smoother stall drop-off: linear from CLmax at stallA down to 35% at stallA+0.5 */
   if(aAbs>stallA){
     const over=(aAbs-stallA);
     CL*=BABYLON.Scalar.Clamp(1-over*1.3,.35,1);
@@ -1288,9 +1371,11 @@ function physicsStep(dt){
   const spDrag=plane.spoilerDeploy*.10;
   const brakeDrag=(plane.brakeHold&&Va<80)?.05:0;
   let CD=ACFG.CD0+ACFG.k*CL*CL+fl.cd+gearDrag+spDrag+brakeDrag;
-  if(inGroundEffect) CD -= ACFG.k*CL*CL*(1-geFactor);
+  CD -= ACFG.k*CL*CL*geStrength*0.55;
   const q=.5*rho*Va*Va;
-  const L=q*ACFG.wingArea*CL*geFactor,D=q*ACFG.wingArea*Math.max(CD,.005),Yf=q*ACFG.wingArea*ACFG.Cy*beta;
+  const L=q*ACFG.wingArea*CL;
+  const D=q*ACFG.wingArea*Math.max(CD,.005);
+  const Yf=q*ACFG.wingArea*ACFG.Cy*beta;
 
   const F=new BABYLON.Vector3(0,0,0);
   if(Va>.5){
@@ -1316,29 +1401,32 @@ function physicsStep(dt){
   const auth=BABYLON.Scalar.Clamp(Va/90,.18,1.15);
   const kk=1-Math.exp(-6*dt);
 
-  /* ---- ALPHA LIMITER: reduce nose-up authority near stall ---- */
   let targetPitchRate = effElev*ACFG.maxElevRate*auth;
   const alphaNow=Math.abs(plane.alpha);
   const margin=ACFG.stallAlpha-alphaNow;
-  if(margin<0.08 && targetPitchRate<0){  /* nose-up command */
-    const scale=Math.max(0,margin/0.08);
+  if(margin<0.15 && targetPitchRate<0){
+    const scale=Math.max(0,margin/0.15);
     targetPitchRate*=scale;
   }
-  /* ---- AUTO STALL RECOVERY: force nose down when stalled ---- */
   if(alphaNow>ACFG.stallAlpha){
     const urgency=Math.min(1,(alphaNow-ACFG.stallAlpha)/0.08);
-    targetPitchRate=Math.max(targetPitchRate,urgency*0.9);
+    targetPitchRate=Math.max(targetPitchRate,urgency*1.4);
   }
   plane.angVel.x+=(targetPitchRate-plane.angVel.x)*kk;
   plane.angVel.y+=(effRud*ACFG.maxRudRate*auth-plane.angVel.y)*kk;
   plane.angVel.z+=(-effAil*ACFG.maxAilRate*auth-plane.angVel.z)*kk;
   if(AP.yd)plane.angVel.y*=(1-2*dt);
 
-  /* Natural pitch stability – force toward zero alpha when no input */
-  if(!plane.onGround&&!AP.master&&Math.abs(input.pitch)<.02){
-    const alphaIdeal=0.04;
-    const err=alpha-alphaIdeal; /* note: use signed alpha */
-    plane.angVel.x += err*0.6*dt;
+  /* Self-trim: target the alpha that actually produces L = W at this speed */
+  if(!plane.onGround&&!AP.master&&Math.abs(input.pitch)<.02&&Va>45){
+    const CLneed=(ACFG.mass*9.81)/Math.max(q*ACFG.wingArea,1);
+    let alphaTrim=(CLneed-ACFG.CL0-fl.cl)/ACFG.CLa;
+    alphaTrim=BABYLON.Scalar.Clamp(alphaTrim,-0.02,ACFG.stallAlpha-0.06);
+    const agl=plane.pos.y-ghPreview;
+    const landingPhase=agl<120 && plane.vel.y<0;
+    const gain=landingPhase?0.8:2.5;
+    const alphaErr=alpha-alphaTrim;
+    plane.angVel.x += alphaErr*gain*dt;
   }
   /* Roll levelling */
   if(plane.assist&&!AP.master&&Math.abs(input.roll)<.02){
@@ -1348,8 +1436,8 @@ function physicsStep(dt){
   }
 
   /* ---- GROUND HANDLING ---- */
-  const gh=sampleTerrain(plane.pos.x,plane.pos.z);
-  const gearHeight=plane.gearDown?3.8:0.6;
+  const gh=sampleSurface(plane.pos.x,plane.pos.z);
+  const gearHeight=ACFG.gearHeight;
   const clearance=plane.pos.y-gh-gearHeight;
 
   plane.quat.toRotationMatrix(tmpM);
@@ -1362,7 +1450,7 @@ function physicsStep(dt){
   plane.onGround=false;
   plane.justTouched=false;
 
-  if(clearance<0.5){
+  if(clearance<0.6){
     plane.onGround=true;
     const sink=Math.max(0,-plane.vel.y);
     const pitchRate=Math.abs(plane.angVel.x);
@@ -1370,10 +1458,10 @@ function physicsStep(dt){
     const hs=Math.hypot(plane.vel.x,plane.vel.z);
 
     const gearUpImpact = !plane.gearDown && sink>2.0;
-    const reallyHard   = sink>16.0;
-    const badBank      = Math.abs(bankDeg)>45;
-    const badPitch     = pitchDeg<-18 || pitchDeg>28;
-    const badRates     = rollRate>5.0 || pitchRate>4.5;
+    const reallyHard   = sink>24.0;
+    const badBank      = Math.abs(bankDeg)>50;
+    const badPitch     = pitchDeg<-25 || pitchDeg>35;
+    const badRates     = rollRate>6.0 || pitchRate>5.5;
 
     if(reallyHard || gearUpImpact || badBank || badPitch || badRates){
       let reason='IMPACT';
@@ -1393,57 +1481,81 @@ function physicsStep(dt){
       else if(fpm<550) showMsg('TOUCHDOWN · '+fpm+' fpm',1500);
       else showMsg('FIRM LANDING · '+fpm+' fpm',1800);
       if(plane.gearDown && hs>3 && plane.spoilerDeploy<0.5){plane.spoilerDeploy=1;updateChips();}
-      plane.gearCompress=Math.min(1,sink/8);
+      plane.gearCompress = Math.min(1, sink / 6);
+      plane.gearSpringVel = -sink * 0.6;
+      if(sink > 0.8 && sink < 12){
+        plane.vel.y = sink * 0.22;
+      } else if(sink < 0.8){
+        plane.vel.y = 0;
+      }
     }
 
-    plane.pos.y=gh+gearHeight;
-    if(plane.vel.y<0)plane.vel.y=Math.max(0,plane.vel.y*-0.02);
+    const springK = 55;
+    const damping = 7;
+    const suspAccel = -springK * plane.gearCompress - damping * plane.gearSpringVel;
+    plane.gearSpringVel += suspAccel * dt;
+    plane.gearCompress += plane.gearSpringVel * dt;
+    plane.gearCompress = Math.max(-0.15, Math.min(1.2, plane.gearCompress));
 
-    if(hs>0.1){
-      const lat=plane.vel.x*rW2.x+plane.vel.z*rW2.z;
-      const grip=Math.min(1,15*dt);
-      plane.vel.x-=rW2.x*lat*grip;
-      plane.vel.z-=rW2.z*lat*grip;
+    if(plane.vel.y > 0.15){
+      plane.onGround = false;
     }
 
-    if(hs>0.02){
-      let decel=0.55;
-      if(plane.brakeHold) decel+=5.5;
-      if(plane.spoilerDeploy>0.5) decel+=1.4;
-      if(plane.reverserOn) decel+=1.2;
-      const k2=Math.max(0,1-decel*dt/hs);
-      plane.vel.x*=k2;plane.vel.z*=k2;
-    } else {
-      plane.vel.x*=0.85;plane.vel.z*=0.85;
-      if(Math.abs(plane.vel.x)<0.04)plane.vel.x=0;
-      if(Math.abs(plane.vel.z)<0.04)plane.vel.z=0;
-    }
+    if(plane.onGround){
+      plane.pos.y = gh + gearHeight;
+      if(plane.vel.y < 0) plane.vel.y = 0;
 
-    if(hs>0.5){
-      const authority=Math.min(1,hs/45);
-      plane.angVel.y=effRud*1.4*authority;
-    } else {
-      plane.angVel.y*=Math.max(0,1-6*dt);
-    }
+      if(hs>0.1){
+        const lat=plane.vel.x*rW2.x+plane.vel.z*rW2.z;
+        const grip=Math.min(1,15*dt);
+        plane.vel.x-=rW2.x*lat*grip;
+        plane.vel.z-=rW2.z*lat*grip;
+      }
 
-    const pitchRad=pitchDeg*Math.PI/180;
-    const bankRad=bankDeg*Math.PI/180;
-    if(Math.abs(input.pitch)<0.05){
-      plane.angVel.x+=(-pitchRad*3.0 - plane.angVel.x*3.5)*dt;
-    }
-    plane.angVel.z+=(-bankRad*7.0 - plane.angVel.z*5.5)*dt;
+      if(hs>0.02){
+        let decel=0.55;
+        if(plane.brakeHold) decel+=5.5;
+        if(plane.spoilerDeploy>0.5) decel+=1.4;
+        if(plane.reverserOn) decel+=1.2;
+        const k2=Math.max(0,1-decel*dt/hs);
+        plane.vel.x*=k2;plane.vel.z*=k2;
+      } else {
+        plane.vel.x*=0.85;plane.vel.z*=0.85;
+        if(Math.abs(plane.vel.x)<0.04)plane.vel.x=0;
+        if(Math.abs(plane.vel.z)<0.04)plane.vel.z=0;
+      }
 
-    const damp=Math.max(0,1-6*dt);
-    plane.angVel.x*=damp;plane.angVel.z*=damp;
+      if(hs>0.5){
+        const authority=Math.min(1,hs/45);
+        plane.angVel.y=effRud*1.4*authority;
+      } else {
+        plane.angVel.y*=Math.max(0,1-6*dt);
+      }
 
-    if(plane.reverserOn && hs<2.0){
-      plane.reverserOn=false;showMsg('REVERSERS STOWED');updateChips();
+      const pitchRad=pitchDeg*Math.PI/180;
+      const bankRad=bankDeg*Math.PI/180;
+      if(hs<56 && Math.abs(input.pitch)<0.05){
+        plane.angVel.x+=(-pitchRad*2.6 - plane.angVel.x*3.5)*dt;
+      }
+      plane.angVel.z+=(-bankRad*7.0 - plane.angVel.z*5.5)*dt;
+
+      const damp=Math.max(0,1-6*dt);
+      plane.angVel.x*=damp;plane.angVel.z*=damp;
+
+      if(plane.reverserOn && hs<2.0){
+        plane.reverserOn=false;showMsg('REVERSERS STOWED');updateChips();
+      }
     }
   } else {
     if(plane.reverserOn){
       plane.reverserOn=false;updateChips();
     }
-    plane.gearCompress*=Math.max(0,1-3*dt);
+    const springK = 40;
+    const damping = 6;
+    const suspAccel = -springK * plane.gearCompress - damping * plane.gearSpringVel;
+    plane.gearSpringVel += suspAccel * dt;
+    plane.gearCompress += plane.gearSpringVel * dt;
+    plane.gearCompress = Math.max(-0.1, Math.min(1.2, plane.gearCompress));
   }
 
   const dq=BABYLON.Quaternion.RotationYawPitchRoll(-plane.angVel.y*dt,plane.angVel.x*dt,-plane.angVel.z*dt);
@@ -1474,13 +1586,12 @@ function crash(reason){
 }
 function respawn(){
   document.getElementById('crashOverlay').classList.remove('show');
-  const loc=currentLocation;resetAircraft(loc.lat,loc.lon,loc.elev);
+  const loc=currentLocation;
+  createRunway(loc.code);
+  resetAircraft(loc.lat,loc.lon,loc.elev);
   terrainCenter={x:0,z:0};rebuildTerrainAsync(0,0);
 }
 
-/* ===================================================================
-   CAMERA
-   =================================================================== */
 const camState={
   pos:new BABYLON.Vector3(0,950,80),quat:BABYLON.Quaternion.Identity(),
   orbitAngle:0,towerPos:null,flybyVantage:null,flybyTimer:0,cinemaTimer:6,
@@ -1554,7 +1665,7 @@ function computeCamTarget(dt,out){
       break;
     }
     case 1:{
-      const eyeOff=new BABYLON.Vector3(-.6,.26,14.0);
+      const eyeOff=new BABYLON.Vector3(-.6,.30,14.0);
       out.pos.copyFrom(plane.pos).addInPlace(BABYLON.Vector3.TransformNormal(eyeOff,_cm));
       const headLerp=1-Math.exp(-9*dt);
       camState.headYaw+=(camState.targetHeadYaw-camState.headYaw)*headLerp;
@@ -1563,7 +1674,7 @@ function computeCamTarget(dt,out){
       _cq1.copyFrom(plane.quat);
       const hq=BABYLON.Quaternion.RotationYawPitchRoll(-camState.headYaw,camState.headPitch,0);
       out.quat=_cq1.multiply(hq);
-      out.fov=1.02;out.lerpRate=25;
+      out.fov=1.15;out.lerpRate=25;
       break;
     }
     case 2:{
@@ -1581,7 +1692,7 @@ function computeCamTarget(dt,out){
         const vd=plane.vel.lengthSquared()>1?plane.vel.normalizeToNew():fwd;
         const side=BABYLON.Vector3.Cross(vd,wUp).normalize();
         const t=plane.pos.add(vd.scale(340)).add(side.scale((Math.random()-.5)*280));
-        t.y=sampleTerrain(t.x,t.z)+12;camState.towerPos=t;
+        t.y=sampleSurface(t.x,t.z)+12;camState.towerPos=t;
       }
       out.pos.copyFrom(camState.towerPos);
       out.quat=quatFromLookAt(out.pos,plane.pos,wUp);
@@ -1598,7 +1709,7 @@ function computeCamTarget(dt,out){
         const side=BABYLON.Vector3.Cross(vd,wUp).normalize();
         const t=plane.pos.add(vd.scale(440+Math.random()*380))
           .add(side.scale((Math.random()<.5?-1:1)*(140+Math.random()*220)));
-        t.y=Math.max(sampleTerrain(t.x,t.z)+10,plane.pos.y+30+Math.random()*90);
+        t.y=Math.max(sampleSurface(t.x,t.z)+10,plane.pos.y+30+Math.random()*90);
         camState.flybyVantage=t;camState.flybyTimer=3+Math.random()*2;
       }
       out.pos.copyFrom(camState.flybyVantage);
@@ -1634,8 +1745,11 @@ function updateCamera(dt){
   }
   computeCamTarget(dt,_camTarget);
   if(camMode!==1){
-    const gH=sampleTerrain(_camTarget.pos.x,_camTarget.pos.z);
+    const gH=sampleSurface(_camTarget.pos.x,_camTarget.pos.z);
     if(_camTarget.pos.y<gH+5)_camTarget.pos.y=gH+5;
+  } else {
+    const gH=sampleSurface(_camTarget.pos.x,_camTarget.pos.z);
+    if(_camTarget.pos.y<gH+1.2)_camTarget.pos.y=gH+1.2;
   }
   const k=1-Math.exp(-_camTarget.lerpRate*dt);
   if(camState.transitionTimer>0){
@@ -1667,9 +1781,6 @@ function updateCamera(dt){
   if(skybox)skybox.position.copyFrom(camera.position);
 }
 
-/* ===================================================================
-   HUD
-   =================================================================== */
 const el={
   spd:document.getElementById('spdVal'),mach:document.getElementById('machVal'),
   alt:document.getElementById('altVal'),vs:document.getElementById('vsVal'),
@@ -1681,6 +1792,7 @@ const el={
   chipBrake:document.getElementById('chipBrake'),
   chipCam:document.getElementById('chipCam'),chipEng:document.getElementById('chipEng'),
   apTxt:document.getElementById('apTxt'),engTxt:document.getElementById('engTxt'),
+  aoaTxt:document.getElementById('aoaTxt'),
   stallWarn:document.getElementById('stallWarn')
 };
 const attCtx=document.getElementById('attitudeCanvas').getContext('2d');
@@ -1804,6 +1916,11 @@ function updateHUD(){
   el.apTxt.textContent='AP '+(AP.master?'ON':'OFF')+(AP.hdgMode?' · HDG':'')+(AP.altMode?' · ALT':'');
   const N1avg=(ENG.L.n1+ENG.R.n1)/2;
   el.engTxt.textContent='ENG '+(ENG.L.state==='RUNNING'?'RUN':'OFF')+' N1 '+Math.round(N1avg)+'%';
+  if(el.aoaTxt){
+    const aoaDeg=(plane.alpha*180/Math.PI);
+    el.aoaTxt.textContent='AOA '+aoaDeg.toFixed(1)+'°'+(plane.stall?' STALL':'');
+    el.aoaTxt.style.color=plane.stall?'#ff6060':(aoaDeg>15?'#ffd060':'#9fd4ff');
+  }
 
   drawAttitudeIndicator(attCtx);
   drawCompass(hdg);
@@ -1811,9 +1928,6 @@ function updateHUD(){
   drawScreens(hdg,pitch,bank);
 }
 
-/* ===================================================================
-   PFD / ND / EICAS drawing
-   =================================================================== */
 function drawPFD(ctx,W,H,hdg,pitch,bank){
   const S=Math.min(W,H),u=S/100,cx=W/2;
   const spd=plane.speed*1.94384,alt=plane.pos.y*3.28084,vs=plane.vel.y*196.85;
@@ -1973,9 +2087,6 @@ function drawScreens(hdg,pitch,bank){
   }catch(e){}
 }
 
-/* ===================================================================
-   TERRAIN
-   =================================================================== */
 status('terrain');
 const N=CFG.terrainGrid,E=CFG.terrainExtent,step=E/(N-1);
 const positions=new Float32Array(N*N*3);
@@ -2043,9 +2154,6 @@ async function rebuildTerrainAsync(cx,cz){
   catch(e){}finally{rebuildBusy=false;}
 }
 
-/* ===================================================================
-   WATER + CLOUDS
-   =================================================================== */
 let waterMesh=null;
 function createWater(){
   if(waterMesh)return;
@@ -2137,9 +2245,6 @@ try{
   pipeline.imageProcessing.toneMappingType=BABYLON.ImageProcessingConfiguration.TONEMAPPING_ACES;
 }catch(e){}
 
-/* ===================================================================
-   MAIN LOOP
-   =================================================================== */
 status('render loop');
 let lastTime=performance.now();
 let terrainCheckTimer=0,fpsAcc=0,hwScale=1/Math.min(window.devicePixelRatio||1,1.5);
@@ -2174,10 +2279,7 @@ scene.registerBeforeRender(()=>{
 engine.runRenderLoop(()=>scene.render());
 window.addEventListener('resize',()=>engine.resize());
 
-/* ===================================================================
-   BOOT
-   =================================================================== */
-let currentLocation=LOCS.LSZH;
+let currentLocation={...LOCS.LSZH,code:'LSZH',start:'cruise'};
 const overlay=document.getElementById('overlay');
 const startBtn=document.getElementById('startBtn');
 const keyInput=document.getElementById('keyInput');
@@ -2185,6 +2287,7 @@ const locSel=document.getElementById('locSelect');
 const respawnBtn=document.getElementById('respawnBtn');
 
 keyInput.value=localStorage.getItem('gmapsKey')||'';
+createRunway(currentLocation.code);
 resetAircraft(currentLocation.lat,currentLocation.lon,currentLocation.elev);
 createWater();createClouds();
 updateSurfaceVisuals();updateChips();
@@ -2195,6 +2298,7 @@ startBtn.addEventListener('click',async()=>{
   startBtn.disabled=true;overlay.classList.add('hidden');
   const val=locSel.value;setTOD(document.getElementById('todSelect').value);const[latS,lonS,elevS,code]=val.split(',');
   currentLocation={lat:parseFloat(latS),lon:parseFloat(lonS),elev:parseFloat(elevS),code,start:document.getElementById('startSel').value};
+  createRunway(currentLocation.code);
   resetAircraft(currentLocation.lat,currentLocation.lon,currentLocation.elev);
   terrainCenter={x:0,z:0};plane.hold=true;
   const key=keyInput.value.trim();
@@ -2209,13 +2313,8 @@ startBtn.addEventListener('click',async()=>{
     if(drawn===0)showMsg('IMAGERY UNAVAILABLE',5000);
     else showMsg(currentLocation.start==='takeoff'?'TAKEOFF · SHIFT=THROTTLE · ROTATE AT ~145 KT (S) · G=GEAR UP':currentLocation.start==='final'?'SHORT FINAL · 150 KT · FLAPS 30 · GEAR DOWN':'ENGINES RUNNING · I=START · C=CAMERA · F=FLAPS',6000);}
   catch(e){showMsg('IMAGERY TIMEOUT',4000);}
-  if(currentLocation.start==='takeoff'){
-    plane.pos.y=sampleTerrain(plane.pos.x,plane.pos.z)+3.9;
-    plane.vel.set(0,0,0);
-  }
-  if(currentLocation.start==='final'){
-    plane.pos.y=sampleTerrain(0,0)+183;
-  }
+  createRunway(currentLocation.code);
+  resetAircraft(currentLocation.lat,currentLocation.lon,currentLocation.elev);
   plane.hold=false;loadEl.textContent='Ready';status('flying');
 });
 respawnBtn.addEventListener('click',respawn);
