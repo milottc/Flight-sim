@@ -266,13 +266,13 @@ let runwayMesh=null, runwayY=0, runwayHdgDeg=0, runwayLenM=0, runwayWidM=0;
 
 /* Weather presets */
 const WEATHER={
-  clear:    {name:'CLEAR',      fogD:0.00012,fogC:[.72,.82,.94],sun:1.0,hemi:1.0,cloudB:1.0, cloudCount:1.0, rain:0, snow:0, wind:2,  gust:0.5,turb:0.15},
+   clear:    {name:'CLEAR',      fogD:0.00008,fogC:[.18,.48,.88],sun:1.2,hemi:1.1,cloudB:1.0, cloudCount:0.6, rain:0, snow:0, wind:2,  gust:0.5,turb:0.15},
   cloudy:   {name:'CLOUDY',     fogD:0.00030,fogC:[.68,.72,.78],sun:0.45,hemi:0.85,cloudB:0.75,cloudCount:1.8, rain:0, snow:0, wind:6,  gust:1.5,turb:0.4},
   rain:     {name:'RAIN',       fogD:0.00070,fogC:[.55,.58,.62],sun:0.25,hemi:0.65,cloudB:0.55,cloudCount:2.2, rain:1, snow:0, wind:9,  gust:2.5,turb:0.6},
   storm:    {name:'STORM',      fogD:0.00120,fogC:[.32,.34,.40],sun:0.08,hemi:0.45,cloudB:0.35,cloudCount:2.6, rain:2, snow:0, wind:18, gust:5.5,turb:1.4},
   fog:      {name:'FOG',        fogD:0.00350,fogC:[.75,.78,.82],sun:0.20,hemi:0.55,cloudB:0.6, cloudCount:0.4, rain:0, snow:0, wind:3,  gust:0.8,turb:0.2},
   snow:     {name:'SNOW',       fogD:0.00090,fogC:[.82,.86,.92],sun:0.35,hemi:0.80,cloudB:0.7, cloudCount:1.6, rain:0, snow:1, wind:8,  gust:2.0,turb:0.5},
-  windy:    {name:'CROSSWIND',  fogD:0.00018,fogC:[.68,.78,.90],sun:0.85,hemi:0.95,cloudB:0.9, cloudCount:1.0, rain:0, snow:0, wind:22, gust:6.0,turb:0.8},
+  windy:    {name:'CROSSWIND',  fogD:0.00018,fogC:[.88,.89,.91],sun:0.85,hemi:0.95,cloudB:0.9, cloudCount:1.0, rain:0, snow:0, wind:22, gust:6.0,turb:0.8},
   turbulent:{name:'TURBULENT',  fogD:0.00035,fogC:[.60,.68,.78],sun:0.55,hemi:0.80,cloudB:0.7, cloudCount:1.4, rain:0, snow:0, wind:14, gust:9.0,turb:2.2}
 };
 let currentWeather=WEATHER.clear;
@@ -401,7 +401,7 @@ const sunIncl=.68,sunAzim=.32;
 try{
   skybox=BABYLON.MeshBuilder.CreateBox('sky',{size:800000},scene);
   const sm=new BABYLON.SkyMaterial('skyM',scene);
-  sm.backFaceCulling=false;sm.turbidity=4.5;sm.rayleigh=2.2;sm.mieCoefficient=.0038;
+  sm.backFaceCulling=false;sm.turbidity=18;sm.rayleigh=.18;sm.mieCoefficient=.03;sm.mieDirectionalG=.92;
   sm.mieDirectionalG=.85;sm.inclination=sunIncl;sm.azimuth=sunAzim;sm.luminance=1.0;
   skybox.material=sm;skyMat=sm;skybox.infiniteDistance=true;skybox.applyFog=false;skybox.isPickable=false;
 }catch(e){}
@@ -423,7 +423,7 @@ const fbMat=new BABYLON.StandardMaterial('fbM',scene);
 fbMat.diffuseColor=new BABYLON.Color3(.3,.4,.28);fbMat.specularColor=new BABYLON.Color3(0,0,0);
 fallback.material=fbMat;fallback.position.y=-.5;
 
-const TOD={noon:{el:1.05,sun:3.6,hemi:.75,fog:[.72,.82,.94],exp:1.18},morning:{el:.45,sun:3.0,hemi:.6,fog:[.8,.78,.78],exp:1.15},
+const TOD={noon:{el:1.05,sun:3.6,hemi:.75,fog:[.93,.94,.95],exp:1.18},morning:{el:.45,sun:3.0,hemi:.6,fog:[.8,.78,.78],exp:1.15},
   golden:{el:.14,sun:2.6,hemi:.45,fog:[.92,.7,.5],exp:1.2},dusk:{el:-.04,sun:.5,hemi:.25,fog:[.28,.22,.3],exp:1.3},night:{el:-.5,sun:0,hemi:.1,fog:[.02,.03,.06],exp:1.6}};
 let currentTOD='noon';
 function setTOD(name){
@@ -1006,6 +1006,123 @@ cockpitLight.diffuse=new BABYLON.Color3(1,.95,.85);cockpitLight.setEnabled(false
 const cockpitLight2=new BABYLON.PointLight('cpL2',new BABYLON.Vector3(0,-.6,14.2),scene);
 cockpitLight2.parent=interiorRoot;cockpitLight2.intensity=1.2;cockpitLight2.range=5;
 cockpitLight2.diffuse=new BABYLON.Color3(.75,.9,1);cockpitLight2.setEnabled(false);
+/* ===== COCKPIT UPGRADE: real-737 style panels ===== */
+(function(){
+const DS=BABYLON.Mesh.DOUBLESIDE;
+function cvs(w,h,draw){const t=new BABYLON.DynamicTexture('ut'+Math.random(),{width:w,height:h},scene,true);draw(t.getContext(),w,h);t.update(true);return t;}
+function tmat(t,e){const m=new BABYLON.StandardMaterial('um'+Math.random(),scene);m.diffuseTexture=t;m.emissiveTexture=t;m.emissiveColor=new BABYLON.Color3(e,e,e);m.specularColor=new BABYLON.Color3(.12,.12,.12);m.backFaceCulling=false;return m;}
+function tpl(n,w,h,x,y,z,rx,ry,m){const p=BABYLON.MeshBuilder.CreatePlane(n,{width:w,height:h,sideOrientation:DS},scene);p.position.set(x,y,z);p.rotation.set(rx,ry||0,0);p.material=m;p.parent=interiorRoot;p.isPickable=false;return p;}
+function cyl(n,d,h,x,y,z,rx,rz,m){const c=BABYLON.MeshBuilder.CreateCylinder(n,{diameter:d,height:h,tessellation:24},scene);c.position.set(x,y,z);c.rotation.x=rx||0;c.rotation.z=rz||0;c.material=m;c.parent=interiorRoot;c.isPickable=false;return c;}
+const rect=(c,x,y,w,h,f)=>{c.fillStyle=f;c.fillRect(x,y,w,h);};
+const dot=(c,x,y,r,f)=>{c.fillStyle=f;c.beginPath();c.arc(x,y,r,0,6.2832);c.fill();};
+const knob=(c,x,y,r)=>{dot(c,x,y,r+2,'#08090a');const g=c.createRadialGradient(x-r/3,y-r/3,1,x,y,r);g.addColorStop(0,'#8a9096');g.addColorStop(1,'#2a2d31');c.fillStyle=g;c.beginPath();c.arc(x,y,r,0,6.2832);c.fill();c.strokeStyle='#eee';c.lineWidth=Math.max(1.5,r/5);c.beginPath();c.moveTo(x,y);c.lineTo(x,y-r);c.stroke();};
+const lamp=(c,x,y,w,h,col,txt,tc)=>{rect(c,x,y,w,h,'#050505');rect(c,x+2,y+2,w-4,h-4,col);if(txt){c.fillStyle=tc||'#111';c.font='bold '+Math.floor(h*.3)+'px sans-serif';c.textAlign='center';c.fillText(txt,x+w/2,y+h*.62);}};
+const tog=(c,x,y)=>{dot(c,x,y,11,'#0a0a0a');c.strokeStyle='#c8ccd0';c.lineWidth=6;c.beginPath();c.moveTo(x,y);c.lineTo(x,y-17);c.stroke();dot(c,x,y-18,5,'#e8ecef');};
+
+// --- Glareshield MCP (autopilot panel)
+const mcp=cvs(1536,110,(c,W,H)=>{
+ rect(c,0,0,W,H,'#202327');rect(c,0,0,W,5,'#33383e');
+ const win=(x,t,l)=>{c.fillStyle='#050505';c.fillRect(x,30,120,44);c.fillStyle='#ffb020';c.font='bold 38px monospace';c.textAlign='center';c.fillText(t,x+60,66);c.fillStyle='#b8c0c8';c.font='bold 13px sans-serif';c.fillText(l,x+60,22);};
+ win(110,'260','COURSE');win(460,'250','IAS/MACH');win(700,'090','HEADING');win(1010,'05000','ALTITUDE');win(1340,'260','COURSE');
+ const b=(x,t,on)=>{rect(c,x,38,52,34,'#3a3f46');rect(c,x+6,42,40,6,on?'#4dff7a':'#1b3a24');c.fillStyle='#e8e8e8';c.font='bold 11px sans-serif';c.textAlign='center';c.fillText(t,x+26,64);};
+ b(250,'N1');b(310,'SPEED',1);b(370,'LVL CHG');b(590,'VNAV',1);b(850,'HDG SEL',1);b(910,'APP');b(1160,'ALT HLD',1);b(1220,'V/S');b(1280,'LNAV',1);
+ [40,330,540,660,850,970,1180,1480].forEach((x,i)=>{if(i<2||i===7)knob(c,x+(i===7?-20:0),55,16);});
+ lamp(c,1160,80,60,22,'#1f6f34','CMD A','#cfc');lamp(c,1230,80,60,22,'#333','CMD B','#aaa');
+ c.fillStyle='#8f98a0';c.font='bold 12px sans-serif';c.fillText('A/T ARM',470,98);c.fillText('F/D',32,98);c.fillText('VOR LOC',760,98);
+});
+tpl('mcpP',1.5,.107,0,.115,14.97,.35,0,tmat(mcp,.85));
+
+// --- Extra detail on main instrument panel
+(function(){const c=panelCanvas,W=1024,H=297;
+ for(let i=0;i<40;i++){dot(c,12+i*25.6,5,1.6,'#55595e');dot(c,12+i*25.6,H-5,1.6,'#55595e');}
+ rect(c,0,0,W,60,'#1d2024');
+ lamp(c,20,10,52,40,'#d01818','FIRE WARN','#fff');lamp(c,80,10,60,40,'#e8a010','MASTER CAUTION');
+ lamp(c,884,10,60,40,'#e8a010','MASTER CAUTION');lamp(c,952,10,52,40,'#d01818','FIRE WARN','#fff');
+ [470,505,540].forEach(x=>lamp(c,x,14,28,22,'#16d04a'));c.fillStyle='#9fb5c9';c.font='bold 10px sans-serif';c.textAlign='center';c.fillText('GEAR',522,50);
+ [[20,165],[225,165],[402,220],[634,165],[839,165]].forEach(([x,w])=>{
+  for(let i=0;i<6;i++)rect(c,x+8+i*(w-50)/5,246,18,12,'#3c4046');knob(c,x+w-14,270,9);knob(c,x+14,270,9);});
+ panelTex.update(true);})();
+
+// --- New overhead panel
+const ohp=cvs(2048,512,(c,W,H)=>{
+ rect(c,0,0,W,H,'#2d3238');
+ const names=['FLT CONTROL','NAV / DISPLAYS','ELECTRICAL','FUEL / HYD','ANTI-ICE','AIR COND','LIGHTS','ENG / APU'];
+ const lit=['#5a3d10','#103a5a','#14502a','#5a1414'],on=['#ffb020','#2aa0ff','#2fe070','#ff3030'];
+ names.forEach((n,g)=>{const gx=g*256+10;
+  c.strokeStyle='#d8dde2';c.lineWidth=2;c.strokeRect(gx,12,236,H-24);
+  c.fillStyle='#d8dde2';c.font='bold 16px sans-serif';c.textAlign='center';c.fillText(n,gx+118,34);
+  for(let r=0;r<2;r++)for(let i=0;i<4;i++){const k=(i+r*2+g)%4;lamp(c,gx+10+i*57,46+r*40,52,34,(i*7+r*3+g)%5===0?on[k]:lit[k]);}
+  for(let i=0;i<4;i++)tog(c,gx+34+i*56,160);
+  for(let i=0;i<4;i++)tog(c,gx+34+i*56,230);
+  knob(c,gx+60,330,26);knob(c,gx+176,330,26);
+  for(let i=0;i<4;i++)lamp(c,gx+10+i*57,400,52,34,lit[(i+g)%4]);
+  c.fillStyle='#9aa4ad';c.font='11px sans-serif';for(let i=0;i<4;i++){c.fillText('SW'+(i+1),gx+34+i*56,180);c.fillText('SW'+(i+5),gx+34+i*56,250);}
+ });});
+ohpMesh.material.albedoTexture=ohp;ohpMesh.material.emissiveTexture=ohp;
+
+// --- Pedestal: CDUs, radio panel, trim wheels, gear lever
+function cduTex(){return cvs(300,360,(c,W,H)=>{
+ rect(c,0,0,W,H,'#1b1d20');rect(c,18,14,264,150,'#020a05');
+ c.fillStyle='#35ff8a';c.font='bold 16px monospace';c.textAlign='left';
+ ['     TAKEOFF REF 1/2','RWY 25C    FLAPS 5','CG 23.1%    TRIM 4.5','V1 138  VR 140  V2 146','ACTIVE ROUTE   LSZH','<INDEX      THRUST LIM>'].forEach((s,i)=>c.fillText(s,24,38+i*22));
+ for(let i=0;i<6;i++){rect(c,2,28+i*22,12,14,'#585c62');rect(c,286,28+i*22,12,14,'#585c62');}
+ ['INIT','RTE','CLB','CRZ','DES','DIR','LEGS','HOLD','PROG','EXEC'].forEach((k,i)=>{const x=18+(i%5)*54,y=176+Math.floor(i/5)*22;rect(c,x,y,48,17,'#3b3f45');c.fillStyle='#ddd';c.font='9px sans-serif';c.textAlign='center';c.fillText(k,x+24,y+12);});
+ for(let r=0;r<5;r++)for(let i=0;i<6;i++){const x=18+i*44,y=228+r*25;rect(c,x,y,38,20,'#2c3035');c.fillStyle='#e4e4e4';c.font='bold 12px sans-serif';c.textAlign='center';c.fillText(String.fromCharCode(65+(r*6+i)%26),x+19,y+14);}
+});}
+const cm=tmat(cduTex(),.8);
+[-1,1].forEach(s=>{intBox('cduB'+s,.25,.1,.34,s*.4,-.41,14.8,0,M.cockpitPanel);tpl('cduN'+s,.23,.28,s*.4,-.29,14.8,1.0,0,cm);});
+cduMesh.setEnabled(false);
+const rad=cvs(400,640,(c,W,H)=>{
+ rect(c,0,0,W,H,'#202327');
+ for(let p=0;p<2;p++){const y=14+p*150;rect(c,10,y,380,136,'#2b2f34');
+  c.fillStyle='#050505';c.fillRect(24,y+14,160,38);c.fillRect(204,y+14,160,38);
+  c.fillStyle='#ffb020';c.font='bold 28px monospace';c.textAlign='center';c.fillText(p?'123.450':'118.300',104,y+44);c.fillText(p?'121.500':'131.925',284,y+44);
+  knob(c,70,y+98,22);knob(c,330,y+98,22);for(let i=0;i<6;i++)rect(c,130+i*22,y+84,16,14,'#444');}
+ rect(c,10,320,380,120,'#2b2f34');c.fillStyle='#050505';c.fillRect(30,334,110,36);c.fillStyle='#ffb020';c.font='bold 26px monospace';c.textAlign='center';c.fillText('2000',85,362);
+ for(let r=0;r<2;r++)for(let i=0;i<4;i++){rect(c,170+i*52,334+r*42,44,34,'#444');}
+ [0,1,2].forEach(i=>lamp(c,30+i*60,396,52,30,['#2fe070','#ffb020','#2aa0ff'][i]));
+ rect(c,10,452,380,176,'#2b2f34');c.fillStyle='#9fb5c9';c.font='bold 13px sans-serif';c.fillText('AILERON TRIM    RUDDER TRIM',200,474);
+ knob(c,100,550,34);knob(c,300,550,34);lamp(c,150,600,100,22,'#16d04a','FUEL');
+});
+tpl('radP',.5,.8,0,-.287,13.8,Math.PI/2,0,tmat(rad,.7));
+[-1,1].forEach(s=>{cyl('trimW'+s,.26,.04,s*.3,-.42,14.0,0,Math.PI/2,M.dark);cyl('trimS'+s,.03,.042,s*.3,-.42,14.0,0,Math.PI/2,M.white);cyl('trimH'+s,.03,.05,s*.31,-.42,14.0,0,Math.PI/2,M.metal);});
+cyl('gearS',.02,.14,.22,-.34,14.99,Math.PI/2,0,M.metal);cyl('gearK',.07,.02,.22,-.34,14.9,Math.PI/2,0,M.white);
+
+// --- Side-wall circuit-breaker panels
+const cb=cvs(1024,600,(c,W,H)=>{rect(c,0,0,W,H,'#1d2024');
+ for(let r=0;r<12;r++){c.fillStyle='#9aa4ad';c.font='11px sans-serif';c.fillText('C'+(r+1),6,40+r*46);for(let i=0;i<40;i++)dot(c,50+i*23.5,34+r*46,7,(i*13+r*7)%11===0?'#c0392b':'#dfe3e6');}});
+const cbm=tmat(cb,.5);
+[-1,1].forEach(s=>tpl('cbP'+s,1.4,.8,s*1.535,.35,13.5,0,-s*Math.PI/2,cbm));
+
+// --- Sheepskin-style seat covers
+try{M.seat.albedoColor=new BABYLON.Color3(.74,.72,.66);M.seat.roughness=1;M.seat.metallic=0;}catch(e){}
+})();
+
+
+/* ===== HALF-HEXAGON FLIGHT DECK SHELL with side windows ===== */
+(function(){
+['cwl','cwr'].forEach(n=>{const m=scene.getMeshByName(n);if(m)m.setEnabled(false);});
+const sx=(n,k)=>{const m=scene.getMeshByName(n);if(m)m.scaling.x=k;};
+sx('ck',2/3.2);sx('wsb',2/3);sx('wst',2/3);sx('swf',2/3.2);
+const wl=scene.getMeshByName('wsl'),wr=scene.getMeshByName('wsr');if(wl)wl.position.x=-1.0;if(wr)wr.position.x=1.0;
+function wall(name,cx,cz,rotY,len,w0,w1){
+  const g=new BABYLON.TransformNode(name,scene);g.parent=interiorRoot;g.position.set(cx,0,cz);g.rotation.y=rotY;
+  const a=-len/2,b=len/2,B=(n,x,y,z,w,h,d,m)=>intBox(name+n,w,h,d,x,y,z,0,m||M.cockpitBody,g);
+  if(w0-a>.01)B('pre',0,.25,(a+w0)/2,.1,2.3,w0-a);
+  if(b-w1>.01)B('post',0,.25,(w1+b)/2,.1,2.3,b-w1);
+  const mid=(w0+w1)/2,wd=w1-w0;
+  B('low',0,-.45,mid,.1,.9,wd);B('up',0,1.175,mid,.1,.45,wd);
+  B('tl',0,.475,w0,.14,.95,.05,M.cockpitPanel);B('tr',0,.475,w1,.14,.95,.05,M.cockpitPanel);
+  B('tt',0,.95,mid,.14,.05,wd,M.cockpitPanel);B('tb',0,0,mid,.14,.05,wd,M.cockpitPanel);
+}
+const A=.432;
+for(const s of [-1,1]){
+  const k=s<0?'L':'R';
+  wall('hexS'+k,s*1.6,13.35,0,2.1,-.15,.85);
+  wall('hexA'+k,s*1.3,15.05,-s*A,1.43,-.55,.55);
+}
+['cbP-1','cbP1'].forEach(n=>{const m=scene.getMeshByName(n);if(m){m.position.z=12.75;m.scaling.x=.55;}});
+})();
 interiorRoot.getChildMeshes().forEach(m=>{sun.excludedMeshes.push(m);if(m.material&&m.material.environmentIntensity!==undefined&&m.material!==M.glass)m.material.environmentIntensity=.6;});
 interiorRoot.setEnabled(false);
 
@@ -1278,8 +1395,9 @@ window.addEventListener('keyup',e=>{keys[e.code]=false;});
 window.addEventListener('blur',()=>{for(const k in keys)keys[k]=false;});
 
 let mouseDown=false,mX=0,mY=0,mPitch=0,mRoll=0;
-canvas.addEventListener('mousedown',e=>{if(e.button===0){mouseDown=true;mX=e.clientX;mY=e.clientY;}});
-window.addEventListener('mouseup',e=>{if(e.button===0){mouseDown=false;mPitch=0;mRoll=0;}});
+canvas.addEventListener('contextmenu',e=>e.preventDefault());
+canvas.addEventListener('mousedown',e=>{if(e.button===2){mouseDown=true;mX=e.clientX;mY=e.clientY;}});
+window.addEventListener('mouseup',e=>{if(e.button===2){mouseDown=false;mPitch=0;mRoll=0;}});
 window.addEventListener('mousemove',e=>{
   if(!mouseDown)return;
   mRoll=BABYLON.Scalar.Clamp((e.clientX-mX)/260,-1,1);
@@ -1407,6 +1525,7 @@ function physicsStep(dt){
   const spDrag=plane.spoilerDeploy*.10;
   const brakeDrag=(plane.brakeHold&&Va<80)?.05:0;
   let CD=ACFG.CD0+ACFG.k*CL*CL+fl.cd+gearDrag+spDrag+brakeDrag;
+  { const mach=Va/(340.3-.0065*alt*.6); if(mach>.78)CD+=Math.pow(mach-.78,2)*9; }
   CD -= ACFG.k*CL*CL*geStrength*0.55;
   const q=.5*rho*Va*Va;
   const L=q*ACFG.wingArea*CL;
@@ -1434,6 +1553,7 @@ function physicsStep(dt){
   plane.vel.addInPlace(Fw.scale(dt/ACFG.mass));
   plane.pos.addInPlace(plane.vel.scale(dt));
 
+  if(plane.stall&&!plane.onGround){const sb=Math.min(1,plane.speed/60);plane.angVel.z+=(Math.random()-.5)*1.4*sb*dt*8;plane.angVel.x+=(Math.random()-.5)*.5*sb*dt*8;}
   /* ---- WEATHER: turbulence buffeting in air ---- */
   if(!plane.onGround){
     const turb=wx.turb;
@@ -1783,6 +1903,12 @@ function computeCamTarget(dt,out){
     }
   }
 }
+let lookYaw=0,lookPitch=0,_drag=null;
+canvas.addEventListener('pointerdown',e=>{_drag={x:e.clientX,y:e.clientY};try{canvas.setPointerCapture(e.pointerId);}catch(_){}});
+canvas.addEventListener('pointermove',e=>{if(!_drag)return;lookYaw-=(e.clientX-_drag.x)*.005;lookPitch-=(e.clientY-_drag.y)*.005;
+  lookYaw=((lookYaw+Math.PI)%(2*Math.PI)+2*Math.PI)%(2*Math.PI)-Math.PI;lookPitch=Math.max(-1.3,Math.min(1.3,lookPitch));_drag={x:e.clientX,y:e.clientY};});
+['pointerup','pointercancel'].forEach(t=>canvas.addEventListener(t,()=>{_drag=null;}));
+canvas.addEventListener('dblclick',()=>{lookYaw=0;lookPitch=0;});
 function updateCamera(dt){
   if(!camState.initialized){
     camera.position.set(plane.pos.x,plane.pos.y+6,plane.pos.z+44);
@@ -1805,16 +1931,17 @@ function updateCamera(dt){
     camera.rotationQuaternion=slerpShort(camState.fromQuat,_camTarget.quat,t);
     camera.fov=BABYLON.Scalar.Lerp(camera.fov,_camTarget.fov,t);
   }else{
-    BABYLON.Vector3.LerpToRef(camera.position,_camTarget.pos,k,camera.position);
-    camera.rotationQuaternion=slerpShort(camera.rotationQuaternion,_camTarget.quat,k);
+    if(camMode===0)camera.position.copyFrom(_camTarget.pos);else BABYLON.Vector3.LerpToRef(camera.position,_camTarget.pos,k,camera.position);
+    camera.rotationQuaternion=slerpShort(camera.rotationQuaternion,_camTarget.quat,camMode===0?1-Math.exp(-4*dt):k);
     camera.fov=BABYLON.Scalar.Lerp(camera.fov,_camTarget.fov,k);
   }
   if(camMode===1&&camState.transitionTimer<=0){camera.position.copyFrom(_camTarget.pos);camera.rotationQuaternion=_camTarget.quat.clone();camera.fov=_camTarget.fov;}
+  if(lookYaw||lookPitch){camera.rotationQuaternion=camera.rotationQuaternion.multiply(BABYLON.Quaternion.RotationYawPitchRoll(lookYaw,lookPitch,0));}
   /* Camera shake from weather turbulence + g load */
   const gDev=Math.abs(plane.gForce-1);
   const speedTurb=BABYLON.Scalar.Clamp((plane.speed-250)/250,0,.3);
   const wxTurb=currentWeather.turb*0.35;
-  const targetShake=gDev*.12+speedTurb*.15+wxTurb;
+  const targetShake=(camMode===1)?(gDev*.12+speedTurb*.15+wxTurb)*.5:0;
   camState.shake=Math.max(camState.shake,targetShake);
   camState.shake*=Math.exp(-3*dt);
   if(camState.shake>.0015){
@@ -2391,7 +2518,7 @@ try{
 
 try{
   const pipeline=new BABYLON.DefaultRenderingPipeline('dp',true,scene,[camera]);
-  pipeline.fxaaEnabled=true;
+  pipeline.fxaaEnabled=true;pipeline.samples=4;pipeline.sharpenEnabled=true;pipeline.sharpen.edgeAmount=.3;pipeline.sharpen.colorAmount=1;
   pipeline.bloomEnabled=true;pipeline.bloomThreshold=.9;
   pipeline.bloomWeight=.22;pipeline.bloomKernel=48;
   pipeline.imageProcessingEnabled=true;
@@ -2406,6 +2533,12 @@ try{
   pipeline.imageProcessing.toneMappingType=BABYLON.ImageProcessingConfiguration.TONEMAPPING_ACES;
 }catch(e){}
 
+try{
+  const gl=new BABYLON.GlowLayer('glow',scene,{blurKernelSize:32});gl.intensity=.45;
+  scene.meshes.forEach(m=>{if(m.name&&/^(stars|sky)/i.test(m.name))gl.addExcludedMesh(m);});
+}catch(e){}
+try{const p=scene.postProcessRenderPipelineManager.supportedPipelines[0];if(p){p.bloomWeight=.3;p.bloomThreshold=.8;p.imageProcessing.contrast=1.15;p.imageProcessing.exposure=1.1;p.chromaticAberrationEnabled=true;p.chromaticAberration.aberrationAmount=6;p.grainEnabled=true;p.grain.intensity=3;p.grain.animated=true;}}catch(e){}
+try{M.body.environmentIntensity=1.3;M.glass.alpha=.08;cockpitLight.intensity=2.4;cockpitLight2.intensity=1.6;}catch(e){}
 status('render loop');
 let lastTime=performance.now();
 let terrainCheckTimer=0,fpsAcc=0,hwScale=1/Math.min(window.devicePixelRatio||1,1.5);
