@@ -5,21 +5,6 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
 <title>Babylon Flight 737 · Pro</title>
 <style>
-  #faultPanel{position:fixed;top:46px;right:12px;z-index:9998;width:230px;padding:8px 10px;border-radius:6px;
-  background:rgba(6,16,26,.9);border:1px solid rgba(120,200,255,.5);font-size:11px;display:none;line-height:1.5}
-#faultPanel.show{display:block}
-#faultPanel .fh{color:#7fc7ff;letter-spacing:1.5px;margin-bottom:5px;padding-bottom:4px;
-  border-bottom:1px solid rgba(120,200,255,.3);font-weight:600}
-.faultRow{display:flex;justify-content:space-between;padding:2px 0;color:#ffb020}
-.faultRow.sev3{color:#ff5050;animation:blink .5s infinite alternate}
-.faultRow.sev1{color:#ffd060}
-.faultRow .rst{color:#7f9ab0;font-size:9.5px;letter-spacing:1px}
-#masterWarn{position:absolute;left:50%;top:190px;transform:translateX(-50%);display:none;gap:16px;pointer-events:none}
-#masterWarn.on{display:flex}
-#masterWarn>div{padding:7px 16px;border-radius:6px;font-weight:700;letter-spacing:3px;font-size:13px;display:none}
-#masterWarn>div.show{display:block}
-#masterWarn .mw{background:rgba(180,0,0,.75);color:#fff;border:1px solid #ff6060;animation:pulse .4s infinite alternate}
-#masterWarn .mc{background:rgba(180,120,0,.75);color:#fff;border:1px solid #ffc060}
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{width:100%;height:100%;overflow:hidden;background:#000;color:#eaf6ff;font-family:'Consolas','SF Mono',monospace}
 #renderCanvas{width:100%;height:100%;display:block;outline:none;touch-action:none}
@@ -27,7 +12,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000;color:#eaf6ff;f
 #bootBadge{position:fixed;top:8px;right:12px;z-index:9999;padding:6px 12px;border-radius:6px;background:rgba(6,16,26,.85);border:1px solid rgba(120,200,255,.5);color:#9fe0ff;font-size:11px}
 #camBadge{position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:9999;padding:8px 18px;border-radius:6px;background:linear-gradient(180deg,rgba(10,40,70,.9),rgba(6,20,40,.95));border:1px solid rgba(80,200,255,.6);color:#9fe0ff;font-size:13px;letter-spacing:2px;box-shadow:0 4px 16px rgba(0,0,0,.6);pointer-events:none;transition:opacity .4s}
 body.cockpit #camBadge{opacity:0}
-#{position:fixed;inset:0;pointer-events:none;z-index:10;text-shadow:0 0 6px rgba(0,0,0,.9)}
+#hud{position:fixed;inset:0;pointer-events:none;z-index:10;text-shadow:0 0 6px rgba(0,0,0,.9)}
 .panelBox{position:absolute;background:rgba(6,16,26,.5);border:1px solid rgba(120,200,255,.35);border-radius:8px;padding:8px 12px;backdrop-filter:blur(8px)}
 #infoBox{left:18px;top:18px;width:250px;font-size:11px;line-height:1.65}
 #msgBox{left:50%;top:60px;transform:translateX(-50%);font-size:13.5px;letter-spacing:1px;color:#ffd27a;opacity:0;transition:opacity .3s;text-align:center;max-width:80vw;padding:8px 16px;border-radius:6px;background:rgba(6,16,26,.7);border:1px solid rgba(255,210,120,.3)}
@@ -97,6 +82,22 @@ body.cockpit #infoBox{opacity:.75}
 #crashOverlay h1{color:#ff8080}
 #respawnBtn{margin-top:16px;width:100%;padding:12px;border:none;border-radius:8px;cursor:pointer;background:linear-gradient(90deg,#b03030,#e05050);color:#fff;font-size:13px;letter-spacing:3px;font-weight:600;text-transform:uppercase}
 #wxFlash{position:fixed;inset:0;z-index:15;pointer-events:none;opacity:0;background:#fff}
+/* ===== FAULT SYSTEM UI ===== */
+#faultPanel{position:fixed;top:46px;right:12px;z-index:9998;width:230px;padding:8px 10px;border-radius:6px;
+  background:rgba(6,16,26,.9);border:1px solid rgba(120,200,255,.5);font-size:11px;display:none;line-height:1.5}
+#faultPanel.show{display:block}
+#faultPanel .fh{color:#7fc7ff;letter-spacing:1.5px;margin-bottom:5px;padding-bottom:4px;
+  border-bottom:1px solid rgba(120,200,255,.3);font-weight:600}
+.faultRow{display:flex;justify-content:space-between;padding:2px 0;color:#ffb020}
+.faultRow.sev3{color:#ff5050;animation:blink .5s infinite alternate}
+.faultRow.sev1{color:#ffd060}
+.faultRow .rst{color:#7f9ab0;font-size:9.5px;letter-spacing:1px}
+#masterWarn{position:absolute;left:50%;top:190px;transform:translateX(-50%);display:none;gap:16px;pointer-events:none}
+#masterWarn.on{display:flex}
+#masterWarn>div{padding:7px 16px;border-radius:6px;font-weight:700;letter-spacing:3px;font-size:13px;display:none}
+#masterWarn>div.show{display:block}
+#masterWarn .mw{background:rgba(180,0,0,.75);color:#fff;border:1px solid #ff6060;animation:pulse .4s infinite alternate}
+#masterWarn .mc{background:rgba(180,120,0,.75);color:#fff;border:1px solid #ffc060}
 </style>
 </head>
 <body>
@@ -107,11 +108,6 @@ body.cockpit #infoBox{opacity:.75}
 <div id="wxFlash"></div>
 
 <div id="hud">
-  <div id="faultPanel"><div class="fh">FAULT LIST</div><div id="faultList"></div></div>
-<div id="masterWarn">
-  <div class="mw" id="mwWarn">MASTER WARNING</div>
-  <div class="mc" id="mwCaution">MASTER CAUTION</div>
-</div>
   <div class="panelBox" id="infoBox">
     <div class="lbl">BOEING 737-800</div>
     <div class="sub" id="hdgTxt">HDG 000°</div>
@@ -159,6 +155,11 @@ body.cockpit #infoBox{opacity:.75}
   <div class="panelBox" id="msgBox">MESSAGE</div>
   <div id="stallWarn">⚠ STALL</div>
   <div id="windWarn">⚠ WIND SHEAR / TURBULENCE</div>
+  <div id="faultPanel"><div class="fh">FAULT LIST</div><div id="faultList"></div></div>
+  <div id="masterWarn">
+    <div class="mw" id="mwWarn">MASTER WARNING</div>
+    <div class="mc" id="mwCaution">MASTER CAUTION</div>
+  </div>
 </div>
 
 <div id="overlay">
@@ -212,7 +213,7 @@ body.cockpit #infoBox{opacity:.75}
         <input id="keyInput" type="password" placeholder="AIzaSy..." autocomplete="off">
       </div>
       <div class="sectionHead">Controls & Info</div>
-      <div class="hint">A = roll left, D = roll right. Weather affects visibility, wind, and turbulence. Suspension is now extra bouncy — firm landings rebound visibly. Stall protection active.</div>
+      <div class="hint">A = roll left, D = roll right. Weather affects visibility, wind, and turbulence. Suspension is now extra bouncy — firm landings rebound visibly. Stall protection active. Fault system: F1-F8 inject/reset faults.</div>
       <div class="keys rowFull">
         <b>W / S</b><span>Pitch (nose down / nose up)</span><b>A / D</b><span>Roll left / right</span>
         <b>Q / E</b><span>Rudder</span><b>Shift / Ctrl</b><span>Throttle up / down</span>
@@ -224,6 +225,10 @@ body.cockpit #infoBox{opacity:.75}
         <b>1-5</b><span>Flap detents</span><b>P</b><span>Autopilot</span>
         <b>[ / ]</b><span>HDG bug</span><b>PgUp/PgDn</b><span>ALT bug</span>
         <b>T</b><span>Autothrottle</span><b>M</b><span>Mute audio</span>
+        <b>F1 / F2</b><span>Inject L/R engine fire</span><b>F3</b><span>Inject hydraulic loss</span>
+        <b>F4</b><span>Inject electrical fault</span><b>F5</b><span>Inject air-data fault</span>
+        <b>F6</b><span>Inject fuel leak</span><b>F7</b><span>Inject gear disagree</span>
+        <b>F8</b><span>Clear all faults</span><b></b><span></span>
       </div>
     </div>
     <button id="startBtn">Start Flight</button>
@@ -244,7 +249,7 @@ body.cockpit #infoBox{opacity:.75}
 <script>
 try{const _gp=navigator.getGamepads;navigator.getGamepads=function(){try{return _gp.call(navigator)||[];}catch(e){return [];}};}catch(e){}
 /* ===================================================================
-   BABYLON FLIGHT 737 · PRO  (weather + custom locations + bouncy)
+   BABYLON FLIGHT 737 · PRO  (weather + custom locations + bouncy + faults)
    =================================================================== */
 const errEl=document.getElementById('errorBanner'),bootEl=document.getElementById('bootBadge'),loadEl=document.getElementById('loadStatus');
 const camBadge=document.getElementById('camBadge');
@@ -1165,7 +1170,7 @@ const plane={
   assist:true,alpha:0,gForce:1,speed:135,
   fuel:18000,crashed:false,brakeHold:false,stall:false,onGround:false,
   gearCompress:0,gearSpringVel:0,justTouched:false,
-  turbTimer:0,turbPhase:0
+  turbTimer:0,turbPhase:0,hold:false
 };
 
 const FLAPS=[
@@ -1193,9 +1198,129 @@ const AP={master:false,fd:true,athr:false,yd:true,
 /* Wind vector (horizontal, m/s) — updated from weather */
 const windVec=new BABYLON.Vector3(0,0,0);
 
+/* ================= FAULT CONTROL SYSTEM ================= */
+const FAULTS={
+  ENG_FIRE_L:{sev:3,label:'ENG 1 FIRE',    reset:'EXTINGUISH'},
+  ENG_FIRE_R:{sev:3,label:'ENG 2 FIRE',    reset:'EXTINGUISH'},
+  HYD_LOSS:  {sev:2,label:'HYD PRESS LO',  reset:'LATCHED'},
+  ELEC_BUS:  {sev:2,label:'ELEC BUS OFF',  reset:'LATCHED'},
+  ADC_FAULT: {sev:1,label:'AIR DATA FAULT',reset:'LATCHED'},
+  FUEL_LEAK: {sev:2,label:'FUEL LEAK',     reset:'LATCHED'},
+  OVERSPEED: {sev:1,label:'OVERSPEED',     reset:'AUTO'},
+  STALL:     {sev:2,label:'STALL',         reset:'AUTO'},
+  GEAR_FAULT:{sev:2,label:'GEAR DISAGREE', reset:'LATCHED'}
+};
+
+class FaultController{
+  constructor(){ this.pending={}; this.latched={}; this.debounce=0.30; }
+  update(name, active, t){
+    if(active){
+      if(this.latched[name]) return;
+      if(this.pending[name]===undefined) this.pending[name]=t;
+      if(t-this.pending[name]>=this.debounce){ this.latched[name]=t; this.onLatch(name); }
+    } else {
+      if(this.latched[name] && FAULTS[name] && FAULTS[name].reset==='AUTO') this.clear(name);
+      delete this.pending[name];
+    }
+  }
+  inject(name){ if(this.latched[name]) return; this.latched[name]=performance.now()*0.001; this.onLatch(name); }
+  onLatch(name){
+    const f=FAULTS[name]; console.warn('[FAULT LATCHED]',name,f?f.label:name);
+    if(typeof showMsg==='function') showMsg('⚠ '+((f&&f.label)||name),3500);
+    if(f&&f.sev>=3&&typeof camState!=='undefined') camState.shake=Math.max(camState.shake,1.8);
+  }
+  clear(name){ delete this.latched[name]; delete this.pending[name]; }
+  clearAll(){ this.latched={}; this.pending={}; }
+  has(name){ return !!this.latched[name]; }
+  list(){ return Object.keys(this.latched); }
+  worst(){ let w=0; for(const n in this.latched){ const s=FAULTS[n]?FAULTS[n].sev:1; if(s>w)w=s; } return w; }
+}
+const faults=new FaultController();
+const fireTimers={L:0,R:0};
+
+function triggerFire(key){
+  if(faults.has('ENG_FIRE_'+key)) return;
+  faults.inject('ENG_FIRE_'+key);
+  fireTimers[key]=0;
+  ENG.fireWarning[key]=true;
+}
+function extinguishFire(key){
+  faults.clear('ENG_FIRE_'+key);
+  ENG.fireWarning[key]=false;
+  fireTimers[key]=0;
+}
+
+function updateFaults(dt){
+  const t=performance.now()*0.001;
+
+  /* Auto-detected conditions */
+  if(typeof computeAirspeed==='function'){
+    const air=computeAirspeed();
+    faults.update('OVERSPEED', air.mach>0.82, t);
+  }
+  faults.update('STALL', plane.stall && !plane.onGround, t);
+
+  /* Fuel leak drains tank */
+  if(faults.has('FUEL_LEAK')) plane.fuel=Math.max(0,plane.fuel-dt*80);
+  if(plane.fuel<=0){
+    for(const k of ['L','R']) if(ENG[k].state==='RUNNING'){ENG[k].state='SHUTDOWN';}
+  }
+
+  /* Un-handled engine fire kills the engine after 30 s */
+  for(const k of ['L','R']){
+    if(faults.has('ENG_FIRE_'+k)){
+      fireTimers[k]=(fireTimers[k]||0)+dt;
+      if(fireTimers[k]>30 && ENG[k].state!=='SHUTDOWN'){
+        ENG[k].state='SHUTDOWN';
+        showMsg('ENG '+k+' FAILED · FIRE',3000);
+      }
+    }
+  }
+
+  /* Rare random mechanical faults in flight (stay interesting) */
+  if(!plane.onGround && Math.random()<dt*0.00008){
+    const pool=['HYD_LOSS','ELEC_BUS','ADC_FAULT','FUEL_LEAK'];
+    faults.inject(pool[(Math.random()*pool.length)|0]);
+  }
+}
+
+function updateFaultHUD(){
+  const panel=document.getElementById('faultPanel');
+  const list=document.getElementById('faultList');
+  const mw=document.getElementById('masterWarn');
+  const mwWarn=document.getElementById('mwWarn');
+  const mwCaution=document.getElementById('mwCaution');
+  const items=faults.list();
+  if(items.length===0){
+    panel.classList.remove('show'); mw.classList.remove('on');
+    mwWarn.classList.remove('show'); mwCaution.classList.remove('show');
+  } else {
+    panel.classList.add('show');
+    let html='', worst=0;
+    for(const n of items){
+      const f=FAULTS[n]||{sev:1,label:n,reset:'LATCHED'};
+      const cls=f.sev>=3?'sev3':(f.sev===2?'':'sev1');
+      html+=`<div class="faultRow ${cls}"><span>${f.label}</span><span class="rst">${f.reset}</span></div>`;
+      if(f.sev>worst) worst=f.sev;
+    }
+    list.innerHTML=html;
+    mw.classList.add('on');
+    mwWarn.classList.toggle('show', worst>=3);
+    mwCaution.classList.toggle('show', worst===2);
+  }
+  /* Dim the CDU if electrical fault is active */
+  try{
+    const cduMeshRef=scene.getMeshByName('cdu');
+    if(cduMeshRef&&cduMeshRef.material){
+      cduMeshRef.material.emissiveColor=faults.has('ELEC_BUS')
+        ? new BABYLON.Color3(0,0,0)
+        : new BABYLON.Color3(1,1,1);
+    }
+  }catch(e){}
+}
+/* ================= END FAULT CONTROL SYSTEM ================= */
+
 function resetAircraft(lat,lon,elev){
-  faults.clearAll();
-fireTimers.L=0;fireTimers.R=0;
   CFG.origin.lat=lat;CFG.origin.lon=lon;
   M_PER_DEG_LAT=111132;M_PER_DEG_LON=111320*Math.cos(lat*Math.PI/180);
   plane.pos.set(0,Math.max(elev+1500,2000),0);
@@ -1209,6 +1334,10 @@ fireTimers.L=0;fireTimers.R=0;
   plane.fuel=18000;plane.crashed=false;plane.brakeHold=false;plane.stall=false;
   plane.gearCompress=0;plane.gearSpringVel=0;plane.justTouched=false;
   plane.turbTimer=0;plane.turbPhase=Math.random()*100;
+
+  /* Clear faults on respawn */
+  faults.clearAll();
+  fireTimers.L=0;fireTimers.R=0;
 
   const code=currentLocation.code;
   const start=currentLocation.start;
@@ -1255,6 +1384,7 @@ fireTimers.L=0;fireTimers.R=0;
   camState.initialized=false;camState.towerPos=null;camState.flybyVantage=null;
   camState.transitionTimer=0;camState.shake=0;
 }
+
 function toggleFireHandle(key){
   if(ENG.fireHandlesPulled[key]){
     ENG.fireHandlesPulled[key]=false;
@@ -1266,7 +1396,7 @@ function toggleFireHandle(key){
     fireHandles[key].pulled=true;
     fireHandles[key].pivot.position.y=-.24;
     showMsg('ENG '+key+' FIRE BOTTLE DISCHARGED');
-    extinguishFire(key);                       /* ← NEW: clears the fire fault */
+    extinguishFire(key);                       /* ← clears the fire fault */
     ENG.fireWarning[key]=false;
     setTimeout(()=>{
       ENG[key].state='SHUTDOWN';
@@ -1274,6 +1404,7 @@ function toggleFireHandle(key){
     },2000);
   }
 }
+
 function startEngines(){
   if(ENG.starting)return;
   if(ENG.L.state==='RUNNING'&&ENG.R.state==='RUNNING'){showMsg('ENGINES ALREADY RUNNING');return;}
@@ -1337,7 +1468,6 @@ function updateSurfaceVisuals(){
     rd.pivot.position.z = -0.3 + (rd.pivot.position.z + 0.3) * 0.85;
     rd.mesh.scaling.z = plane.reverserOn ? 1.05 : 1.0;
   }
-  /* Bouncier: more visual travel on compression */
   const compressOffset = (plane.gearCompress||0) * 0.65;
   for(const k in gearPivots){
     if(gearInitialY[k]!==undefined){
@@ -1379,18 +1509,19 @@ function setCamMode(m){
 }
 
 window.addEventListener('keydown',e=>{
-  if(e.code==='F1'){e.preventDefault();triggerFire('L');return;}
-if(e.code==='F2'){e.preventDefault();triggerFire('R');return;}
-if(e.code==='F3'){e.preventDefault();faults.inject('HYD_LOSS');return;}
-if(e.code==='F4'){e.preventDefault();faults.inject('ELEC_BUS');return;}
-if(e.code==='F5'){e.preventDefault();faults.inject('ADC_FAULT');return;}
-if(e.code==='F6'){e.preventDefault();faults.inject('FUEL_LEAK');return;}
-if(e.code==='F7'){e.preventDefault();faults.inject('GEAR_FAULT');return;}
-if(e.code==='F8'){e.preventDefault();faults.clearAll();
-  ENG.fireWarning.L=false;ENG.fireWarning.R=false;
-  fireTimers.L=0;fireTimers.R=0;
-  showMsg('ALL FAULTS CLEARED',2000);return;}
   if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','PageUp','PageDown'].includes(e.code))e.preventDefault();
+  /* ===== FAULT INJECTION KEYS ===== */
+  if(e.code==='F1'){e.preventDefault();triggerFire('L');return;}
+  if(e.code==='F2'){e.preventDefault();triggerFire('R');return;}
+  if(e.code==='F3'){e.preventDefault();faults.inject('HYD_LOSS');return;}
+  if(e.code==='F4'){e.preventDefault();faults.inject('ELEC_BUS');return;}
+  if(e.code==='F5'){e.preventDefault();faults.inject('ADC_FAULT');return;}
+  if(e.code==='F6'){e.preventDefault();faults.inject('FUEL_LEAK');return;}
+  if(e.code==='F7'){e.preventDefault();faults.inject('GEAR_FAULT');return;}
+  if(e.code==='F8'){e.preventDefault();faults.clearAll();
+    ENG.fireWarning.L=false;ENG.fireWarning.R=false;
+    fireTimers.L=0;fireTimers.R=0;
+    showMsg('ALL FAULTS CLEARED',2000);return;}
   if(keys[e.code])return;keys[e.code]=true;
   if(e.code==='KeyC'||e.code==='KeyV')setCamMode((camMode+1)%CAM_NAMES.length);
   if(e.code==='KeyR')respawn();
@@ -1502,10 +1633,8 @@ function physicsStep(dt){
   updateEngines(dt);
   updateAutopilot(dt);
 
-  /* ---- WEATHER: update wind + turbulence ---- */
   const wx=currentWeather;
   plane.turbPhase += dt*(0.7+wx.turb*0.5);
-  /* Slowly rotate wind direction */
   const windDir = sunAzim + Math.sin(plane.turbPhase*0.05)*0.4;
   const windSpeed = wx.wind + Math.sin(plane.turbPhase*0.3)*wx.gust;
   windVec.set(Math.sin(windDir)*windSpeed, 0, Math.cos(windDir)*windSpeed);
@@ -1529,7 +1658,6 @@ function physicsStep(dt){
 
   plane.quat.toRotationMatrix(tmpM);
   const invM=tmpM.clone().invert();
-  /* Air-relative velocity includes wind (plane.vel is ground-relative) */
   const airVel = plane.vel.clone().subtract(windVec);
   const vB=BABYLON.Vector3.TransformNormal(airVel,invM);
   const u=vB.z,v=vB.x,w=vB.y;
@@ -1586,7 +1714,6 @@ function physicsStep(dt){
   plane.pos.addInPlace(plane.vel.scale(dt));
 
   if(plane.stall&&!plane.onGround){const sb=Math.min(1,plane.speed/60);plane.angVel.z+=(Math.random()-.5)*1.4*sb*dt*8;plane.angVel.x+=(Math.random()-.5)*.5*sb*dt*8;}
-  /* ---- WEATHER: turbulence buffeting in air ---- */
   if(!plane.onGround){
     const turb=wx.turb;
     if(turb>0.01){
@@ -1602,8 +1729,10 @@ function physicsStep(dt){
 
   const auth=BABYLON.Scalar.Clamp(Va/90,.18,1.15);
   const kk=1-Math.exp(-6*dt);
-const hydFactor = faults.has('HYD_LOSS') ? 0.40 : 1.0;   /* ← HYD LO degrades surfaces */
-let targetPitchRate = effElev*ACFG.maxElevRate*auth*hydFactor;
+
+  /* ===== FAULT: HYDRAULIC LOSS degrades control authority ===== */
+  const hydFactor = faults.has('HYD_LOSS') ? 0.40 : 1.0;
+  let targetPitchRate = effElev*ACFG.maxElevRate*auth*hydFactor;
   const alphaNow=Math.abs(plane.alpha);
   const margin=ACFG.stallAlpha-alphaNow;
   if(margin<0.15 && targetPitchRate<0){
@@ -1614,8 +1743,8 @@ let targetPitchRate = effElev*ACFG.maxElevRate*auth*hydFactor;
     targetPitchRate=Math.max(targetPitchRate,urgency*1.4);
   }
   plane.angVel.x+=(targetPitchRate-plane.angVel.x)*kk;
- plane.angVel.y+=(effRud*ACFG.maxRudRate*auth*hydFactor-plane.angVel.y)*kk;
-plane.angVel.z+=(-effAil*ACFG.maxAilRate*auth*hydFactor-plane.angVel.z)*kk;
+  plane.angVel.y+=(effRud*ACFG.maxRudRate*auth*hydFactor-plane.angVel.y)*kk;
+  plane.angVel.z+=(-effAil*ACFG.maxAilRate*auth*hydFactor-plane.angVel.z)*kk;
   if(AP.yd)plane.angVel.y*=(1-2*dt);
 
   if(!plane.onGround&&!AP.master&&Math.abs(input.pitch)<.02&&Va>45){
@@ -1679,17 +1808,15 @@ plane.angVel.z+=(-effAil*ACFG.maxAilRate*auth*hydFactor-plane.angVel.z)*kk;
       else if(fpm<550) showMsg('TOUCHDOWN · '+fpm+' fpm',1500);
       else showMsg('FIRM LANDING · '+fpm+' fpm',1800);
       if(plane.gearDown && hs>3 && plane.spoilerDeploy<0.5){plane.spoilerDeploy=1;updateChips();}
-      /* Bouncier: stronger initial compression + bigger rebound */
       plane.gearCompress = Math.min(1.4, sink / 4);
       plane.gearSpringVel = -sink * 0.85;
       if(sink > 0.6 && sink < 14){
-        plane.vel.y = sink * 0.35;   /* More rebound */
+        plane.vel.y = sink * 0.35;
       } else if(sink < 0.6){
         plane.vel.y = 0;
       }
     }
 
-    /* Bouncier suspension: lower damping, higher spring constant */
     const springK = 90;
     const damping = 5.5;
     const suspAccel = -springK * plane.gearCompress - damping * plane.gearSpringVel;
@@ -1775,7 +1902,6 @@ plane.angVel.z+=(-effAil*ACFG.maxAilRate*auth*hydFactor-plane.angVel.z)*kk;
   const strobeOn=(st<.05)||(st>.15&&st<.2);
   M.white.emissiveColor=new BABYLON.Color3(strobeOn?1:0,strobeOn?1:0,strobeOn?1:0);
 
-  /* Storm lightning flash */
   if(currentWeather===WEATHER.storm){
     if(Math.random() < dt*0.35){
       wxFlash.style.opacity='0.55';
@@ -1969,7 +2095,6 @@ function updateCamera(dt){
   }
   if(camMode===1&&camState.transitionTimer<=0){camera.position.copyFrom(_camTarget.pos);camera.rotationQuaternion=_camTarget.quat.clone();camera.fov=_camTarget.fov;}
   if(lookYaw||lookPitch){camera.rotationQuaternion=camera.rotationQuaternion.multiply(BABYLON.Quaternion.RotationYawPitchRoll(lookYaw,lookPitch,0));}
-  /* Camera shake from weather turbulence + g load */
   const gDev=Math.abs(plane.gForce-1);
   const speedTurb=BABYLON.Scalar.Clamp((plane.speed-250)/250,0,.3);
   const wxTurb=currentWeather.turb*0.35;
@@ -2112,12 +2237,12 @@ function computeAirspeed(){
   const rho=1.225*Math.exp(-alt/8500);
   let kias=Va*Math.sqrt(rho/1.225)*1.94384;
   let mach=Va/340;
-  if(faults.has('ADC_FAULT')){                 /* ← NEW: noisy/bias air data */
+  if(faults.has('ADC_FAULT')){
     const t=performance.now()*0.001;
     kias += Math.sin(t*3.1)*12 + Math.sin(t*7.7)*6;
     mach += Math.sin(t*5.2)*0.02;
   }
-  return {tas:Va*1.94384, kias, mach};
+  return {tas:Va*1.94384,kias, mach};
 }
 function computeAGL(){
   const gh=sampleSurface(plane.pos.x,plane.pos.z);
@@ -2337,7 +2462,6 @@ function drawScreens(hdg,pitch,bank){
   /* ===== FAULT: ELECTRICAL BUS OFF ===== */
   if(faults.has('ELEC_BUS')){
     const t=performance.now()*0.001;
-    /* Flicker: mostly dark, occasional brief recovery pulse */
     if(Math.sin(t*9)>0.7){
       try{
         const keys=['pfdL','ndL','eicas','ndR','pfdR'];
@@ -2515,7 +2639,6 @@ function applyCloudTint(){
   }
 }
 
-/* ---- Rain / snow particle systems ---- */
 let rainPS=null, snowPS=null;
 function setupPrecipitation(){
   if(!rainPS){
@@ -2615,12 +2738,10 @@ scene.registerBeforeRender(()=>{
   let dt=(now-lastTime)/1000;lastTime=now;if(dt>.1)dt=.1;
 
   readInput(dt);
-
-  updateCamera(dt);
   physicsStep(dt);
-updateFaults(dt);
+  updateFaults(dt);
+  updateCamera(dt);
 
-  /* Rain / snow follows camera */
   if(rainPS&&rainPS.isStarted()){rainPS.emitter.copyFrom(camera.position);}
   if(snowPS&&snowPS.isStarted()){snowPS.emitter.copyFrom(camera.position);}
 
@@ -2634,7 +2755,7 @@ updateFaults(dt);
     if(f<26&&hwScale<2.2){hwScale+=.25;engine.setHardwareScalingLevel(hwScale);}
     else if(f>58&&hwScale>1/Math.min(window.devicePixelRatio||1,1.5)+.01){hwScale=Math.max(1,hwScale-.15);engine.setHardwareScalingLevel(hwScale);}}
   hudTick+=dt;
-if(hudTick>.05){ hudTick=0; updateHUD(); updateChips(); updateFaultHUD(); }
+  if(hudTick>.05){hudTick=0;updateHUD();updateChips();updateFaultHUD();}
   if(msgTimer>0){msgTimer-=dt;if(msgTimer<=0)el.msg.style.opacity=0;}
 
   cloudRoot.position.x=Math.round(plane.pos.x/20000)*20000;
@@ -2680,7 +2801,6 @@ status('ready');
 
 startBtn.addEventListener('click',async()=>{
   startBtn.disabled=true;overlay.classList.add('hidden');
-  /* Resolve location */
   let lat,lon,elev,code;
   if(locSel.value==='CUSTOM'){
     lat=parseFloat(customLat.value);
@@ -2690,16 +2810,13 @@ startBtn.addEventListener('click',async()=>{
       startBtn.disabled=false;overlay.classList.remove('hidden');return;
     }
     code=(customCode.value||'').trim().toUpperCase()||'CUSTOM';
-    /* If no matching runway preset, look up nearest by airport code or fall back */
     if(!RUNWAYS[code]){
-      /* Try nearest known runway preset by lat/lon */
       let bestKey=null,bestDist=1e12;
       for(const k in LOCS){
         const L=LOCS[k];
         const d=(L.lat-lat)**2+(L.lon-lon)**2;
         if(d<bestDist){bestDist=d;bestKey=k;}
       }
-      /* Only use the preset's heading if very close (< 0.5°); else create a default */
       if(bestDist<0.25){
         const h=RUNWAYS[bestKey]?RUNWAYS[bestKey].hdg:0;
         RUNWAYS[code]={hdg:h||90,len:3000,wid:60};
@@ -2707,7 +2824,6 @@ startBtn.addEventListener('click',async()=>{
         RUNWAYS[code]={hdg:90,len:3000,wid:60};
       }
     }
-    /* Elevation from terrain once tiles loaded; use 0 as initial */
     elev=0;
   } else {
     const val=locSel.value;
@@ -2734,7 +2850,6 @@ startBtn.addEventListener('click',async()=>{
     if(drawn===0)showMsg('IMAGERY UNAVAILABLE',5000);
     else showMsg('READY · '+currentWeather.name+' · '+(currentLocation.start==='takeoff'?'TAKEOFF · SHIFT=THR · S=ROTATE':'FLY SAFE'),6000);}
   catch(e){showMsg('IMAGERY TIMEOUT',4000);}
-  /* Rebuild runway + aircraft on real elevation */
   createRunway(currentLocation.code);
   resetAircraft(currentLocation.lat,currentLocation.lon,currentLocation.elev);
   plane.hold=false;loadEl.textContent='Ready';status('flying');
@@ -2742,120 +2857,7 @@ startBtn.addEventListener('click',async()=>{
 respawnBtn.addEventListener('click',respawn);
 setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classList.add('hidden');},20000);
 
-}
-  /* ================= FAULT CONTROL SYSTEM ================= */
-const FAULTS={
-  ENG_FIRE_L:{sev:3,label:'ENG 1 FIRE',   reset:'EXTINGUISH'},
-  ENG_FIRE_R:{sev:3,label:'ENG 2 FIRE',   reset:'EXTINGUISH'},
-  HYD_LOSS:  {sev:2,label:'HYD PRESS LO', reset:'LATCHED'},
-  ELEC_BUS:  {sev:2,label:'ELEC BUS OFF', reset:'LATCHED'},
-  ADC_FAULT: {sev:1,label:'AIR DATA FAULT',reset:'LATCHED'},
-  FUEL_LEAK: {sev:2,label:'FUEL LEAK',    reset:'LATCHED'},
-  OVERSPEED: {sev:1,label:'OVERSPEED',    reset:'AUTO'},
-  STALL:     {sev:2,label:'STALL',        reset:'AUTO'},
-  GEAR_FAULT:{sev:2,label:'GEAR DISAGREE',reset:'LATCHED'}
-};
-
-class FaultController{
-  constructor(){ this.pending={}; this.latched={}; this.debounce=0.30; }
-  update(name, active, t){
-    if(active){
-      if(this.latched[name]) return;
-      if(this.pending[name]===undefined) this.pending[name]=t;
-      if(t-this.pending[name]>=this.debounce){ this.latched[name]=t; this.onLatch(name); }
-    } else {
-      // Auto-clearing faults (advisory / condition-based) release when the cause is gone
-      if(this.latched[name] && FAULTS[name] && FAULTS[name].reset==='AUTO') this.clear(name);
-      delete this.pending[name];
-    }
-  }
-  inject(name){ if(this.latched[name]) return; this.latched[name]=performance.now()*0.001; this.onLatch(name); }
-  onLatch(name){
-    const f=FAULTS[name]; console.warn('[FAULT LATCHED]',name,f?f.label:name);
-    if(typeof showMsg==='function') showMsg('⚠ '+((f&&f.label)||name),3500);
-    if(f&&f.sev>=3&&typeof camState!=='undefined') camState.shake=Math.max(camState.shake,1.8);
-  }
-  clear(name){ delete this.latched[name]; delete this.pending[name]; }
-  clearAll(){ this.latched={}; this.pending={}; }
-  has(name){ return !!this.latched[name]; }
-  list(){ return Object.keys(this.latched); }
-  worst(){ let w=0; for(const n in this.latched){ const s=FAULTS[n]?FAULTS[n].sev:1; if(s>w)w=s; } return w; }
-}
-const faults=new FaultController();
-const fireTimers={L:0,R:0};
-
-function triggerFire(key){
-  if(faults.has('ENG_FIRE_'+key)) return;
-  faults.inject('ENG_FIRE_'+key);
-  fireTimers[key]=0;
-  ENG.fireWarning[key]=true;
-}
-function extinguishFire(key){
-  faults.clear('ENG_FIRE_'+key);
-  ENG.fireWarning[key]=false;
-  fireTimers[key]=0;
-}
-
-function updateFaults(dt){
-  const t=performance.now()*0.001;
-
-  /* Auto-detected conditions */
-  if(typeof computeAirspeed==='function'){
-    const air=computeAirspeed();
-    faults.update('OVERSPEED', air.mach>0.82, t);
-  }
-  faults.update('STALL', plane.stall && !plane.onGround, t);
-
-  /* Fuel leak drains tank */
-  if(faults.has('FUEL_LEAK')) plane.fuel=Math.max(0,plane.fuel-dt*80);
-  if(plane.fuel<=0){
-    for(const k of ['L','R']) if(ENG[k].state==='RUNNING'){ENG[k].state='SHUTDOWN';}
-  }
-
-  /* Un-handled engine fire kills the engine after 30 s */
-  for(const k of ['L','R']){
-    if(faults.has('ENG_FIRE_'+k)){
-      fireTimers[k]=(fireTimers[k]||0)+dt;
-      if(fireTimers[k]>30 && ENG[k].state!=='SHUTDOWN'){
-        ENG[k].state='SHUTDOWN';
-        showMsg('ENG '+k+' FAILED · FIRE',3000);
-      }
-    }
-  }
-
-  /* Rare random mechanical faults in flight (stay interesting) */
-  if(!plane.onGround && Math.random()<dt*0.00008){
-    const pool=['HYD_LOSS','ELEC_BUS','ADC_FAULT','FUEL_LEAK'];
-    faults.inject(pool[(Math.random()*pool.length)|0]);
-  }
-}
-
-function updateFaultHUD(){
-  const panel=document.getElementById('faultPanel');
-  const list=document.getElementById('faultList');
-  const mw=document.getElementById('masterWarn');
-  const mwWarn=document.getElementById('mwWarn');
-  const mwCaution=document.getElementById('mwCaution');
-  const items=faults.list();
-  if(items.length===0){
-    panel.classList.remove('show'); mw.classList.remove('on');
-    mwWarn.classList.remove('show'); mwCaution.classList.remove('show');
-    return;
-  }
-  panel.classList.add('show');
-  let html='', worst=0;
-  for(const n of items){
-    const f=FAULTS[n]||{sev:1,label:n,reset:'LATCHED'};
-    const cls=f.sev>=3?'sev3':(f.sev===2?'':'sev1');
-    html+=`<div class="faultRow ${cls}"><span>${f.label}</span><span class="rst">${f.reset}</span></div>`;
-    if(f.sev>worst) worst=f.sev;
-  }
-  list.innerHTML=html;
-  mw.classList.add('on');
-  mwWarn.classList.toggle('show', worst>=3);
-  mwCaution.classList.toggle('show', worst===2);
-}
-  /* end main */
+} /* end main */
 </script>
 </body>
 </html>
