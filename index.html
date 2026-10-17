@@ -108,7 +108,34 @@ body.cockpit #infoBox{opacity:.75}
 .faultBtn.clear{background:rgba(40,80,40,.6);border-color:#60c060;color:#a0ffa0}
 .faultBtn.clear:hover{background:rgba(60,120,60,.8);border-color:#80ff80}
 .faultBtn.imgOn{background:rgba(220,120,40,.5);border-color:#ffa040;color:#ffd0a0}
-#tcas{right:18px;bottom:250px;width:190px;height:190px;padding:8px}#tcasCanvas{display:block;width:170px;height:170px}</style>
+#tcas{right:18px;bottom:250px;width:190px;height:190px;padding:8px}#tcasCanvas{display:block;width:170px;height:170px}
+#touchUI{display:none;position:fixed;inset:0;z-index:30;pointer-events:none;user-select:none;-webkit-user-select:none;touch-action:none}
+body.mobile #touchUI{display:block}
+#touchUI>*{pointer-events:auto;touch-action:none}
+#joy{position:absolute;left:18px;bottom:18px;width:130px;height:130px;border-radius:50%;background:rgba(10,30,50,.45);border:2px solid rgba(120,200,255,.5)}
+#joyK{position:absolute;left:45px;top:45px;width:40px;height:40px;border-radius:50%;background:rgba(120,200,255,.7);border:2px solid #cfeaff}
+#thr{position:absolute;right:18px;bottom:18px;width:54px;height:170px;border-radius:14px;background:rgba(10,30,50,.45);border:2px solid rgba(120,200,255,.5);overflow:hidden}
+#thrF{position:absolute;left:0;bottom:0;width:100%;height:0;background:linear-gradient(0deg,#2dff7a,#ffd400,#ff6060);opacity:.75}
+#thrL{position:absolute;top:4px;left:0;width:100%;text-align:center;font-size:10px;color:#fff;letter-spacing:1px}
+.tb{position:absolute;min-width:50px;padding:9px 8px;border-radius:9px;text-align:center;font:600 11px Consolas,monospace;letter-spacing:.5px;color:#cfeaff;background:rgba(10,30,50,.62);border:1px solid rgba(120,200,255,.5)}
+.tb.dn{background:rgba(60,140,220,.75);color:#fff}
+#tbRow{position:absolute;left:162px;right:92px;bottom:18px;display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+#tbRow .tb{position:static}
+#tbYL{left:162px;bottom:96px}#tbYR{left:222px;bottom:96px}
+body.mobile #infoBox,body.mobile #configPanel,body.mobile #compass,body.mobile #vsi,body.mobile #bootBadge{display:none!important}
+body.mobile #airspeed{left:6px!important;top:6px!important;bottom:auto!important;width:110px!important;padding:6px 8px!important}
+body.mobile #altitude{right:6px!important;top:6px!important;bottom:auto!important;width:120px!important;padding:6px 8px!important}
+body.mobile #airspeed .val,body.mobile #altitude .val{font-size:24px!important}
+body.mobile #attitude{bottom:auto!important;top:6px!important;transform:translateX(-50%) scale(.5)!important;transform-origin:top center}
+body.mobile #tcas{right:6px!important;bottom:auto!important;top:92px!important;transform:scale(.7);transform-origin:top right}
+body.mobile #camBadge{top:auto;bottom:150px;opacity:.7}
+body.mobile #msgBox{top:auto!important;bottom:190px!important;font-size:12px}
+body.mobile #stallWarn,body.mobile #windWarn,body.mobile #masterWarn{top:100px!important}
+body.mobile #faultTriggers{bottom:auto!important;top:150px;left:6px;right:auto;align-items:flex-start}
+body.mobile #faultToggleBtn{padding:6px 8px;font-size:10px}
+body.mobile #faultButtons{max-height:45vh}
+body.mobile #faultPanel{top:auto;bottom:200px;right:6px}
+</style>
 </head>
 <body>
 <canvas id="renderCanvas"></canvas>
@@ -296,6 +323,7 @@ body.cockpit #infoBox{opacity:.75}
         <b>L</b><span>Cycle livery</span><b>T</b><span>Autothrottle</span><b>M</b><span>Mute audio</span>
       </div>
     </div>
+    <label style="display:block;margin-top:14px;font-size:12px;color:#9fe0ff;letter-spacing:1px"><input type="checkbox" id="mobChk" style="width:auto;margin-right:8px">MOBILE / TOUCH MODE (on-screen controls)</label>
     <button id="startBtn">Start Flight</button>
     <div id="loadStatus">Ready</div>
   </div>
@@ -309,6 +337,17 @@ body.cockpit #infoBox{opacity:.75}
   </div>
 </div>
 
+<div id="touchUI">
+  <div id="joy"><div id="joyK"></div></div>
+  <div class="tb" id="tbYL" data-hold="KeyQ">◀ RUD</div><div class="tb" id="tbYR" data-hold="KeyE">RUD ▶</div>
+  <div id="tbRow">
+    <div class="tb" data-tap="KeyG">GEAR</div><div class="tb" data-tap="KeyF">FLAPS</div><div class="tb" data-tap="KeyB">SPLR</div>
+    <div class="tb" data-hold="Space">BRAKE</div><div class="tb" data-tap="KeyN">REV</div>
+    <div class="tb" data-tap="KeyC">CAM</div><div class="tb" data-tap="KeyP">AP</div><div class="tb" data-tap="KeyT">A/THR</div>
+    <div class="tb" data-tap="KeyI">ENG</div><div class="tb" data-tap="KeyR">RESET</div>
+  </div>
+  <div id="thr"><div id="thrF"></div><div id="thrL">THR</div></div>
+</div>
 <script src="https://cdn.babylonjs.com/babylon.js"></script>
 <script src="https://cdn.babylonjs.com/materials/babylonjs.materials.min.js"></script>
 <script>
@@ -1884,6 +1923,7 @@ function readInput(dt){
     if(keys['KeyQ'])y-=1;
     if(keys['KeyE'])y+=1;
     if(mouseDown){p+=mPitch;r+=mRoll;}
+    p+=tPitch;r+=tRoll;
     input.pitch=BABYLON.Scalar.Clamp(p,-1,1);
     input.roll=BABYLON.Scalar.Clamp(r,-1,1);
     input.yaw=BABYLON.Scalar.Clamp(y,-1,1);
@@ -3444,6 +3484,40 @@ function buildCity(cx,cz){
   for(let k=0;k<3;k++)set(cityMeshes[k],buf[k],col[k]);
   set(roofMesh,rb,rc);set(treeMesh,tb,tc);
 }
+
+/* ===== MOBILE / TOUCH MODE ===== */
+let tPitch=0,tRoll=0;
+(function(){
+  const chk=document.getElementById('mobChk'),joy=document.getElementById('joy'),knob=document.getElementById('joyK'),thr=document.getElementById('thr'),thrF=document.getElementById('thrF');
+  const auto=('ontouchstart' in window||navigator.maxTouchPoints>0)&&Math.min(screen.width,screen.height)<900;
+  chk.checked=localStorage.getItem('mobMode')?localStorage.getItem('mobMode')==='1':auto;
+  const apply=()=>{document.body.classList.toggle('mobile',chk.checked);localStorage.setItem('mobMode',chk.checked?'1':'0');setTimeout(()=>engine.resize(),50);};
+  chk.addEventListener('change',apply);apply();
+  document.getElementById('startBtn').addEventListener('click',()=>{if(chk.checked){try{const d=document.documentElement;(d.requestFullscreen||d.webkitRequestFullscreen||function(){}).call(d);}catch(e){}}});
+  /* joystick */
+  let jid=null;
+  const jmove=e=>{const r=joy.getBoundingClientRect(),R=r.width/2;let dx=e.clientX-(r.left+R),dy=e.clientY-(r.top+R);const l=Math.hypot(dx,dy);if(l>R){dx*=R/l;dy*=R/l;}
+    knob.style.left=(R-20+dx)+'px';knob.style.top=(R-20+dy)+'px';tRoll=-dx/R;tPitch=-dy/R;};
+  const jend=()=>{jid=null;tRoll=0;tPitch=0;knob.style.left='45px';knob.style.top='45px';};
+  joy.addEventListener('pointerdown',e=>{jid=e.pointerId;joy.setPointerCapture(e.pointerId);jmove(e);e.preventDefault();});
+  joy.addEventListener('pointermove',e=>{if(e.pointerId===jid)jmove(e);});
+  joy.addEventListener('pointerup',e=>{if(e.pointerId===jid)jend();});joy.addEventListener('pointercancel',jend);
+  /* throttle */
+  let tid=null;
+  const tset=e=>{const r=thr.getBoundingClientRect();const v=1-(e.clientY-r.top)/r.height;plane.throttle=Math.max(0,Math.min(1,v));};
+  thr.addEventListener('pointerdown',e=>{tid=e.pointerId;thr.setPointerCapture(e.pointerId);tset(e);e.preventDefault();});
+  thr.addEventListener('pointermove',e=>{if(e.pointerId===tid)tset(e);});
+  thr.addEventListener('pointerup',()=>{tid=null;});thr.addEventListener('pointercancel',()=>{tid=null;});
+  setInterval(()=>{thrF.style.height=(plane.throttle*100)+'%';},100);
+  /* buttons */
+  const tap=code=>{window.dispatchEvent(new KeyboardEvent('keydown',{code}));window.dispatchEvent(new KeyboardEvent('keyup',{code}));};
+  document.querySelectorAll('#touchUI .tb').forEach(b=>{
+    const t=b.dataset.tap,h=b.dataset.hold;
+    b.addEventListener('pointerdown',e=>{e.preventDefault();b.classList.add('dn');if(t)tap(t);if(h)keys[h]=true;});
+    const up=()=>{b.classList.remove('dn');if(h)keys[h]=false;};
+    b.addEventListener('pointerup',up);b.addEventListener('pointercancel',up);b.addEventListener('pointerleave',up);
+  });
+})();
 
 status('render loop');
 let lastTime=performance.now();
