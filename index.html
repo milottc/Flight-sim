@@ -135,14 +135,14 @@ body.mobile #faultTriggers{bottom:auto!important;top:150px;left:6px;right:auto;a
 body.mobile #faultToggleBtn{padding:6px 8px;font-size:10px}
 body.mobile #faultButtons{max-height:45vh}
 body.mobile #faultPanel{top:auto;bottom:200px;right:6px}
-</style>
+#smokeHaze{position:fixed;inset:0;z-index:14;pointer-events:none;opacity:0;transition:opacity 2.5s;background:radial-gradient(ellipse at 50% 55%,rgba(90,90,92,.25),rgba(35,35,38,.8) 85%)}</style>
 </head>
 <body>
 <canvas id="renderCanvas"></canvas>
 <div id="errorBanner"></div>
 <div id="bootBadge">BOOT · init</div>
 <div id="camBadge">CAM · CHASE</div>
-<div id="wxFlash"></div>
+<div id="wxFlash"></div><div id="smokeHaze"></div>
 
 <div id="hud">
   <div class="panelBox" id="infoBox">
@@ -239,6 +239,7 @@ body.mobile #faultPanel{top:auto;bottom:200px;right:6px}
     <button class="faultBtn" data-inject="FUEL_QTY">FUEL QTY SENSOR</button>
     <button class="faultBtn" data-inject="ENG_SENSOR">ENG 1 SENSOR FAIL</button>
     <button class="faultBtn" data-inject="RADALT_FAIL">RADIO ALT FAIL</button>
+    <button class="faultBtn" data-inject="COCKPIT_SMOKE">COCKPIT SMOKE</button>
     <button class="faultBtn" data-inject="COLLISION">COLLISION COURSE (TCAS)</button>
     <div class="fgSep"></div>
     <button class="faultBtn clear" data-clear="all">CLEAR ALL FAULTS</button>
@@ -523,7 +524,12 @@ function sampleSurface(x,z){
 
 status('engine');
 const canvas=document.getElementById('renderCanvas');
-const engine=new BABYLON.Engine(canvas,true,{stencil:true,antialias:true,powerPreference:'high-performance'});
+let engine=null;
+const isTouchDev=('ontouchstart' in window||navigator.maxTouchPoints>0)&&Math.min(screen.width,screen.height)<900;
+if(isTouchDev){CFG.texSize=2048;CFG.terrainGrid=161;}
+const engOpts=[{stencil:true,antialias:true,powerPreference:'high-performance',failIfMajorPerformanceCaveat:false},{stencil:true,antialias:false,failIfMajorPerformanceCaveat:false},{stencil:false,antialias:false,failIfMajorPerformanceCaveat:false,preserveDrawingBuffer:false}];
+for(const o of engOpts){try{engine=new BABYLON.Engine(canvas,o.antialias,o,true);if(engine)break;}catch(e){engine=null;}}
+if(!engine){fatal('WebGL could not start. Fixes: enable hardware acceleration in your browser settings (Chrome: Settings > System), update your browser/GPU drivers, close other heavy tabs, or try another browser (Chrome/Edge/Safari). Test at get.webgl.org');return;}
 engine.setHardwareScalingLevel(1/Math.min(window.devicePixelRatio||1,1.5));
 const scene=new BABYLON.Scene(engine);
 scene.clearColor=new BABYLON.Color4(.55,.72,.92,1);
@@ -869,17 +875,22 @@ navL.material=M.red;navL.position.set(-16.7,1.9,-2.95);navL.parent=exteriorRoot;
 const navR=navL.clone('nvR');navR.material=M.green;navR.position.x=16.7;navR.parent=exteriorRoot;
 
 /* ========== FIRE + SMOKE + SPARKS PARTICLE SYSTEMS ========== */
-const firePS={}, smokePS={};
+const firePS={}, smokePS={}, emberPS={};let cockpitSmokePS=null;
 let sparksPS=null;
 
 function setupFireAndSmoke(){
+  const mkTex=(nm,draw)=>{const t=new BABYLON.DynamicTexture(nm,{width:128,height:128},scene,true);draw(t.getContext());t.hasAlpha=true;t.update(false);return t;};
+  const fireTex=mkTex('fireT',c=>{c.clearRect(0,0,128,128);const g=c.createRadialGradient(64,70,2,64,64,62);g.addColorStop(0,'rgba(255,255,230,1)');g.addColorStop(.25,'rgba(255,210,90,.95)');g.addColorStop(.55,'rgba(255,100,20,.55)');g.addColorStop(1,'rgba(200,30,0,0)');c.fillStyle=g;c.fillRect(0,0,128,128);});
+  const smokeTex=mkTex('smokeT',c=>{c.clearRect(0,0,128,128);for(let i=0;i<9;i++){const x=64+(Math.random()-.5)*44,y=64+(Math.random()-.5)*44,r=26+Math.random()*22,g=c.createRadialGradient(x,y,2,x,y,r);g.addColorStop(0,'rgba(255,255,255,.5)');g.addColorStop(1,'rgba(255,255,255,0)');c.fillStyle=g;c.fillRect(0,0,128,128);}});
+  const emberTex=mkTex('emberT',c=>{c.clearRect(0,0,128,128);const g=c.createRadialGradient(64,64,0,64,64,60);g.addColorStop(0,'rgba(255,255,200,1)');g.addColorStop(.3,'rgba(255,160,40,.9)');g.addColorStop(1,'rgba(255,80,0,0)');c.fillStyle=g;c.fillRect(0,0,128,128);});
+  window._smokeTex=smokeTex;
   const flareURL='https://assets.babylonjs.com/textures/flare.png';
   for(const key of ['L','R']){
     const emNode=engineEmitNodes[key];
 
     /* Fire */
     const f=new BABYLON.ParticleSystem('fire_'+key,600,scene);
-    f.particleTexture=new BABYLON.Texture(flareURL,scene);
+    f.particleTexture=fireTex;
     f.emitter=emNode;
     f.minEmitBox=new BABYLON.Vector3(-.7,-.3,-1.2);
     f.maxEmitBox=new BABYLON.Vector3(.7,.3,1.2);
@@ -894,13 +905,21 @@ function setupFireAndSmoke(){
     f.direction1=new BABYLON.Vector3(-2,4,-2);
     f.direction2=new BABYLON.Vector3(2,10,2);
     f.minEmitPower=1.5;f.maxEmitPower=4;
-    f.updateSpeed=.015;
+    f.updateSpeed=.015;f.minInitialRotation=0;f.maxInitialRotation=6.28;f.minAngularSpeed=-2;f.maxAngularSpeed=2;
+    f.addColorGradient(0,new BABYLON.Color4(1,.95,.6,0));f.addColorGradient(.12,new BABYLON.Color4(1,.85,.35,.95));f.addColorGradient(.5,new BABYLON.Color4(1,.4,.06,.7));f.addColorGradient(1,new BABYLON.Color4(.35,.05,0,0));
+    f.addSizeGradient(0,.5);f.addSizeGradient(.3,1.4);f.addSizeGradient(1,.25);
     f.start();f.stop();
+    const em=new BABYLON.ParticleSystem('ember_'+key,200,scene);em.particleTexture=emberTex;em.emitter=emNode;
+    em.minEmitBox=new BABYLON.Vector3(-.6,-.2,-1);em.maxEmitBox=new BABYLON.Vector3(.6,.2,1);
+    em.color1=new BABYLON.Color4(1,.8,.3,1);em.color2=new BABYLON.Color4(1,.4,.05,1);em.colorDead=new BABYLON.Color4(.3,.05,0,0);
+    em.minSize=.08;em.maxSize=.28;em.minLifeTime=.8;em.maxLifeTime=1.8;em.emitRate=60;em.blendMode=BABYLON.ParticleSystem.BLENDMODE_ADD;
+    em.gravity=new BABYLON.Vector3(0,-3,0);em.direction1=new BABYLON.Vector3(-6,2,-6);em.direction2=new BABYLON.Vector3(6,8,6);em.minEmitPower=2;em.maxEmitPower=6;
+    em.start();em.stop();emberPS[key]=em;
     firePS[key]=f;
 
     /* Smoke */
     const s=new BABYLON.ParticleSystem('smoke_'+key,700,scene);
-    s.particleTexture=new BABYLON.Texture(flareURL,scene);
+    s.particleTexture=smokeTex;
     s.emitter=emNode;
     s.minEmitBox=new BABYLON.Vector3(-.6,-.3,-1);
     s.maxEmitBox=new BABYLON.Vector3(.6,.3,1);
@@ -914,11 +933,23 @@ function setupFireAndSmoke(){
     s.gravity=new BABYLON.Vector3(0,3.5,0);
     s.direction1=new BABYLON.Vector3(-1,2,-1);
     s.direction2=new BABYLON.Vector3(1,5,1);
-    s.minEmitPower=1;s.maxEmitPower=2.5;
+    s.minEmitPower=1;s.maxEmitPower=2.5;s.minInitialRotation=0;s.maxInitialRotation=6.28;s.minAngularSpeed=-.6;s.maxAngularSpeed=.6;
+    s.addColorGradient(0,new BABYLON.Color4(.08,.08,.08,0));s.addColorGradient(.1,new BABYLON.Color4(.12,.11,.1,.75));s.addColorGradient(.5,new BABYLON.Color4(.28,.27,.27,.5));s.addColorGradient(1,new BABYLON.Color4(.5,.5,.52,0));
+    s.addSizeGradient(0,.6);s.addSizeGradient(1,2.8);
     s.start();s.stop();
     smokePS[key]=s;
   }
 
+  /* Cockpit smoke */
+  const cn=new BABYLON.TransformNode('cpSmokeEm',scene);cn.parent=aircraftRoot;cn.position.set(0,-.35,14.7);
+  const cs=new BABYLON.ParticleSystem('cpSmoke',500,scene);cs.particleTexture=smokeTex;cs.emitter=cn;cs.isLocal=true;
+  cs.minEmitBox=new BABYLON.Vector3(-.7,0,-.2);cs.maxEmitBox=new BABYLON.Vector3(.7,0,.2);
+  cs.minSize=.5;cs.maxSize=1.3;cs.minLifeTime=3;cs.maxLifeTime=5.5;cs.emitRate=70;
+  cs.blendMode=BABYLON.ParticleSystem.BLENDMODE_STANDARD;cs.gravity=new BABYLON.Vector3(0,.25,0);
+  cs.direction1=new BABYLON.Vector3(-.3,.4,-.6);cs.direction2=new BABYLON.Vector3(.3,.9,.2);cs.minEmitPower=.2;cs.maxEmitPower=.6;
+  cs.minInitialRotation=0;cs.maxInitialRotation=6.28;cs.minAngularSpeed=-.4;cs.maxAngularSpeed=.4;
+  cs.addColorGradient(0,new BABYLON.Color4(.3,.3,.3,0));cs.addColorGradient(.25,new BABYLON.Color4(.35,.35,.36,.55));cs.addColorGradient(1,new BABYLON.Color4(.45,.45,.47,0));
+  cs.addSizeGradient(0,.5);cs.addSizeGradient(1,2.4);cs.start();cs.stop();cockpitSmokePS=cs;
   /* Belly-landing sparks */
   sparksPS=new BABYLON.ParticleSystem('sparks',500,scene);
   sparksPS.particleTexture=new BABYLON.Texture(flareURL,scene);
@@ -942,6 +973,9 @@ function setupFireAndSmoke(){
 }
 
 function updateFireAndSmoke(dt){
+  {const on=faults.has('COCKPIT_SMOKE');const inCk=(camMode===1);
+   if(cockpitSmokePS){if(on&&inCk){if(!cockpitSmokePS.isStarted())cockpitSmokePS.start();}else if(cockpitSmokePS.isStarted())cockpitSmokePS.stop();}
+   const hz=document.getElementById('smokeHaze');if(hz)hz.style.opacity=(on&&inCk)?'.6':'0';}
   for(const key of ['L','R']){
     const active=faults.has('ENG_FIRE_'+key)||ENG.fireWarning[key];
     const f=firePS[key],s=smokePS[key];
@@ -949,6 +983,7 @@ function updateFireAndSmoke(dt){
     if(active){
       if(!f.isStarted())f.start();
       if(!s.isStarted())s.start();
+      if(emberPS[key]&&!emberPS[key].isStarted())emberPS[key].start();
       const intensity=Math.min(1,0.4+fireTimers[key]*0.2);
       f.emitRate=250+intensity*500;
       s.emitRate=120+intensity*380;
@@ -958,6 +993,7 @@ function updateFireAndSmoke(dt){
     } else {
       if(f.isStarted())f.stop();
       if(s.isStarted())s.stop();
+      if(emberPS[key]&&emberPS[key].isStarted())emberPS[key].stop();
     }
   }
   /* Belly landing sparks */
@@ -1367,7 +1403,7 @@ for(const s of [-1,1]){
     c.clearRect(0,0,W,H);c.fillStyle='#4a4f57';c.fillRect(0,0,W,H);
     c.fillStyle='#3a3e45';for(let k=0;k<18;k++)c.fillRect(0,k*30+8,W,2);
     const ai=Math.abs(i);let polys;
-    if(ai===0)polys=[[[.05,.63],[.1,.19],[.475,.17],[.475,.63]],[[.525,.63],[.525,.17],[.9,.19],[.95,.63]]];
+    if(ai===0)polys=[[[.03,.70],[.07,.09],[.48,.07],[.48,.70]],[[.52,.70],[.52,.07],[.93,.09],[.97,.70]]];
     else if(ai===1)polys=[[[.05,.63],[.17,.19],[.93,.19],[.93,.63]]];
     else polys=[[[.18,.6],[.32,.28],[.82,.28],[.82,.6]]];
     const mir=i<0;
@@ -1390,7 +1426,7 @@ interiorRoot.setEnabled(false);
 const ACFG={
   mass:65000,wingArea:124.6,CL0:.22,CLa:4.6,CLmax:1.85,stallAlpha:.34,
   CD0:.020,k:.044,Cy:.95,maxThrust:245000,
-  maxElevRate:.45,maxAilRate:1.6,maxRudRate:.45,
+  maxElevRate:.30,maxAilRate:1.05,maxRudRate:.32,
   groundEffectAlt:12,gearHeight:4.05
 };
 const START_QUAT=BABYLON.Quaternion.RotationAxis(BABYLON.Vector3.Up(),Math.PI);
@@ -1470,6 +1506,7 @@ const FAULTS={
   FUEL_QTY:{sev:1,label:'FUEL QTY SENSOR',reset:'LATCHED'},
   ENG_SENSOR:{sev:1,label:'ENG 1 SENSOR FAIL',reset:'LATCHED'},
   RADALT_FAIL:{sev:1,label:'RADIO ALT FAIL',reset:'LATCHED'},
+  COCKPIT_SMOKE:{sev:3,label:'SMOKE IN COCKPIT',reset:'LATCHED'},
   COLLISION:{sev:3,label:'TRAFFIC COLLISION COURSE',reset:'LATCHED'}
 };
 
@@ -1908,8 +1945,8 @@ canvas.addEventListener('mousedown',e=>{if(e.button===2){mouseDown=true;mX=e.cli
 window.addEventListener('mouseup',e=>{if(e.button===2){mouseDown=false;mPitch=0;mRoll=0;}});
 window.addEventListener('mousemove',e=>{
   if(!mouseDown)return;
-  mRoll=BABYLON.Scalar.Clamp((e.clientX-mX)/260,-1,1);
-  mPitch=BABYLON.Scalar.Clamp((e.clientY-mY)/260,-1,1);
+  mRoll=BABYLON.Scalar.Clamp((e.clientX-mX)/420,-1,1);
+  mPitch=BABYLON.Scalar.Clamp((e.clientY-mY)/420,-1,1);
 });
 
 function readInput(dt){
@@ -1920,10 +1957,10 @@ function readInput(dt){
     if(keys['KeyS'])p-=1;
     if(keys['KeyA'])r+=1;
     if(keys['KeyD'])r-=1;
-    if(keys['KeyQ'])y-=1;
-    if(keys['KeyE'])y+=1;
+    if(keys['KeyQ'])y+=1;
+    if(keys['KeyE'])y-=1;
     if(mouseDown){p+=mPitch;r+=mRoll;}
-    p+=tPitch;r+=tRoll;
+    {const ex=v=>Math.sign(v)*Math.pow(Math.abs(v),1.7);p+=ex(tPitch);r+=ex(tRoll);}
     input.pitch=BABYLON.Scalar.Clamp(p,-1,1);
     input.roll=BABYLON.Scalar.Clamp(r,-1,1);
     input.yaw=BABYLON.Scalar.Clamp(y,-1,1);
@@ -1995,7 +2032,7 @@ function physicsStep(dt){
     thrustFwd = ACFG.maxThrust * 0.5 * ((n1L+n1R)/100) * plane.throttle * Math.exp(-Math.max(plane.pos.y,0)/12000);
   }
 
-  const k=1-Math.exp(-8*dt);
+  const k=1-Math.exp(-3.2*dt);
   plane.elevator+=(input.pitch-plane.elevator)*k;
   plane.aileron+=(input.roll-plane.aileron)*k;
   plane.rudder+=(input.yaw-plane.rudder)*k;
@@ -2077,7 +2114,7 @@ function physicsStep(dt){
     }
   }
 
-  const auth=BABYLON.Scalar.Clamp(Va/90,.18,1.15);
+  const auth=BABYLON.Scalar.Clamp(Math.pow(Va/95,1.3),.12,1.1);
   const kk=1-Math.exp(-6*dt);
   const hydFactor = faults.has('HYD_LOSS') ? 0.40 : 1.0;
   let targetPitchRate = effElev*ACFG.maxElevRate*auth*hydFactor;
@@ -2093,7 +2130,8 @@ function physicsStep(dt){
   plane.angVel.x+=(targetPitchRate-plane.angVel.x)*kk;
   plane.angVel.y+=(effRud*ACFG.maxRudRate*auth*hydFactor-beta*.9*Math.min(1,Va/100)-plane.angVel.y)*kk;
   plane.angVel.z+=(-effAil*ACFG.maxAilRate*auth*hydFactor-plane.angVel.z)*kk;
-  if(AP.yd)plane.angVel.y*=(1-2*dt);
+  if(AP.yd)plane.angVel.y*=(1-2.5*dt);
+  if(!plane.onGround){plane.angVel.x*=(1-.9*dt);plane.angVel.z*=(1-.6*dt);}
 
   if(!plane.onGround&&!AP.master&&!faults.has('ELEV_JAM')&&Math.abs(input.pitch)<.02&&Va>45){
     const CLneed=(ACFG.mass*9.81)/Math.max(q*ACFG.wingArea,1);
@@ -2194,7 +2232,7 @@ function physicsStep(dt){
 
       if(hs>0.02){
         let decel=0.55;
-        if(plane.brakeHold) decel+=5.5;
+        if(plane.brakeHold) decel+=4.2;
         if(plane.spoilerVisual>0.5) decel+=1.4;
         if(plane.reverserOn) decel+=1.2;
         if(noGear) decel+=3.5;   /* Extra friction from scraping */
@@ -2208,7 +2246,7 @@ function physicsStep(dt){
 
       if(hs>0.5){
         const authority=Math.min(1,hs/45);
-        plane.angVel.y=effRud*1.4*authority;
+        plane.angVel.y=effRud*0.8*authority;
       } else {
         plane.angVel.y*=Math.max(0,1-6*dt);
       }
@@ -2316,7 +2354,7 @@ function slerpShort(a,b,t){
 function easeInOutCubic(t){return t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;}
 function startCamTransition(){
   camState.fromPos.copyFrom(camera.position);
-  camState.fromQuat.copyFrom(camera.rotationQuaternion||BABYLON.Quaternion.Identity());
+  camState.fromQuat.copyFrom(camState.baseQ||camera.rotationQuaternion||BABYLON.Quaternion.Identity());
   camState.transitionTimer=camState.transitionDur;
 }
 
@@ -2441,14 +2479,15 @@ function updateCamera(dt){
     const raw=1-Math.max(0,camState.transitionTimer)/camState.transitionDur;
     const t=easeInOutCubic(BABYLON.Scalar.Clamp(raw,0,1));
     BABYLON.Vector3.LerpToRef(camState.fromPos,_camTarget.pos,t,camera.position);
-    camera.rotationQuaternion=slerpShort(camState.fromQuat,_camTarget.quat,t);
+    camState.baseQ=slerpShort(camState.fromQuat,_camTarget.quat,t);
     camera.fov=BABYLON.Scalar.Lerp(camera.fov,_camTarget.fov,t);
   }else{
     if(camMode===0)camera.position.copyFrom(_camTarget.pos);else BABYLON.Vector3.LerpToRef(camera.position,_camTarget.pos,k,camera.position);
-    camera.rotationQuaternion=slerpShort(camera.rotationQuaternion,_camTarget.quat,camMode===0?1-Math.exp(-4*dt):k);
+    camState.baseQ=slerpShort(camState.baseQ||camera.rotationQuaternion,_camTarget.quat,camMode===0?1-Math.exp(-4*dt):k);
     camera.fov=BABYLON.Scalar.Lerp(camera.fov,_camTarget.fov,k);
   }
-  if(camMode===1&&camState.transitionTimer<=0){camera.position.copyFrom(_camTarget.pos);camera.rotationQuaternion=_camTarget.quat.clone();camera.fov=_camTarget.fov;}
+  if(camMode===1&&camState.transitionTimer<=0){camera.position.copyFrom(_camTarget.pos);camState.baseQ=_camTarget.quat.clone();camera.fov=_camTarget.fov;}
+  camera.rotationQuaternion=(camState.baseQ||camera.rotationQuaternion).clone();
   if(lookYaw||lookPitch){camera.rotationQuaternion=camera.rotationQuaternion.multiply(BABYLON.Quaternion.RotationYawPitchRoll(lookYaw,lookPitch,0));}
   const gDev=Math.abs(plane.gForce-1);
   const speedTurb=BABYLON.Scalar.Clamp((plane.speed-250)/250,0,.3);
@@ -3063,7 +3102,11 @@ async function buildTerrainTexture(cx,cz){
 }
 function rebuildGeom(cx,cz){
   for(let j=0;j<N;j++){const wz=cz-E/2+j*step;
-    for(let i=0;i<N;i++){const wx=cx-E/2+i*step;heights[j*N+i]=Math.max(sampleTerrain(wx,wz),-80);}}
+    for(let i=0;i<N;i++){const wx=cx-E/2+i*step;let hv=Math.max(sampleTerrain(wx,wz),-80);
+      if(runwayLenM>0){const hr=runwayHdgDeg*Math.PI/180,al=Math.abs(wx*Math.sin(hr)-wz*Math.cos(hr)),ac=Math.abs(wx*Math.cos(hr)+wz*Math.sin(hr));
+        const ea=Math.max(0,al-(runwayLenM/2+120)),ec=Math.max(0,ac-(runwayWidM/2+110)),e=Math.hypot(ea,ec);
+        if(e<500){const w=Math.max(0,Math.min(1,1-Math.max(0,e-60)/440)),tgt=runwayY-1.2;hv=hv*(1-w)+tgt*w;}}
+      heights[j*N+i]=hv;}}
   for(let j=0;j<N;j++)for(let i=0;i<N;i++){
     const k=(j*N+i)*3;
     positions[k]=-E/2+i*step;positions[k+1]=heights[j*N+i];positions[k+2]=-E/2+j*step;
@@ -3670,4 +3713,4 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
 } /* end main */
 </script>
 </body>
-  </html>
+      </html>
