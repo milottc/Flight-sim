@@ -1324,12 +1324,24 @@ for(const s of [-1,1]){
   for(let i=-2;i<=2;i++){
     const phi=i*ph,g=new BABYLON.TransformNode('hp'+i,scene);g.parent=interiorRoot;
     g.position.set(a*Math.sin(phi),0,z0+a*Math.cos(phi));g.rotation.y=phi-Math.PI/2;
-    const B=(nm,x,y,z,w,h,d,mat)=>intBox('hp'+i+nm,w,h,d,x,y,z,0,mat||M.cockpitBody,g);
-    const w0=-len*.33,w1=len*.33;
-    B('pre',0,.25,(-len/2+w0)/2,.1,2.3,w0+len/2);B('post',0,.25,(len/2+w1)/2,.1,2.3,len/2-w1);
-    B('low',0,-.45,0,.1,.9,w1-w0);B('up',0,1.175,0,.1,.45,w1-w0);
-    B('tl',0,.475,w0,.14,.95,.05,M.cockpitPanel);B('tr',0,.475,w1,.14,.95,.05,M.cockpitPanel);
-    B('tt',0,.95,0,.14,.05,w1-w0,M.cockpitPanel);B('tb',0,0,0,.14,.05,w1-w0,M.cockpitPanel);
+    const W=512,H=512,tx=new BABYLON.DynamicTexture('hpT'+i,{width:W,height:H},scene,true),c=tx.getContext();
+    c.clearRect(0,0,W,H);c.fillStyle='#4a4f57';c.fillRect(0,0,W,H);
+    c.fillStyle='#3a3e45';for(let k=0;k<18;k++)c.fillRect(0,k*30+8,W,2);
+    const ai=Math.abs(i);let polys;
+    if(ai===0)polys=[[[.05,.63],[.1,.19],[.475,.17],[.475,.63]],[[.525,.63],[.525,.17],[.9,.19],[.95,.63]]];
+    else if(ai===1)polys=[[[.05,.63],[.17,.19],[.93,.19],[.93,.63]]];
+    else polys=[[[.18,.6],[.32,.28],[.82,.28],[.82,.6]]];
+    const mir=i<0;
+    const pts=P=>P.map(([u,v])=>[(mir?1-u:u)*W,v*H]);
+    c.globalCompositeOperation='destination-out';
+    for(const P of polys){const q=pts(P);c.beginPath();c.moveTo(q[0][0],q[0][1]);for(let k=1;k<q.length;k++)c.lineTo(q[k][0],q[k][1]);c.closePath();c.fill();}
+    c.globalCompositeOperation='source-over';c.strokeStyle='#15171a';c.lineWidth=9;c.lineJoin='round';
+    for(const P of polys){const q=pts(P);c.beginPath();c.moveTo(q[0][0],q[0][1]);for(let k=1;k<q.length;k++)c.lineTo(q[k][0],q[k][1]);c.closePath();c.stroke();}
+    tx.hasAlpha=true;tx.update(false);
+    const mt=new BABYLON.StandardMaterial('hpM'+i,scene);mt.diffuseTexture=tx;mt.emissiveTexture=tx;mt.emissiveColor=new BABYLON.Color3(.55,.55,.58);mt.useAlphaFromDiffuseTexture=true;
+    mt.disableLighting=true;mt.backFaceCulling=false;mt.specularColor=BABYLON.Color3.Black();
+    const pl=BABYLON.MeshBuilder.CreatePlane('hpP'+i,{width:len,height:2.3,sideOrientation:BABYLON.Mesh.DOUBLESIDE},scene);
+    pl.parent=g;pl.rotation.y=Math.PI/2;pl.position.y=.25;pl.material=mt;pl.isPickable=false;
   }
 })();
 interiorRoot.getChildMeshes().forEach(m=>{sun.excludedMeshes.push(m);if(m.material&&m.material.environmentIntensity!==undefined&&m.material!==M.glass)m.material.environmentIntensity=.6;});
