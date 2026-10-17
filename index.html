@@ -135,7 +135,25 @@ body.mobile #faultTriggers{bottom:auto!important;top:150px;left:6px;right:auto;a
 body.mobile #faultToggleBtn{padding:6px 8px;font-size:10px}
 body.mobile #faultButtons{max-height:45vh}
 body.mobile #faultPanel{top:auto;bottom:200px;right:6px}
-#smokeHaze{position:fixed;inset:0;z-index:14;pointer-events:none;opacity:0;transition:opacity 2.5s;background:radial-gradient(ellipse at 50% 55%,rgba(90,90,92,.25),rgba(35,35,38,.8) 85%)}</style>
+#smokeHaze{position:fixed;inset:0;z-index:14;pointer-events:none;opacity:0;transition:opacity 2.5s;background:radial-gradient(ellipse at 50% 55%,rgba(90,90,92,.25),rgba(35,35,38,.8) 85%)}
+#fms{position:fixed;left:12px;top:46px;z-index:9997;width:min(392px,96vw);max-height:92vh;overflow:auto;display:none;padding:10px;border-radius:10px;background:rgba(6,16,26,.94);border:1px solid rgba(120,200,255,.5);font-size:11px;box-shadow:0 10px 30px rgba(0,0,0,.6)}
+#fms.show{display:block}
+#fms .fh{display:flex;justify-content:space-between;align-items:center;color:#9fe0ff;letter-spacing:2px;font-weight:700;margin-bottom:6px}
+#fms canvas{display:block;width:100%;aspect-ratio:6/5;border-radius:6px;border:1px solid rgba(120,200,255,.4);touch-action:none;background:#10202a}
+#fms .row{display:flex;gap:5px;flex-wrap:wrap;margin:6px 0;align-items:center;grid-template-columns:none}
+#fms button,#fmsBtn{padding:6px 9px;border-radius:5px;background:rgba(15,30,45,.95);border:1px solid rgba(120,200,255,.35);color:#9fe0ff;font:600 11px Consolas,monospace;cursor:pointer}
+#fms button.on{background:rgba(60,200,120,.4);border-color:#60ffb0;color:#d0ffe6}
+#fms button.mag{background:rgba(200,60,200,.3);border-color:#e080e0;color:#ffd0ff}
+#fms input,#fms select{width:auto;padding:4px 6px;background:#000;border:1px solid rgba(120,200,255,.35);color:#eaf6ff;border-radius:4px;font:11px Consolas,monospace}
+#fms input[type=number]{width:62px}
+#fms .lbl{color:#7fc7ff;letter-spacing:1px;font-size:10px}
+#fms .wp{display:flex;justify-content:space-between;align-items:center;padding:3px 4px;border-bottom:1px solid rgba(120,200,255,.15);color:#cfeaff}
+#fms .wp.act{background:rgba(200,60,200,.22);color:#ffd0ff}
+#fms .st{color:#ffd27a;margin:4px 0;min-height:14px}
+#fmsBtn{position:fixed;left:12px;top:8px;z-index:9996;display:block;pointer-events:auto}
+body.mobile #fmsBtn{top:auto;bottom:228px;left:6px}
+body.mobile #fms{top:6px;left:2vw}
+</style>
 </head>
 <body>
 <canvas id="renderCanvas"></canvas>
@@ -1921,7 +1939,7 @@ window.addEventListener('keydown',e=>{
       AP.hdgMode=true;AP.altMode=true;AP.vsMode=false;
       AP.altTarget=Math.round(plane.pos.y*3.28084/100)*100;
     }
-    showMsg('AUTOPILOT '+(AP.master?'ENGAGED · HDG '+AP.hdgTarget+' · ALT '+AP.altTarget:'OFF'));
+    if(!AP.master)AP.appr=false;showMsg('AUTOPILOT '+(AP.master?'ENGAGED · HDG '+AP.hdgTarget+' · ALT '+AP.altTarget:'OFF'));
   }
   if(e.code==='BracketLeft')AP.hdgTarget=(AP.hdgTarget+355)%360;
   if(e.code==='BracketRight')AP.hdgTarget=(AP.hdgTarget+5)%360;
@@ -1980,7 +1998,7 @@ function readInput(dt){
   plane.brakeHold=!!keys['Space']&&!faults.has('BRAKE_FAIL');
 }
 
-function updateAutopilot(dt){
+function updateAutopilotOLD(dt){
   if(!AP.master)return;
   const m=BABYLON.Matrix.Identity();plane.quat.toRotationMatrix(m);
   const fwd=BABYLON.Vector3.TransformNormal(new BABYLON.Vector3(0,0,1),m);
@@ -2714,7 +2732,7 @@ function updateHUD(){
   el.pos.textContent=ll.lat.toFixed(4)+'°N '+ll.lon.toFixed(4)+'°E';
   el.fps.textContent=Math.round(engine.getFps())+' FPS';
   el.src.textContent=useCanadaImagery?'ESRI + SGIC':'ESRI';
-  el.apTxt.textContent='AP '+(AP.master?'ON':'OFF')+(AP.hdgMode?' · HDG':'')+(AP.altMode?' · ALT':'');
+  el.apTxt.textContent='AP '+(AP.master?'ON':'OFF')+(AP.appr?' · APPR':(AP.lnav?' · LNAV':(AP.hdgMode?' · HDG':'')))+(AP.vsMode?' · VS':(AP.altMode?' · ALT':''))+(AP.athr?' · SPD':'');
   const N1avg=(ENG.L.n1+ENG.R.n1)/2;
   el.engTxt.textContent='ENG '+(ENG.L.state==='RUNNING'?'RUN':'OFF')+' N1 '+Math.round(N1avg)+'%';
   if(el.aoaTxt){
@@ -3562,6 +3580,184 @@ let tPitch=0,tRoll=0;
   });
 })();
 
+/* ===== FLIGHT PLAN + MAP + ADVANCED AUTOPILOT ===== */
+const FP={wps:[],active:0,n:0};
+Object.assign(AP,{lnav:false,appr:false,vnav:true});
+function wrap180(e){while(e>180)e-=360;while(e<-180)e+=360;return e;}
+function updateAutopilot(dt){
+  if(!AP.master)return;
+  const m=BABYLON.Matrix.Identity();plane.quat.toRotationMatrix(m);
+  const fwd=BABYLON.Vector3.TransformNormal(new BABYLON.Vector3(0,0,1),m);
+  const right=BABYLON.Vector3.TransformNormal(new BABYLON.Vector3(1,0,0),m);
+  const heading=(Math.atan2(fwd.x,-fwd.z)*180/Math.PI+360)%360;
+  const rollDeg=Math.atan2(right.y,Math.sqrt(Math.max(0,1-right.y*right.y)))*180/Math.PI;
+  const altFt=plane.pos.y*3.28084,vsFpm=plane.vel.y*196.85,gs=Math.hypot(plane.vel.x,plane.vel.z),kts=plane.speed*1.94384;
+  let hdgCmd=null,vsT=null,maxBank=25;
+  if(AP.appr&&runwayLenM>0){
+    const h=runwayHdgDeg*Math.PI/180,dX=Math.sin(h),dZ=-Math.cos(h),pX=Math.cos(h),pZ=Math.sin(h);
+    const along=plane.pos.x*dX+plane.pos.z*dZ,across=plane.pos.x*pX+plane.pos.z*pZ;
+    const d=(-runwayLenM/2+350)-along;
+    const lim=BABYLON.Scalar.Clamp(d/200,2,25);
+    hdgCmd=(runwayHdgDeg-BABYLON.Scalar.Clamp(across/40,-lim,lim)+360)%360;maxBank=18;
+    const agl=computeAGL();
+    if(d>0){
+      const gsAlt=runwayY+ACFG.gearHeight+d*Math.tan(3*Math.PI/180);
+      vsT=-gs*Math.tan(3*Math.PI/180)*196.85+(gsAlt-plane.pos.y)*3.28084*0.5;
+      vsT=BABYLON.Scalar.Clamp(vsT,-1100,600);
+    } else vsT=-250;
+    if(agl<50)vsT=Math.max(vsT,-300);
+    if(agl<22){vsT=-130;plane.throttle=Math.max(0,plane.throttle-dt*.25);}
+    if(plane.onGround){AP.master=false;AP.appr=false;AP.athr=false;AP.spdMode=false;showMsg('LANDED · AP DISCONNECT',3000);return;}
+  } else if(AP.lnav&&FP.wps.length&&FP.active<FP.wps.length){
+    const wp=FP.wps[FP.active],w=llToWorld(wp.lat,wp.lon),dx=w.x-plane.pos.x,dz=w.z-plane.pos.z,dist=Math.hypot(dx,dz);
+    hdgCmd=(Math.atan2(dx,-dz)*180/Math.PI+360)%360;AP.hdgTarget=Math.round(hdgCmd);
+    const turnR=gs*gs/(9.81*Math.tan(25*Math.PI/180)),seq=Math.max(1200,Math.min(turnR*.9,6000)),last=FP.active>=FP.wps.length-1;
+    if(!last&&dist<seq){FP.active++;showMsg('NEXT · '+FP.wps[FP.active].name,2000);}
+    else if(last&&dist<600){AP.lnav=false;AP.hdgMode=true;AP.hdgTarget=Math.round(heading);FP.active=FP.wps.length;showMsg('FLIGHT PLAN COMPLETE · HDG HOLD',3000);}
+    if(wp.alt!=null&&AP.vnav){AP.altTarget=wp.alt;AP.altMode=true;AP.vsMode=false;}
+  } else if(AP.hdgMode)hdgCmd=AP.hdgTarget;
+  if(hdgCmd!==null){
+    const err=wrap180(hdgCmd-heading);
+    const desRoll=BABYLON.Scalar.Clamp(err*1.0,-maxBank,maxBank);
+    input.roll=BABYLON.Scalar.Clamp((desRoll-rollDeg)/17,-1,1);
+  } else input.roll=BABYLON.Scalar.Clamp(-rollDeg/20,-1,1)*.6;
+  if(vsT===null){
+    if(AP.vsMode)vsT=AP.vsTarget;
+    else if(AP.altMode){const e=AP.altTarget-altFt;vsT=BABYLON.Scalar.Clamp(e*.4,-1800,1800);if(Math.abs(e)<60)vsT=e*3;}
+  }
+  if(vsT!==null){
+    if(vsT>0&&kts<150&&!AP.appr)vsT=Math.min(vsT,300);
+    input.pitch=BABYLON.Scalar.Clamp(-(vsT-vsFpm)/1300,-.6,.6);
+  }
+  if(AP.athr&&AP.spdMode){
+    const err=AP.spdTarget-kts;
+    plane.throttle=BABYLON.Scalar.Clamp(plane.throttle+(err*.012-(vsFpm>800?.0:0))*dt*(Math.abs(err)>10?1.6:1),0,1);
+  }
+}
+function fpDist(i){const wp=FP.wps[i],w=llToWorld(wp.lat,wp.lon);return Math.hypot(w.x-plane.pos.x,w.z-plane.pos.z);}
+function addWaypoint(lat,lon,name,alt){FP.n++;FP.wps.push({name:name||('WPT'+String(FP.n).padStart(2,'0')),lat,lon,alt:(alt&&isFinite(alt))?alt:null});if(FP.active>=FP.wps.length-1&&FP.active>FP.wps.length-1)FP.active=FP.wps.length-1;renderFMS();}
+const MAPV={mpp:70,follow:true,cx:0,cz:0,tap:true};
+(function(){
+  const fms=document.createElement('div');fms.id='fms';
+  fms.innerHTML=`<div class="fh"><span>FMS · MAP · AUTOPILOT</span><button id="fmsX">✕</button></div>
+  <canvas id="mapC" width="480" height="400"></canvas>
+  <div class="row"><button id="mZi">＋</button><button id="mZo">－</button><button id="mCtr" class="on">⌖ FOLLOW</button><button id="mTap" class="on">TAP = ADD WPT</button><span class="lbl">WPT ALT</span><input id="wpAlt" type="number" placeholder="ft"></div>
+  <div class="lbl">AUTOPILOT</div>
+  <div class="row"><button id="aAP">AP</button><button id="aHDG">HDG</button><button id="aLNAV">LNAV</button><button id="aALT">ALT</button><button id="aVS">V/S</button><button id="aSPD">A/THR</button><button id="aVNAV">VNAV</button><button id="aAPPR">APPR</button></div>
+  <div class="row"><span class="lbl">HDG</span><input id="iHDG" type="number" min="0" max="360"><span class="lbl">ALT</span><input id="iALT" type="number" step="100"><span class="lbl">V/S</span><input id="iVS" type="number" step="100"><span class="lbl">SPD</span><input id="iSPD" type="number" step="5"></div>
+  <div class="lbl">FLIGHT PLAN</div><div class="st" id="fpSt"></div>
+  <div id="wpList"></div>
+  <div class="row"><select id="apSel"></select><button id="apAdd">+ ADD AIRPORT</button><button id="fpClr">CLEAR</button><button id="fpRtn">RTN HOME</button></div>
+  <div class="lbl" style="margin-top:4px">APPR flies the ILS-style approach to the runway at your start airport (set gear &amp; flaps yourself).</div>`;
+  document.body.appendChild(fms);
+  const fb=document.createElement('button');fb.id='fmsBtn';fb.textContent='🗺 FMS / MAP (J)';document.body.appendChild(fb);
+  const $=id=>document.getElementById(id);
+  const toggle=()=>{fms.classList.toggle('show');if(fms.classList.contains('show'))renderFMS();};
+  fb.addEventListener('click',toggle);$('fmsX').addEventListener('click',toggle);
+  window.addEventListener('keydown',e=>{if(e.code==='KeyJ'&&!/INPUT|SELECT/.test((e.target||{}).tagName||''))toggle();});
+  fms.addEventListener('keydown',e=>e.stopPropagation());fms.addEventListener('keyup',e=>e.stopPropagation());
+  const sel=$('apSel');for(const k in LOCS){const o=document.createElement('option');o.value=k;o.textContent=k;sel.appendChild(o);}
+  $('apAdd').addEventListener('click',()=>{const L=LOCS[sel.value];if(L)addWaypoint(L.lat,L.lon,sel.value,null);});
+  $('fpClr').addEventListener('click',()=>{FP.wps=[];FP.active=0;AP.lnav=false;renderFMS();});
+  $('fpRtn').addEventListener('click',()=>{const c=currentLocation;addWaypoint(c.lat,c.lon,(c.code||'HOME'),null);});
+  $('mZi').addEventListener('click',()=>{MAPV.mpp=Math.max(10,MAPV.mpp/1.6);});
+  $('mZo').addEventListener('click',()=>{MAPV.mpp=Math.min(6000,MAPV.mpp*1.6);});
+  $('mCtr').addEventListener('click',()=>{MAPV.follow=!MAPV.follow;if(!MAPV.follow){MAPV.cx=plane.pos.x;MAPV.cz=plane.pos.z;}$('mCtr').classList.toggle('on',MAPV.follow);});
+  $('mTap').addEventListener('click',()=>{MAPV.tap=!MAPV.tap;$('mTap').classList.toggle('on',MAPV.tap);});
+  /* autopilot buttons */
+  const aEn=()=>{if(!AP.master){AP.master=true;if(!AP.hdgMode&&!AP.lnav&&!AP.appr){const m=BABYLON.Matrix.Identity();plane.quat.toRotationMatrix(m);const f=BABYLON.Vector3.TransformNormal(new BABYLON.Vector3(0,0,1),m);AP.hdgTarget=Math.round((Math.atan2(f.x,-f.z)*180/Math.PI+360)%360);AP.hdgMode=true;}
+    if(!AP.altMode&&!AP.vsMode&&!AP.appr){AP.altMode=true;AP.altTarget=Math.round(plane.pos.y*3.28084/100)*100;}}};
+  $('aAP').addEventListener('click',()=>{if(AP.master){AP.master=false;AP.appr=false;showMsg('AUTOPILOT OFF');}else{aEn();showMsg('AUTOPILOT ENGAGED');}});
+  $('aHDG').addEventListener('click',()=>{AP.hdgMode=!AP.hdgMode;if(AP.hdgMode){AP.lnav=false;AP.appr=false;aEn();}});
+  $('aLNAV').addEventListener('click',()=>{if(!FP.wps.length){showMsg('NO FLIGHT PLAN · ADD WAYPOINTS');return;}AP.lnav=!AP.lnav;if(AP.lnav){AP.hdgMode=false;AP.appr=false;if(FP.active>=FP.wps.length)FP.active=0;aEn();}});
+  $('aALT').addEventListener('click',()=>{AP.altMode=!AP.altMode;if(AP.altMode){AP.vsMode=false;AP.appr=false;aEn();}});
+  $('aVS').addEventListener('click',()=>{AP.vsMode=!AP.vsMode;if(AP.vsMode){AP.altMode=false;AP.appr=false;AP.vsTarget=Math.round(plane.vel.y*196.85/100)*100;aEn();}});
+  $('aSPD').addEventListener('click',()=>{AP.athr=!AP.athr;AP.spdMode=AP.athr;if(AP.athr)AP.spdTarget=Math.round(plane.speed*1.94384/5)*5;});
+  $('aVNAV').addEventListener('click',()=>{AP.vnav=!AP.vnav;});
+  $('aAPPR').addEventListener('click',()=>{
+    if(AP.appr){AP.appr=false;showMsg('APPROACH MODE OFF');return;}
+    if(runwayLenM<=0){showMsg('NO RUNWAY AT THIS LOCATION');return;}
+    const h=runwayHdgDeg*Math.PI/180,al=plane.pos.x*Math.sin(h)-plane.pos.z*Math.cos(h),ac=plane.pos.x*Math.cos(h)+plane.pos.z*Math.sin(h);
+    if(al>-runwayLenM/2||Math.abs(ac)>5000||al<-25000){showMsg('APPR · FLY TO ≤13 NM FINAL FIRST (BEHIND THRESHOLD)',3500);return;}
+    AP.appr=true;AP.lnav=false;AP.hdgMode=false;AP.altMode=false;AP.vsMode=false;AP.athr=true;AP.spdMode=true;AP.spdTarget=plane.flaps>=3?145:165;aEn();showMsg('APPROACH ARMED · SET GEAR & FLAPS',3500);});
+  const bind=(id,fn)=>$(id).addEventListener('change',()=>{const v=parseFloat($(id).value);if(isFinite(v))fn(v);});
+  bind('iHDG',v=>{AP.hdgTarget=((Math.round(v)%360)+360)%360;});bind('iALT',v=>{AP.altTarget=Math.max(0,v);});bind('iVS',v=>{AP.vsTarget=v;});bind('iSPD',v=>{AP.spdTarget=v;});
+  $('wpList').addEventListener('click',e=>{const t=e.target.closest('button');if(!t)return;const i=+t.dataset.i;
+    if(t.dataset.a==='x'){FP.wps.splice(i,1);if(FP.active>i)FP.active--;}
+    else if(t.dataset.a==='d'){FP.active=i;AP.lnav=true;AP.hdgMode=false;AP.appr=false;aEn();}
+    renderFMS();});
+  /* map pointer: pan / tap-add / wheel zoom */
+  const mc=$('mapC');let pd=null,moved=0;
+  const scr=(e)=>{const r=mc.getBoundingClientRect();return[(e.clientX-r.left)*mc.width/r.width,(e.clientY-r.top)*mc.height/r.height];};
+  mc.addEventListener('pointerdown',e=>{pd=scr(e);moved=0;mc.setPointerCapture(e.pointerId);});
+  mc.addEventListener('pointermove',e=>{if(!pd)return;const q=scr(e),dx=q[0]-pd[0],dy=q[1]-pd[1];moved+=Math.abs(dx)+Math.abs(dy);
+    if(moved>6){if(MAPV.follow){MAPV.follow=false;$('mCtr').classList.remove('on');MAPV.cx=plane.pos.x;MAPV.cz=plane.pos.z;}MAPV.cx-=dx*MAPV.mpp;MAPV.cz-=dy*MAPV.mpp;pd=q;}});
+  mc.addEventListener('pointerup',e=>{if(pd&&moved<=6&&MAPV.tap){const q=scr(e),cx=MAPV.follow?plane.pos.x:MAPV.cx,cz=MAPV.follow?plane.pos.z:MAPV.cz;
+      const wx=cx+(q[0]-mc.width/2)*MAPV.mpp,wz=cz+(q[1]-mc.height/2)*MAPV.mpp,ll=worldToLL(wx,wz);addWaypoint(ll.lat,ll.lon,null,parseFloat($('wpAlt').value));}
+    pd=null;});
+  mc.addEventListener('wheel',e=>{e.preventDefault();MAPV.mpp=Math.max(10,Math.min(6000,MAPV.mpp*(e.deltaY>0?1.2:1/1.2)));},{passive:false});
+  window.renderFMS=function(){
+    const L=$('wpList');let h='';
+    FP.wps.forEach((w,i)=>{const d=fpDist(i)/1852;h+=`<div class="wp ${i===FP.active&&AP.lnav?'act':''}"><span>${i+1}. ${w.name}${w.alt?' @'+w.alt:''} · ${d.toFixed(1)}nm</span><span><button data-a="d" data-i="${i}">DIR</button> <button data-a="x" data-i="${i}">✕</button></span></div>`;});
+    L.innerHTML=h||'<div class="lbl">No waypoints. Tap the map or add an airport.</div>';
+  };
+  const mctx=mc.getContext('2d');
+  function drawMap(){
+    const W=mc.width,H=mc.height,cx=MAPV.follow?plane.pos.x:MAPV.cx,cz=MAPV.follow?plane.pos.z:MAPV.cz,mpp=MAPV.mpp;
+    const px=(x,z)=>[W/2+(x-cx)/mpp,H/2+(z-cz)/mpp];
+    mctx.fillStyle='#10202a';mctx.fillRect(0,0,W,H);
+    try{
+      const c0=worldToLL(cx,cz);let z=Math.round(Math.log2(156543.03*Math.cos(c0.lat*Math.PI/180)/mpp));z=Math.max(3,Math.min(Math.min(Imagery.maxZ,16),z));
+      const nw=worldToLL(cx-W/2*mpp,cz-H/2*mpp),se=worldToLL(cx+W/2*mpp,cz+H/2*mpp);let r=tileRange(nw,se,z);
+      while(z>3&&(r.x1-r.x0+1)*(r.y1-r.y0+1)>30){z--;r=tileRange(nw,se,z);}
+      let loads=0;
+      for(let tx=r.x0;tx<=r.x1;tx++)for(let ty=r.y0;ty<=r.y1;ty++){
+        const key=`${Imagery.mode}/${useCanadaImagery?'ca':'ww'}/${z}/${tx}/${ty}`,img=imgCache.get(key);
+        if(!img){if(loads<6&&!imgPending.has(key)){loads++;loadImage(key,Imagery.url(z,tx,ty));}continue;}
+        const p0=llToWorld(ty2lat(ty,z),tx2lon(tx,z)),p1=llToWorld(ty2lat(ty+1,z),tx2lon(tx+1,z)),a=px(p0.x,p0.z),b=px(p1.x,p1.z);
+        mctx.drawImage(img,a[0],a[1],b[0]-a[0]+.6,b[1]-a[1]+.6);
+      }
+    }catch(e){}
+    mctx.fillStyle='rgba(0,8,16,.32)';mctx.fillRect(0,0,W,H);
+    /* range rings around plane */
+    const pp=px(plane.pos.x,plane.pos.z);mctx.strokeStyle='rgba(120,220,255,.4)';mctx.lineWidth=1;mctx.font='11px monospace';mctx.fillStyle='#9fe0ff';mctx.textAlign='left';
+    let ring=[1,2,5,10,20,50,100,200].find(n=>n*1852/mpp>60)||200;
+    for(let k=1;k<=3;k++){const rr=ring*k*1852/mpp;mctx.beginPath();mctx.arc(pp[0],pp[1],rr,0,6.2832);mctx.stroke();mctx.fillText(ring*k+'nm',pp[0]+rr*.71+2,pp[1]-rr*.71);}
+    /* runway */
+    if(runwayLenM>0){const h=runwayHdgDeg*Math.PI/180,a=px(-Math.sin(h)*runwayLenM/2,Math.cos(h)*runwayLenM/2),b=px(Math.sin(h)*runwayLenM/2,-Math.cos(h)*runwayLenM/2);
+      mctx.strokeStyle='#fff';mctx.lineWidth=Math.max(2,runwayWidM/mpp);mctx.beginPath();mctx.moveTo(a[0],a[1]);mctx.lineTo(b[0],b[1]);mctx.stroke();
+      if(AP.appr||mpp<400){const ext=px(-Math.sin(h)*(runwayLenM/2+22000),Math.cos(h)*(runwayLenM/2+22000));mctx.strokeStyle='rgba(120,255,160,.5)';mctx.lineWidth=1;mctx.setLineDash([6,5]);mctx.beginPath();mctx.moveTo(a[0],a[1]);mctx.lineTo(ext[0],ext[1]);mctx.stroke();mctx.setLineDash([]);}}
+    /* airports */
+    mctx.fillStyle='#fff';for(const k in LOCS){const w=llToWorld(LOCS[k].lat,LOCS[k].lon),q=px(w.x,w.z);if(q[0]<-20||q[0]>W+20||q[1]<-20||q[1]>H+20)continue;mctx.beginPath();mctx.arc(q[0],q[1],3,0,6.2832);mctx.fill();mctx.font='bold 11px monospace';mctx.fillText(k,q[0]+5,q[1]-4);}
+    /* route */
+    if(FP.wps.length){
+      mctx.strokeStyle='#ff5cff';mctx.lineWidth=2.5;mctx.beginPath();
+      const st=Math.min(FP.active,FP.wps.length-1);mctx.moveTo(pp[0],pp[1]);
+      for(let i=st;i<FP.wps.length;i++){const w=llToWorld(FP.wps[i].lat,FP.wps[i].lon),q=px(w.x,w.z);mctx.lineTo(q[0],q[1]);}mctx.stroke();
+      FP.wps.forEach((wp,i)=>{const w=llToWorld(wp.lat,wp.lon),q=px(w.x,w.z),act=AP.lnav&&i===FP.active;
+        mctx.fillStyle=act?'#ff5cff':'#ffd0ff';mctx.beginPath();mctx.moveTo(q[0],q[1]-7);mctx.lineTo(q[0]+6,q[1]);mctx.lineTo(q[0],q[1]+7);mctx.lineTo(q[0]-6,q[1]);mctx.closePath();mctx.fill();
+        mctx.font='bold 11px monospace';mctx.fillText(wp.name,q[0]+8,q[1]+4);});}
+    /* plane */
+    const mm=BABYLON.Matrix.Identity();plane.quat.toRotationMatrix(mm);const f=BABYLON.Vector3.TransformNormal(new BABYLON.Vector3(0,0,1),mm),hd=Math.atan2(f.x,-f.z);
+    mctx.save();mctx.translate(pp[0],pp[1]);mctx.rotate(hd);mctx.fillStyle='#ffd400';mctx.strokeStyle='#000';mctx.lineWidth=1.5;
+    mctx.beginPath();mctx.moveTo(0,-13);mctx.lineTo(8,8);mctx.lineTo(0,4);mctx.lineTo(-8,8);mctx.closePath();mctx.fill();mctx.stroke();mctx.restore();
+    /* traffic */
+    for(const t of traffic){const q=px(t.pos.x,t.pos.z);mctx.fillStyle=t.lvl===2?'#ff3030':(t.lvl===1?'#ffb000':'#40e0ff');mctx.beginPath();mctx.arc(q[0],q[1],4,0,6.2832);mctx.fill();}
+    mctx.fillStyle='#fff';mctx.font='bold 13px monospace';mctx.fillText('N ▲',8,18);
+  }
+  setInterval(()=>{
+    if(!fms.classList.contains('show'))return;
+    drawMap();
+    const act=(id,on)=>$(id).classList.toggle('on',!!on);
+    act('aAP',AP.master);act('aHDG',AP.hdgMode&&AP.master);act('aLNAV',AP.lnav&&AP.master);act('aALT',AP.altMode&&AP.master);act('aVS',AP.vsMode&&AP.master);act('aSPD',AP.athr);act('aVNAV',AP.vnav);act('aAPPR',AP.appr);
+    const fv=(id,v)=>{const e=$(id);if(document.activeElement!==e)e.value=Math.round(v);};
+    fv('iHDG',AP.hdgTarget);fv('iALT',AP.altTarget);fv('iVS',AP.vsTarget);fv('iSPD',AP.spdTarget);
+    let st='';if(AP.appr)st='APPROACH · LOC/GS TRACKING';else if(AP.lnav&&FP.active<FP.wps.length){const d=fpDist(FP.active),g=Math.max(30,Math.hypot(plane.vel.x,plane.vel.z));st='LNAV → '+FP.wps[FP.active].name+' · '+(d/1852).toFixed(1)+' nm · ETA '+Math.round(d/g/60*10)/10+' min';}
+    else if(FP.wps.length)st='LNAV OFF · '+FP.wps.length+' waypoints';$('fpSt').textContent=st;
+    renderFMS();
+  },300);
+})();
+
 status('render loop');
 let lastTime=performance.now();
 let terrainCheckTimer=0,fpsAcc=0,hwScale=1/Math.min(window.devicePixelRatio||1,1.5);
@@ -3713,4 +3909,4 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
 } /* end main */
 </script>
 </body>
-      </html>
+  </html>
