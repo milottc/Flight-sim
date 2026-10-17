@@ -2166,6 +2166,11 @@ function physicsStep(dt){
     const bank=Math.atan2(rW.y,Math.sqrt(Math.max(0,1-rW.y*rW.y)));
     plane.angVel.z+=-bank*.9*dt*BABYLON.Scalar.Clamp(Va/100,0,1);
   }
+  if(!plane.onGround&&!AP.master&&plane.gearPos>.5&&(plane.pos.y-ghPreview)<35&&Math.abs(input.roll)<.05){
+    const rW=BABYLON.Vector3.TransformNormal(new BABYLON.Vector3(1,0,0),tmpM);
+    const bank=Math.atan2(rW.y,Math.sqrt(Math.max(0,1-rW.y*rW.y)));
+    plane.angVel.z+=-bank*2.6*dt*BABYLON.Scalar.Clamp(Va/100,0,1);
+  }
 
   const gh=sampleSurface(plane.pos.x,plane.pos.z);
   const gearReallyDown = plane.gearPos > 0.9;
@@ -2193,7 +2198,7 @@ function physicsStep(dt){
     /* Only crash on REALLY hard no-gear impact (>6 m/s ~ 1180 fpm) */
     const hardNoGear = noGear && sink > 6.0;
     const reallyHard = sink > 24.0;
-    const badBank = Math.abs(bankDeg)>50;
+    const badBank = Math.abs(bankDeg)>45;
     const badPitch = pitchDeg<-25 || pitchDeg>35;
     const badRates = rollRate>6.0 || pitchRate>5.5;
 
@@ -2221,7 +2226,7 @@ function physicsStep(dt){
       if(plane.gearDown && hs>3 && plane.spoilerDeploy<0.5){plane.spoilerDeploy=1;updateChips();}
       plane.gearCompress = Math.min(1.4, sink / 4);
       plane.gearSpringVel = -sink * 0.85;
-      if(sink > 0.6 && sink < 14) plane.vel.y = sink * (0.32+Math.min(.3,sink*.06));
+      if(sink > 0.6 && sink < 14){plane.vel.y = sink * Math.min(.72,.3+sink*.12);plane.angVel.x -= Math.min(.28,sink*.05);}
       else if(sink < 0.6) plane.vel.y = 0;
     }
 
@@ -2274,7 +2279,7 @@ function physicsStep(dt){
       if(hs<56 && Math.abs(input.pitch)<0.05){
         plane.angVel.x+=(-pitchRad*2.6 - plane.angVel.x*3.5)*dt;
       }
-      plane.angVel.z+=(-bankRad*7.0 - plane.angVel.z*5.5)*dt;
+      plane.angVel.z=-bankRad*8.0;
 
       const damp=Math.max(0,1-6*dt);
       plane.angVel.x*=damp;plane.angVel.z*=damp;
