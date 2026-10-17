@@ -3242,7 +3242,7 @@ function buildCity(cx,cz){
 }
 
 /* ===== TRAFFIC + TCAS + IMPROVED CITY ===== */
-const traffic=[];let trafficSpawnT=8,tcasMsgT=0,tcasLevel=0,envT=0,tcasDrawT=0;
+const traffic=[];let trafficSpawnT=2,tcasMsgT=0,tcasLevel=0,envT=0,tcasDrawT=0;
 const tcasCtx=document.getElementById('tcasCanvas').getContext('2d');
 function makeAirliner(col){
   const r=new BABYLON.TransformNode('ai',scene);const mats=[];
@@ -3270,13 +3270,20 @@ function makeAirliner(col){
 function spawnTraffic(threat){
   const cols=[[.8,.1,.1],[.1,.3,.8],[.1,.6,.3],[.9,.6,.1],[.5,.2,.7]],c=cols[(Math.random()*cols.length)|0];
   const ac=makeAirliner(new BABYLON.Color3(c[0],c[1],c[2]));
-  let pos,vel;
+  let pos,vel,homing=0;
   if(threat){
     const T=28,spd=210,hv=Math.hypot(plane.vel.x,plane.vel.z)>5?new BABYLON.Vector3(plane.vel.x,0,plane.vel.z).normalize():new BABYLON.Vector3(0,0,-1);
     const ip=plane.pos.add(plane.vel.scale(T));ip.y=plane.pos.y+BABYLON.Scalar.Clamp(plane.vel.y*T,-400,400);
     const a=Math.PI+(Math.random()-.5)*1.0,ca=Math.cos(a),sa=Math.sin(a);
     const dir=new BABYLON.Vector3(hv.x*ca+hv.z*sa,0,-hv.x*sa+hv.z*ca);
     vel=dir.scale(spd);pos=ip.subtract(vel.scale(T));
+  } else if(Math.random()<.7){
+    const T=20+Math.random()*25,spd=170+Math.random()*100,miss=Math.random()*180;
+    const ip=plane.pos.add(plane.vel.scale(T));ip.y+=(Math.random()-.5)*2*miss*.6;
+    const a=Math.random()*Math.PI*2,dir=new BABYLON.Vector3(Math.sin(a),0,Math.cos(a));
+    ip.x+=-dir.z*miss;ip.z+=dir.x*miss;
+    vel=dir.scale(-spd);pos=ip.subtract(vel.scale(T));
+    pos.y=Math.max(pos.y,sampleTerrain(pos.x,pos.z)+300);homing=.05;
   } else {
     const a=Math.random()*Math.PI*2,d=7000+Math.random()*7000,h=Math.random()*Math.PI*2,spd=130+Math.random()*110;
     const dy=(Math.random()<.5?-1:1)*(300+Math.random()*600);
@@ -3285,7 +3292,8 @@ function spawnTraffic(threat){
     vel=new BABYLON.Vector3(Math.sin(h)*spd,0,Math.cos(h)*spd);
   }
   ac.root.position.copyFrom(pos);
-  traffic.push({root:ac.root,marker:ac.marker,mats:ac.mats,pos:pos,vel:vel,threat:!!threat,lvl:0,dz:0,range:0});
+  if(threat)homing=.13;
+  traffic.push({homing:homing,root:ac.root,marker:ac.marker,mats:ac.mats,pos:pos,vel:vel,threat:!!threat,lvl:0,dz:0,range:0});
 }
 function spawnIntruder(){
   if(plane.onGround||plane.crashed){showMsg('COLLISION FAULT · AIRBORNE ONLY',2500);faults.clear('COLLISION');return;}
@@ -3326,13 +3334,15 @@ function updateTraffic(dt){
   const wantThreat=faults.has('COLLISION');
   trafficSpawnT-=dt;
   if(flying&&trafficSpawnT<=0){
-    trafficSpawnT=15+Math.random()*25;
-    if(traffic.filter(t=>!t.threat).length<4&&plane.pos.y-sampleSurface(plane.pos.x,plane.pos.z)>500)spawnTraffic(false);
+    trafficSpawnT=3+Math.random()*4;
+    if(traffic.filter(t=>!t.threat).length<12&&plane.pos.y-sampleSurface(plane.pos.x,plane.pos.z)>500)spawnTraffic(false);
   }
   let lvl=0,ra=null;
   for(let i=traffic.length-1;i>=0;i--){
     const t=traffic[i];
-    t.pos.addInPlace(t.vel.scale(dt));t.root.position.copyFrom(t.pos);t.marker.position.set(t.pos.x,t.pos.y+8,t.pos.z);{const dd=BABYLON.Vector3.Distance(t.pos,camera.position);t.marker.scaling.setAll(Math.max(1,dd/160));t.marker.isVisible=dd>250;}t.root.rotation.y=Math.atan2(t.vel.x,t.vel.z);
+    if(t.homing&&t.range>350){const sp=t.vel.length(),dn=plane.pos.subtract(t.pos).normalize(),cn=t.vel.scale(1/sp);
+      t.vel=cn.add(dn.subtract(cn).scale(Math.min(1,t.homing*dt))).normalize().scale(sp);}
+    t.pos.addInPlace(t.vel.scale(dt));t.root.position.copyFrom(t.pos);t.marker.position.set(t.pos.x,t.pos.y+8,t.pos.z);{const dd=BABYLON.Vector3.Distance(t.pos,camera.position);t.marker.scaling.setAll(Math.max(1,dd/160));t.marker.isVisible=false;}t.root.rotation.y=Math.atan2(t.vel.x,t.vel.z);
     const rel=t.pos.subtract(plane.pos),rv=t.vel.subtract(plane.vel),r=rel.length();
     if(r>24000||(t.threat&&!wantThreat)){removeTraffic(i);continue;}
     const v2=rv.lengthSquared(),tc=v2>1?-BABYLON.Vector3.Dot(rel,rv)/v2:0;
@@ -3586,4 +3596,4 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
 } /* end main */
 </script>
 </body>
-</html>
+  </html>
