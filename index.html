@@ -5377,6 +5377,7 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
 /* ================================================================== */
 /* ===== CAREER v4 · FLEET + SMOOTH MODELS + VISIBILITY LOCK ======== */
 /* ================================================================== */
+
 (function initCareer(){
   const SAVE='bf737_career_v4';
 
@@ -5396,11 +5397,11 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
 
   /* ---------- FLEET PROGRESSION ---------- */
   const FLEET=[
-    { id:'cessna', name:'Cessna 172',     tag:'GA trainer',        pax:3,   fare:120, cruise:120, cost:0,      model:'cessna', camScale:0.55,
+    { id:'cessna', name:'Cessna 172',     tag:'GA trainer',        pax:3,   fare:120, cruise:120, cost:0,      model:'cessna', camScale:0.35,
       physics:{mass:4000,  wingArea:16,   thrust:12000, CLmax:1.7, gearHeight:4.25}, fixedGear:true,  hasCockpit:false },
-    { id:'atr',    name:'ATR 72',         tag:'Regional turboprop',pax:70,  fare:80,  cruise:270, cost:3000,   model:'atr', camScale:0.8,
+    { id:'atr',    name:'ATR 72',         tag:'Regional turboprop',pax:70,  fare:80,  cruise:270, cost:3000,   model:'atr', camScale:0.55,
       physics:{mass:22000, wingArea:61,   thrust:55000, CLmax:1.8, gearHeight:2.35}, fixedGear:false, hasCockpit:false },
-    { id:'e190',   name:'Embraer E190',   tag:'Regional jet',      pax:100, fare:60,  cruise:450, cost:12000,  model:'e190', camScale:1.0,
+    { id:'e190',   name:'Embraer E190',   tag:'Regional jet',      pax:100, fare:60,  cruise:450, cost:12000,  model:'e190', camScale:0.8,
       physics:{mass:50000, wingArea:92,   thrust:130000,CLmax:1.8, gearHeight:2.7 }, fixedGear:false, hasCockpit:false },
     { id:'b737',   name:'Boeing 737-800', tag:'Narrowbody',        pax:180, fare:45,  cruise:470, cost:40000,  model:'737', camScale:1.0,
       physics:{mass:65000, wingArea:124.6,thrust:245000,CLmax:1.85,gearHeight:4.05}, fixedGear:false, hasCockpit:true  },
@@ -5474,18 +5475,12 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
     if(pos)m.position.set(pos[0],pos[1],pos[2]);
     m.material=mat;m.parent=g;m.isPickable=false;return m;
   }
-  function sph(g,name,d,mat,pos){
-    const m=BABYLON.MeshBuilder.CreateSphere(name,{diameter:d,segments:10},scene);
-    m.position.set(pos[0],pos[1],pos[2]);
-    m.material=mat;m.parent=g;m.isPickable=false;return m;
-  }
 
   function buildCessnaModel(){
     const g=new BABYLON.TransformNode('ac_cessna',scene);g.parent=aircraftRoot;
     const S=1.5;
     g.scaling.set(S,S,S);
 
-    // Smooth fuselage
     tubeSmooth('c172_fus', [
       {z: 4.1, r: 0.05, w: 1, h: 1, yo: 0, flat: 0.1},
       {z: 3.6, r: 0.45, w: 1, h: 1, yo: 0, flat: 0.1},
@@ -5497,7 +5492,6 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
       {z: -4.2, r: 0.02, w: 1, h: 1.0, yo: 0.45, flat: 0.1}
     ], MAT.white, g);
 
-    // Airfoil wings
     const wStations = [
       {s: 0.6, c: 1.5, t: .12, zLE: 1.2, y: 0.65},
       {s: 2.0, c: 1.5, t: .12, zLE: 1.2, y: 0.75},
@@ -5507,11 +5501,9 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
     horiz('c172_wR', wStations, MAT.white, g);
     horiz('c172_wL', wStations.map(st => ({...st, s: -st.s})), MAT.white, g);
 
-    // Wing struts
     cyl(g,'c172_sL',0.05,0.05,0.8,MAT.dark,[-1.4,0.3,0.8],[0,0,0.4]);
     cyl(g,'c172_sR',0.05,0.05,0.8,MAT.dark,[ 1.4,0.3,0.8],[0,0,-0.4]);
 
-    // Tail fin & horizontal stabilizer
     const fStations = [
       {s: 0.4, c: 1.2, t: .12, zLE: -3.5},
       {s: 1.4, c: 1.0, t: .12, zLE: -3.8},
@@ -5526,18 +5518,15 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
     horiz('c172_hR', hStations, MAT.white, g);
     horiz('c172_hL', hStations.map(st => ({...st, s: -st.s})), MAT.white, g);
 
-    // Spinner + Prop
     cyl(g,'c172_spin',0.05,0.3,0.4,MAT.dark,[0,0,3.3],[Math.PI/2,0,0]);
     const prop=BABYLON.MeshBuilder.CreateDisc('c172_prop',{radius:1.0,tessellation:20},scene);
     prop.position.set(0,0,3.4); prop.material=MAT.dark; prop.parent=g; prop.isPickable=false;
     g._prop=prop;
 
-    // Windows
     box(g,'c172_ws',0.9,0.45,0.1,MAT.glass,[0,0.3,1.4]);
     box(g,'c172_swL',0.05,0.35,1.2,MAT.glass,[-0.55,0.2,0.0]);
     box(g,'c172_swR',0.05,0.35,1.2,MAT.glass,[ 0.55,0.2,0.0]);
 
-    // Fixed gear
     const gear=new BABYLON.TransformNode('c172_gear',scene);gear.parent=g;
     cyl(gear,'c172_ngS',0.04,0.04,0.5,MAT.dark,[0,-0.5,2.8]);
     cyl(gear,'c172_ngW',0.35,0.35,0.1,MAT.dark,[0,-0.75,2.8],[0,0,Math.PI/2]);
@@ -5551,7 +5540,6 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
 
   function buildATRModel(){
     const g=new BABYLON.TransformNode('ac_atr',scene);g.parent=aircraftRoot;
-
     tubeSmooth('atr_fus', [
       {z: 13.5, r: 0.1, w: 1, h: 1, yo: 0, flat: 0.1},
       {z: 12.0, r: 0.8, w: 1, h: 1, yo: 0, flat: 0.15},
@@ -5697,13 +5685,11 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
     }
   }
 
-  /* filter objectives based on fleet */
   function filterObjectives(objs){
     const fd=fleet();
     return objs.filter(o=>!(fd.fixedGear&&o.id==='gear'));
   }
 
-  /* ---------- LESSONS ---------- */
   const LESSONS=[
     {id:'L1',type:'lesson',title:'Takeoff Basics',
      desc:'Throttle up, accelerate past 135 kts, rotate, and climb.',
@@ -5776,7 +5762,6 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
     return true;
   }
 
-  /* ---------- CONTRACT GENERATORS ---------- */
   const WX_BONUS={clear:1,cloudy:1.05,rain:1.2,storm:1.55,fog:1.4,snow:1.3,windy:1.35,turbulent:1.45};
   const WX_LIST=Object.keys(WX_BONUS);
   const pickWx=()=>WX_LIST[Math.floor(Math.random()*WX_LIST.length)];
@@ -5893,7 +5878,6 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
     return [makeTakeoff('c0'),makeFull('c1'),(Math.random()<0.5?makeCircuit:makeLanding)('c2')];
   }
 
-  /* ---------- HUD STRIP ---------- */
   const hud=document.createElement('div');hud.id='careerHud';
   hud.innerHTML=`
     <div class="chStat"><span class="chIco">💰</span><span id="chMoney">$0</span></div>
@@ -5913,7 +5897,6 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
   }
   function pulse(id){const el=document.getElementById(id);if(!el)return;el.classList.remove('pulse');void el.offsetWidth;el.classList.add('pulse');}
 
-  /* ---------- DISPATCH PANEL ---------- */
   const contrEl=document.createElement('div');contrEl.id='contrPanel';
   contrEl.innerHTML=`
     <div class="cpHead"><span>📋 DISPATCH</span><button id="cpX">✕</button></div>
@@ -5971,7 +5954,6 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
     });
   }
 
-  /* ---------- SHOP ---------- */
   const shopEl=document.createElement('div');shopEl.id='shopPanel';
   shopEl.innerHTML=`<div class="cpHead"><span>🛒 HANGAR</span><button id="spX">✕</button></div>
     <div id="spTabs">
@@ -6042,7 +6024,6 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
     }
   }
 
-  /* ---------- OBJECTIVES HUD ---------- */
   const objPanel=document.createElement('div');objPanel.id='objHud';
   document.body.appendChild(objPanel);
   let lastObjState='';
@@ -6066,7 +6047,6 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
     objPanel.style.display='block';
   }
 
-  /* ---------- SUMMARY ---------- */
   const sModal=document.createElement('div');sModal.id='summaryModal';
   document.body.appendChild(sModal);
   function showSummary(data){
@@ -6090,7 +6070,6 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
     });
   }
 
-  /* ---------- STATE ---------- */
   let pendingContract=null;
   let currentFlight=null;
   let careerBlockAutoStart=false;
@@ -6195,7 +6174,6 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
     contractList=genContractList();
   }
 
-  /* ---------- WIRING ---------- */
   document.getElementById('chContr').addEventListener('click',()=>{
     if(contrEl.classList.contains('show')){contrEl.classList.remove('show');return;}
     renderContracts();contrEl.classList.add('show');shopEl.classList.remove('show');
@@ -6216,7 +6194,6 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
   const respawnBtnEl=document.getElementById('respawnBtn');
   if(respawnBtnEl)respawnBtnEl.addEventListener('click',()=>{currentFlight=null;careerBlockAutoStart=true;renderObjHud();});
 
-  /* ---------- CAMERA FIX ---------- */
   const _origSetCamMode=setCamMode;
   setCamMode=function(m){
     if(m===1 && !fleet().hasCockpit){
@@ -6238,10 +6215,7 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
     }
   };
 
-  /* ---------- TICK WITH ABSOLUTE LOCK ---------- */
   scene.registerBeforeRender(()=>{
-    // --- ABSOLUTE MODEL VISIBILITY LOCK ---
-    // The base game constantly tries to re-enable the default 737 model. We override it here every frame.
     if (typeof activeModelId !== 'undefined') {
       const isB737 = (activeModelId === '737');
       const isB787 = (activeModelId === '787');
@@ -6264,13 +6238,11 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
       }
     }
 
-    // Fix fixed-gear planes (stops the "GEAR TRANSIT" warning)
     if (fleet().fixedGear) {
       plane.gearPos = 1.0;
       plane.gearTarget = 1.0;
       plane.gearDown = true;
     }
-    // --- END LOCK ---
 
     if(!currentFlight){startFlightIfNeeded();return;}
     if(plane.crashed){completeCrash();return;}
@@ -6296,7 +6268,6 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
     renderObjHud();
   });
 
-  /* ---------- BOOT ---------- */
   initMats();
   modelRoots.cessna=buildCessnaModel();
   modelRoots.atr=buildATRModel();
@@ -6308,9 +6279,10 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
   setActiveAircraft(fleet().model);
   renderHUD();
   renderContracts();
-  console.log('[CAREER v4] ready · '+fleet().name+' · $'+C.money+' · lessons='+C.stats.lessonsDone+'/'+LESSONS.length);
+  console.log('[CAREER v4] ready');
 })();
-}
+
+} /* end main */
 </script>
 </body>
 </html>
