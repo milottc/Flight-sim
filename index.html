@@ -3098,6 +3098,7 @@ window.addEventListener('keydown',e=>{
     showMsg('ALL FAULTS CLEARED',2000);return;}
   if(keys[e.code])return;keys[e.code]=true;
   if(e.code==='KeyC'||e.code==='KeyV')setCamMode((camMode+1)%CAM_NAMES.length);
+  if(e.code==='KeyX'){const h=document.body.classList.toggle('pfd-hidden');showMsg('PFD '+(h?'HIDDEN':'SHOWN'),1200);}
   if(e.code==='KeyR')respawn();
   if(e.code==='KeyI')startEngines();
   if(e.code==='KeyN'){
@@ -3164,8 +3165,7 @@ function readInput(dt){
   if(keys['ArrowDown'])plane.elevTrim=BABYLON.Scalar.Clamp(plane.elevTrim-dt*.4,-1,1);
   if(keys['ArrowLeft'])plane.ailTrim=BABYLON.Scalar.Clamp(plane.ailTrim-dt*.4,-1,1);
   if(keys['ArrowRight'])plane.ailTrim=BABYLON.Scalar.Clamp(plane.ailTrim+dt*.4,-1,1);
-  if(keys['KeyZ'])plane.rudTrim=BABYLON.Scalar.Clamp(plane.rudTrim-dt*.4,-1,1);
-  if(keys['KeyX'])plane.rudTrim=BABYLON.Scalar.Clamp(plane.rudTrim+dt*.4,-1,1);
+  if(keys['KeyZ'])plane.rudTrim=BABYLON.Scalar.Clamp(plane.rudTrim+(keys['ShiftLeft']||keys['ShiftRight']?1:-1)*dt*.4,-1,1);
   const engRun=(ENG.L.state==='RUNNING'||ENG.R.state==='RUNNING');
   if(engRun){
     const rate=plane.onGround?.75:.55;
@@ -3425,7 +3425,6 @@ function physicsStep(dt){
         else if(fpm<550) showMsg('TOUCHDOWN · '+fpm+' fpm',1800);
         else showMsg('FIRM LANDING · '+fpm+' fpm',1800);
       }
-      if(plane.gearDown && hs>3 && plane.spoilerDeploy<0.5){plane.spoilerDeploy=1;updateChips();}
       plane.gearCompress = Math.min(1.2, sink / 4);
       plane.gearSpringVel = -sink * 0.5;
       if(sink > 1.1 && sink < 14){plane.vel.y = sink * Math.min(.5,.14+(sink-1.1)*.1);plane.angVel.x -= Math.min(.22,(sink-1.1)*.06);}
@@ -5147,7 +5146,7 @@ function xfUpdate(dt){
   if(air&&vs<-150&&!f('RADALT_FAIL')){
     const steps=[[2500,'TWENTY FIVE HUNDRED'],[1000,'ONE THOUSAND'],[500,'FIVE HUNDRED'],[400,'FOUR HUNDRED'],[300,'THREE HUNDRED'],[200,'TWO HUNDRED'],[100,'ONE HUNDRED'],[50,'FIFTY'],[40,'FORTY'],[30,'THIRTY'],[20,'TWENTY'],[10,'TEN']];
     for(const [h,t] of steps){if(XF.lastAgl>h&&agl<=h&&plane.gearPos>.8||(XF.lastAgl>h&&agl<=h&&h>=500)){
-      showMsg(t,900);speak(t.toLowerCase(),1.3);if(h===500&&plane.gearPos<.8)setTimeout(()=>speak('too low gear'),600);if(h===10&&vs<-100)setTimeout(()=>speak('retard'),350);break;}}
+      showMsg(t,900);speak(t.toLowerCase(),1.3);if(h===500&&plane.gearPos<.8)setTimeout(()=>speak('too low gear'),600);break;}}
     if(agl<2500&&agl>50&&-vs>2200+agl*.6&&now-XF.lastCall>2.5){XF.lastCall=now;showMsg('⚠ SINK RATE',1200);speak('sink rate. pull up',1.2);}
     if(agl<1000&&agl>100&&plane.gearPos<.5&&kts<200&&now-XF.lastCall>6){XF.lastCall=now;showMsg('⚠ TOO LOW GEAR',1500);speak('too low gear');}
     if(agl<1000&&agl>200&&plane.flaps<1&&kts<190&&plane.gearPos>.8&&now-XF.lastCall>8){XF.lastCall=now;showMsg('⚠ TOO LOW FLAPS',1500);speak('too low flaps');}
