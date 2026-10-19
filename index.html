@@ -1128,6 +1128,119 @@ body:has(#overlay:not(.hidden)) #atcBtn {
 body.mobile #careerHud{top:auto;bottom:210px;left:8px;transform:none;flex-wrap:wrap;max-width:calc(100vw - 16px);font-size:11px;padding:5px 8px}
 body.mobile .chStat{padding:3px 8px}
 body.mobile .chBtn{padding:5px 9px;font-size:10px}
+  /* ============ MISSION OBJECTIVES HUD ============ */
+#objHud{
+  position:fixed;left:20px;top:250px;z-index:15;
+  width:250px;padding:10px 14px;
+  background:#111a2e;
+  border:2px solid #263652;
+  border-radius:10px;
+  box-shadow:0 3px 0 #000;
+  font-size:11.5px;color:#e6edf6;
+  display:none;
+  pointer-events:none;
+  font-family:inherit;
+}
+.objHead{
+  display:flex;justify-content:space-between;align-items:center;
+  font-size:10.5px;letter-spacing:1.5px;
+  color:#22d3ee;font-weight:800;
+  margin-bottom:8px;padding-bottom:6px;
+  border-bottom:1px solid #1e2a44;
+  text-transform:uppercase;
+}
+.objProg{color:#fbbf24;font-weight:800}
+.objList{display:flex;flex-direction:column;gap:4px}
+.obj{
+  display:flex;gap:8px;align-items:flex-start;
+  padding:3px 0;
+  color:#8ba3c0;
+  font-weight:500;font-size:11px;line-height:1.4;
+  transition:color .2s;
+}
+.obj.met{color:#4ade80}
+.objCheck{
+  flex-shrink:0;width:14px;text-align:center;
+  font-weight:800;color:#5a6d87;
+  transition:color .2s;
+}
+.obj.met .objCheck{color:#4ade80}
+.obj.lesson{color:#c4b5fd}
+.obj.lesson.met{color:#a5f3fc}
+
+/* ============ DISPATCH PANEL: LESSONS + CONTRACTS ============ */
+.cpSection{margin-bottom:18px}
+.cpSection:last-of-type{margin-bottom:10px}
+.cpSectionHead{
+  font-size:10.5px;letter-spacing:2px;
+  color:#8ba3c0;font-weight:800;
+  margin-bottom:10px;padding-bottom:6px;
+  border-bottom:1px solid #1e2a44;
+  text-transform:uppercase;
+}
+.cpRefresh{
+  width:100%;padding:10px;margin-top:8px;
+  border:2px solid #263652;
+  border-radius:8px;
+  background:#0a1424;
+  color:#8ba3c0;
+  font-family:inherit;font-weight:700;
+  letter-spacing:1px;font-size:11px;
+  cursor:pointer;text-transform:uppercase;
+  transition:all .15s;
+}
+.cpRefresh:hover{border-color:#22d3ee;color:#22d3ee;background:#0f172a}
+.cpRefresh:active{transform:translateY(1px)}
+
+/* lesson cards */
+.ctr.lesson{
+  background:#150f28;
+  border-color:#4c1d95;
+}
+.ctr.lesson:hover{
+  border-color:#a855f7;
+  box-shadow:4px 3px 0 #000,0 0 20px rgba(139,92,246,.25);
+}
+.ctr.lesson.sel{
+  background:#4c1d95;
+  border-color:#a855f7;
+  box-shadow:0 3px 0 #2e1065,0 0 25px rgba(168,85,247,.35);
+}
+.ctr.lesson.locked{opacity:.42;cursor:not-allowed}
+.ctr.lesson.locked:hover{
+  transform:none;
+  border-color:#4c1d95;
+  box-shadow:0 3px 0 #000;
+}
+.ctr.lesson.done::after{
+  content:'✓';
+  position:absolute;top:8px;right:8px;
+  color:#4ade80;font-weight:800;font-size:14px;
+}
+.ctr.lesson .ctr-title{color:#e9d5ff}
+.ctr.lesson .ctr-desc{color:#a78bfa}
+.ctr.lesson .ctr-reward{color:#a855f7}
+.ctr.lesson .ctr-reward small{color:#22d3ee}
+.ctr.lesson .lessonTag{
+  display:inline-block;
+  padding:1px 6px;
+  border-radius:4px;
+  background:#4c1d95;
+  color:#c4b5fd;
+  font-size:9px;font-weight:800;letter-spacing:.5px;
+  margin-left:6px;
+  vertical-align:middle;
+}
+
+/* success flash on contract log */
+#contrPanel .cpHead{position:relative}
+
+/* Mobile objectives HUD */
+@media (max-width:800px){
+  #objHud{left:8px;top:auto;bottom:270px;width:210px;font-size:10px;padding:8px 10px}
+  .obj{font-size:10px}
+  .objHead{font-size:9.5px}
+}
 </style>
 </head>
 <body>
@@ -5238,18 +5351,32 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
 /* ================================================================== */
 /* ===== TYCOON / CAREER GAMIFICATION LAYER (self-contained) ======== */
 /* ================================================================== */
+/* ================================================================== */
+/* ===== CAREER / MISSIONS / LESSONS (v2) ============================ */
+/* ================================================================== */
 (function initCareer(){
-  const SAVE='bf737_career_v1';
+  const SAVE='bf737_career_v2';
   const DEF={
     money:5000, xp:0, level:1,
     upgrades:{fleet:1, engines:0, comfort:0, safety:0},
-    stats:{flights:0, crashes:0, bestLandingFpm:9999, totalEarned:0, perfectLandings:0, faultsHandled:0}
+    lessonsCompleted:{},
+    stats:{flights:0, crashes:0, bestLandingFpm:9999, totalEarned:0, perfectLandings:0, faultsHandled:0, lessonsDone:0}
   };
-  let C=(()=>{ try{const s=JSON.parse(localStorage.getItem(SAVE)||'null');
-    if(s&&typeof s==='object') return Object.assign({},DEF,s,{stats:Object.assign({},DEF.stats,s.stats||{}),upgrades:Object.assign({},DEF.upgrades,s.upgrades||{})});
-  }catch(e){} return JSON.parse(JSON.stringify(DEF)); })();
+  let C = (()=>{
+    try{const s=JSON.parse(localStorage.getItem(SAVE)||'null');
+      if(s&&typeof s==='object'){
+        return Object.assign({},DEF,s,{
+          stats:Object.assign({},DEF.stats,s.stats||{}),
+          upgrades:Object.assign({},DEF.upgrades,s.upgrades||{}),
+          lessonsCompleted:Object.assign({},s.lessonsCompleted||{})
+        });
+      }
+    }catch(e){}
+    return JSON.parse(JSON.stringify(DEF));
+  })();
   const save=()=>{try{localStorage.setItem(SAVE,JSON.stringify(C));}catch(e){}};
 
+  /* ---------- Fleet + Upgrades (unchanged) ---------- */
   const FLEET=[
     {name:'B737-700', pax:130, speed:1.00, cost:0,     mult:1.0},
     {name:'B737-800', pax:180, speed:1.05, cost:0,     mult:1.2},
@@ -5257,36 +5384,355 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
     {name:'B787-9',   pax:290, speed:1.20, cost:90000, mult:2.20},
   ];
   const UPGRADES={
-    engines:{name:'Engine Efficiency', max:5, baseCost:4000, per:0.05, effect:'+5% payout per level · greener fuel'},
-    comfort:{name:'Passenger Comfort', max:5, baseCost:3000, per:0.10, effect:'+10% tips per level · happy pax'},
-    safety: {name:'Safety Systems',    max:5, baseCost:5000, per:0.08, effect:'−8% crash penalty per level · +8% payout bonus'},
+    engines:{name:'Engine Efficiency', max:5, baseCost:4000, per:0.05, effect:'+5% payout per level'},
+    comfort:{name:'Passenger Comfort', max:5, baseCost:3000, per:0.10, effect:'+10% tips per level'},
+    safety: {name:'Safety Systems',    max:5, baseCost:5000, per:0.08, effect:'−8% crash penalty · +8% payout'},
   };
   const xpForLevel=l=>l*1000;
+  const fleet=()=>FLEET[C.upgrades.fleet]||FLEET[1];
+  function addXP(amount){
+    C.xp+=amount; let levels=0;
+    while(C.xp>=xpForLevel(C.level)){ C.xp-=xpForLevel(C.level); C.level++; levels++; }
+    return levels;
+  }
 
-  /* ---------- state ---------- */
-  let pendingContract=null, currentFlight=null, lastOnGround=false;
-  let lastFlightPax=0, lastFlightDep='';
+  /* ---------- Helpers (bridge to sim) ---------- */
+  function getPitch(){
+    const m=BABYLON.Matrix.Identity(); plane.quat.toRotationMatrix(m);
+    const f=BABYLON.Vector3.TransformNormal(new BABYLON.Vector3(0,0,1),m);
+    return Math.asin(Math.max(-1,Math.min(1,f.y)))*180/Math.PI;
+  }
+  function setSelect(id,v){
+    const el=document.getElementById(id);
+    if(!el) return;
+    if(el.value!==v){ el.value=v; try{el.dispatchEvent(new Event('change'));}catch(e){} }
+  }
+  function findLocValueByCode(code){
+    const sel=document.getElementById('locSelect');
+    if(!sel) return null;
+    for(const opt of sel.options){ if(opt.value.endsWith(','+code)) return opt.value; }
+    return null;
+  }
+  function pickRandomLoc(){
+    const sel=document.getElementById('locSelect');
+    if(!sel) return {code:'LSZH', value:'47.4647,8.5492,432,LSZH'};
+    const opts=[...sel.options].filter(o=>o.value!=='CUSTOM');
+    const pick=opts[Math.floor(Math.random()*opts.length)];
+    const code=pick.value.split(',').pop();
+    return {code, value:pick.value};
+  }
 
-  /* ---------- HUD strip ---------- */
+  /* ---------- LESSONS (5 sequential) ---------- */
+  const LESSONS=[
+    {
+      id:'L1', type:'lesson',
+      title:'Takeoff Basics',
+      desc:'Throttle up, accelerate past 135 kts, rotate, gear up, climb to 3,000 ft.',
+      startState:'takeoff', wx:'clear', pax:0,
+      pay:800, xp:100,
+      objectives:[
+        { id:'thr',    label:'Advance throttle above 60%',      check:()=>plane.throttle>0.6 },
+        { id:'roll',   label:'Accelerate past 100 kts',         check:()=>plane.speed*1.94384>100 },
+        { id:'rotate', label:'Lift off above 135 kts',          check:()=>!plane.onGround && plane.speed*1.94384>135 },
+        { id:'gear',   label:'Retract landing gear',            check:()=>plane.gearPos<0.1 },
+        { id:'climb',  label:'Climb above 3,000 ft AGL',        check:()=>computeAGL()>3000 }
+      ]
+    },
+    {
+      id:'L2', type:'lesson',
+      title:'Autopilot',
+      desc:'Engage autopilot (P) and hold a stable altitude for 5 seconds.',
+      startState:'cruise', wx:'clear', pax:0,
+      pay:1200, xp:150,
+      objectives:[
+        { id:'ap',    label:'Engage autopilot (P)',             check:()=>AP.master },
+        { id:'stbl',  label:'Hold stable descent/climb (5 s)',  check:(f)=>{
+          const vs=Math.abs(plane.vel.y*196.85);
+          if(AP.master && vs<600) f._holdT=(f._holdT||0)+0.016; else f._holdT=0;
+          return f._holdT>5;
+        }}
+      ]
+    },
+    {
+      id:'L3', type:'lesson',
+      title:'Approach & Landing',
+      desc:'On final. Lower gear, flaps 30, reduce throttle, touch down under 550 fpm.',
+      startState:'final', wx:'clear', pax:0,
+      pay:1500, xp:200,
+      objectives:[
+        { id:'gear',  label:'Lower landing gear (G)',           check:()=>plane.gearPos>0.9 },
+        { id:'flaps', label:'Extend flaps to 30',               check:()=>plane.flaps>=4 },
+        { id:'thr',   label:'Throttle below 50%',               check:()=>plane.throttle<0.5 },
+        { id:'touch', label:'Touch down on the runway',         check:(f)=>{
+          if(!plane.onGround) f.everAirborne=true;
+          return f.everAirborne && plane.onGround && plane.gearPos>0.9;
+        }},
+        { id:'soft',  label:'Soft touchdown (< 550 fpm)',       check:(f)=>f.touchdownFpm && f.touchdownFpm<550 }
+      ]
+    },
+    {
+      id:'L4', type:'lesson',
+      title:'Emergency Response',
+      desc:'Engine 2 catches fire on approach. Land the aircraft safely.',
+      startState:'final', wx:'clear', pax:0,
+      pay:2000, xp:250,
+      tick:(f)=>{
+        if(!f._fireInjected && f.elapsed>3){
+          f._fireInjected=true;
+          try{ faults.inject('ENG_FIRE_R'); }catch(e){}
+          showMsg('⚠ ENGINE 2 FIRE · LAND IMMEDIATELY', 4000);
+        }
+      },
+      objectives:[
+        { id:'ack',   label:'Acknowledge fire warning',         check:(f)=>!!f._fireInjected },
+        { id:'land',  label:'Land the aircraft safely',         check:(f)=>{
+          if(!plane.onGround) f.everAirborne=true;
+          return f.everAirborne && plane.onGround && plane.gearPos>0.9;
+        }}
+      ]
+    },
+    {
+      id:'L5', type:'lesson',
+      title:'Full Flight',
+      desc:'Complete mission: takeoff, climb, cruise, descend, land.',
+      startState:'takeoff', wx:'cloudy', pax:0,
+      pay:2500, xp:300,
+      objectives:[
+        { id:'rotate', label:'Take off',                        check:()=>!plane.onGround && plane.speed*1.94384>135 },
+        { id:'gear',   label:'Retract landing gear',            check:()=>plane.gearPos<0.1 },
+        { id:'climb',  label:'Climb above 10,000 ft AGL',       check:()=>computeAGL()>10000 },
+        { id:'desc',   label:'Descend below 3,000 ft AGL',      check:()=>computeAGL()<3000 && plane.vel.y<-2 },
+        { id:'land',   label:'Land safely on the runway',       check:(f)=>{
+          if(!plane.onGround) f.everAirborne=true;
+          return f.everAirborne && plane.onGround && plane.gearPos>0.9;
+        }}
+      ]
+    }
+  ];
+  function canAccessLesson(i){
+    if(i===0) return true;
+    for(let k=0;k<i;k++) if(!C.lessonsCompleted[LESSONS[k].id]) return false;
+    return true;
+  }
+
+  /* ---------- CONTRACT GENERATORS ---------- */
+  const WX_BONUS={clear:1,cloudy:1.05,rain:1.2,storm:1.55,fog:1.4,snow:1.3,windy:1.35,turbulent:1.45};
+  const WX_LIST=Object.keys(WX_BONUS);
+  const pickWx=()=>WX_LIST[Math.floor(Math.random()*WX_LIST.length)];
+  const diffFor=b=>b>1.4?'HARD':b>1.15?'MED':'EASY';
+  const rndPax=()=>100+Math.floor(Math.random()*110);
+
+  function makeFull(id){
+    const wx=pickWx(), loc=pickRandomLoc(), pax=rndPax();
+    const cruiseAlt=[15000,18000,22000,25000,28000][Math.floor(Math.random()*5)];
+    return {
+      id, type:'full',
+      title:'Full Flight · '+loc.code,
+      desc:'Take off, climb to '+cruiseAlt.toLocaleString()+' ft, cruise, descend and land at '+loc.code+'.',
+      destCode:loc.code, destValue:loc.value, wx,
+      startState:'takeoff', pax,
+      pay:Math.round(pax*26*WX_BONUS[wx]*(0.9+Math.random()*0.3)),
+      xp:Math.round(pax*0.6),
+      difficulty:diffFor(WX_BONUS[wx]),
+      objectives:[
+        { id:'rotate',  label:'Lift off above 135 kts',        check:()=>!plane.onGround && plane.speed*1.94384>135 },
+        { id:'gear',    label:'Retract landing gear',          check:()=>plane.gearPos<0.1 },
+        { id:'climb',   label:'Climb to '+cruiseAlt.toLocaleString()+' ft', check:()=>plane.pos.y*3.28084>=cruiseAlt },
+        { id:'descend', label:'Descend below 10,000 ft',       check:()=>plane.pos.y*3.28084<10000 && plane.vel.y<-2 },
+        { id:'land',    label:'Land safely on the runway',     check:(f)=>{
+          if(!plane.onGround) f.everAirborne=true;
+          return f.everAirborne && plane.onGround && plane.gearPos>0.9;
+        }}
+      ]
+    };
+  }
+  function makeTakeoff(id){
+    const wx=pickWx(), loc=pickRandomLoc(), pax=rndPax();
+    const targetAlt=[5000,7000,9000][Math.floor(Math.random()*3)];
+    return {
+      id, type:'takeoff',
+      title:'Takeoff · '+loc.code,
+      desc:'Lift off from '+loc.code+' and climb to '+targetAlt.toLocaleString()+' ft AGL. Short mission.',
+      destCode:loc.code, destValue:loc.value, wx,
+      startState:'takeoff', pax,
+      pay:Math.round(pax*15*WX_BONUS[wx]*(0.9+Math.random()*0.3)),
+      xp:Math.round(pax*0.35),
+      difficulty:diffFor(WX_BONUS[wx]),
+      objectives:[
+        { id:'rotate', label:'Lift off above 135 kts',        check:()=>!plane.onGround && plane.speed*1.94384>135 },
+        { id:'gear',   label:'Retract landing gear',          check:()=>plane.gearPos<0.1 },
+        { id:'climb',  label:'Climb to '+targetAlt.toLocaleString()+' ft AGL', check:()=>computeAGL()>=targetAlt }
+      ]
+    };
+  }
+  function makeLanding(id){
+    const wx=pickWx(), loc=pickRandomLoc(), pax=rndPax();
+    return {
+      id, type:'landing',
+      title:'Landing · '+loc.code,
+      desc:'On final approach to '+loc.code+'. Land under 550 fpm.',
+      destCode:loc.code, destValue:loc.value, wx,
+      startState:'final', pax,
+      pay:Math.round(pax*18*WX_BONUS[wx]*(0.9+Math.random()*0.3)),
+      xp:Math.round(pax*0.4),
+      difficulty:diffFor(WX_BONUS[wx]),
+      objectives:[
+        { id:'gear',   label:'Lower landing gear',           check:()=>plane.gearPos>0.9 },
+        { id:'flaps',  label:'Flaps 30',                     check:()=>plane.flaps>=4 },
+        { id:'touch',  label:'Touch down on the runway',     check:(f)=>{
+          if(!plane.onGround) f.everAirborne=true;
+          return f.everAirborne && plane.onGround && plane.gearPos>0.9;
+        }},
+        { id:'stop',   label:'Come to a full stop (< 10 kts)', check:()=>plane.onGround && plane.speed*1.94384<10 }
+      ]
+    };
+  }
+  function makeCircuit(id){
+    const wx=pickWx(), loc=pickRandomLoc(), pax=rndPax();
+    const targetAlt=[3000,4000,5000][Math.floor(Math.random()*3)];
+    return {
+      id, type:'circuit',
+      title:'Circuit · '+loc.code,
+      desc:'Touch-and-go pattern. Take off, climb to '+targetAlt.toLocaleString()+' ft, land back.',
+      destCode:loc.code, destValue:loc.value, wx,
+      startState:'takeoff', pax,
+      pay:Math.round(pax*21*WX_BONUS[wx]*(0.9+Math.random()*0.3)),
+      xp:Math.round(pax*0.5),
+      difficulty:diffFor(WX_BONUS[wx]),
+      objectives:[
+        { id:'rotate', label:'Take off',                     check:()=>!plane.onGround && plane.speed*1.94384>135 },
+        { id:'climb',  label:'Climb to '+targetAlt.toLocaleString()+' ft AGL', check:()=>computeAGL()>=targetAlt },
+        { id:'desc',   label:'Descend below 1,500 ft AGL',   check:()=>computeAGL()<1500 && plane.vel.y<-1 },
+        { id:'land',   label:'Land back on the runway',      check:(f)=>{
+          if(!plane.onGround) f.everAirborne=true;
+          return f.everAirborne && plane.onGround && plane.gearPos>0.9;
+        }}
+      ]
+    };
+  }
+  function makeFree(id){
+    return {
+      id, type:'free',
+      title:'Free Flight',
+      desc:'No objectives. Practice flying. Small payout for a safe landing.',
+      wx:'clear', pax:0,
+      startState:'cruise',
+      pay:300, xp:25,
+      difficulty:'EASY',
+      objectives:[
+        { id:'land', label:'Land safely on the runway',      check:(f)=>{
+          if(!plane.onGround) f.everAirborne=true;
+          return f.everAirborne && plane.onGround && plane.gearPos>0.9;
+        }}
+      ]
+    };
+  }
+  function genContractList(){
+    const gens=[makeFull, makeTakeoff, makeLanding, makeCircuit];
+    const list=[];
+    // One takeoff/landing guaranteed (easy), one full (hard), one random
+    list.push(makeTakeoff('c0'));
+    list.push(makeFull('c1'));
+    const extra=gens[Math.floor(Math.random()*gens.length)];
+    list.push(extra('c2'));
+    return list;
+  }
+
+  /* ---------- HUD STRIP ---------- */
   const hud=document.createElement('div'); hud.id='careerHud';
   hud.innerHTML=`
     <div class="chStat"><span class="chIco">💰</span><span id="chMoney">$0</span></div>
     <div class="chStat"><span class="chIco">⭐</span><span id="chLvl">Lv 1</span><span id="chXp" style="opacity:.55;font-size:10px">0 XP</span></div>
     <div class="chStat"><span class="chIco">👥</span><span id="chPax">0 pax</span></div>
-    <button class="chBtn" id="chContr">📋 CONTRACTS</button>
+    <button class="chBtn" id="chContr">📋 MISSIONS</button>
     <button class="chBtn" id="chShop">🛒 HANGAR</button>`;
   document.body.appendChild(hud);
 
-  /* ---------- contracts panel ---------- */
-  const contrEl=document.createElement('div'); contrEl.id='contrPanel';
-  contrEl.innerHTML=`<div class="cpHead"><span>📋 DISPATCH · CONTRACT BOARD</span><button id="cpX">✕</button></div>
-    <div class="cpSub">Pick a contract — this sets the weather and the payout base. Landing quality multiplies the reward.</div>
-    <div id="cpList"></div>`;
-  document.body.appendChild(contrEl);
+  function renderHUD(){
+    document.getElementById('chMoney').textContent='$'+C.money.toLocaleString();
+    document.getElementById('chLvl').textContent='Lv '+C.level;
+    document.getElementById('chXp').textContent=C.xp+'/'+xpForLevel(C.level)+' XP';
+    const pax=currentFlight?currentFlight.passengers:(pendingContract?pendingContract.pax:fleet().pax);
+    document.getElementById('chPax').textContent=pax+' pax';
+  }
+  function pulse(id){const el=document.getElementById(id);if(!el)return;el.classList.remove('pulse');void el.offsetWidth;el.classList.add('pulse');}
 
-  /* ---------- shop panel ---------- */
+  /* ---------- DISPATCH PANEL ---------- */
+  const contrEl=document.createElement('div'); contrEl.id='contrPanel';
+  contrEl.innerHTML=`
+    <div class="cpHead"><span>📋 DISPATCH</span><button id="cpX">✕</button></div>
+    <div class="cpSub">Choose a lesson or contract. Lessons unlock in order. Contracts refresh after each flight.</div>
+    <div class="cpSection">
+      <div class="cpSectionHead">📚 Training Lessons</div>
+      <div id="cpLessonList"></div>
+    </div>
+    <div class="cpSection">
+      <div class="cpSectionHead">✈ Contracts</div>
+      <div id="cpList"></div>
+      <button id="cpRefresh" class="cpRefresh">↻ Refresh Contracts</button>
+    </div>`;
+  document.body.appendChild(contrEl);
+  let contractList=genContractList();
+
+  function renderContracts(){
+    const lessonList=document.getElementById('cpLessonList');
+    lessonList.innerHTML=LESSONS.map((L,i)=>{
+      const done=!!C.lessonsCompleted[L.id];
+      const unlocked=canAccessLesson(i);
+      const sel=pendingContract&&pendingContract.id===L.id;
+      const cls='ctr lesson'+(done?' done':'')+(!unlocked?' locked':'')+(sel?' sel':'');
+      const btnLabel=done?'REPLAY ($'+Math.round(L.pay*0.25)+')':unlocked?'$'+L.pay:'LOCKED';
+      const num=i+1;
+      return `<div class="${cls}" data-cid="${L.id}" ${!unlocked?'data-locked="1"':''}>
+        <div>
+          <div class="ctr-title">${num}. ${L.title}<span class="lessonTag">LESSON</span></div>
+          <div class="ctr-desc">${L.desc}</div>
+        </div>
+        <div class="ctr-reward">${btnLabel}<small>+${done?Math.round(L.xp*0.25):L.xp} XP</small></div>
+      </div>`;
+    }).join('');
+
+    document.getElementById('cpList').innerHTML=contractList.map(c=>{
+      const sel=pendingContract&&pendingContract.id===c.id;
+      return `<div class="ctr ${sel?'sel':''}" data-cid="${c.id}">
+        <div>
+          <div class="ctr-title">${c.title} · <span class="diff-${c.difficulty}">${c.difficulty}</span></div>
+          <div class="ctr-desc">${c.desc} · ${c.pax} passengers · weather <b>${c.wx}</b>.</div>
+        </div>
+        <div class="ctr-reward">$${c.pay.toLocaleString()}<small>+${c.xp} XP</small></div>
+      </div>`;
+    }).join('');
+
+    // click handlers
+    document.querySelectorAll('#cpLessonList .ctr, #cpList .ctr').forEach(n=>{
+      n.addEventListener('click',()=>{
+        if(n.dataset.locked) return;
+        const cid=n.dataset.cid;
+        const c=[...LESSONS, ...contractList].find(x=>x.id===cid);
+        if(!c) return;
+        if(pendingContract&&pendingContract.id===cid){
+          pendingContract=null;
+        } else {
+          pendingContract=c;
+          // Pre-set dropdowns so start state matches the mission
+          const ws=document.getElementById('wxSelect');
+          if(ws && c.wx){ setSelect('wxSelect', c.wx); }
+          const ss=document.getElementById('startSel');
+          if(ss && c.startState){ setSelect('startSel', c.startState); }
+          if(c.destCode){
+            const v=findLocValueByCode(c.destCode);
+            if(v) setSelect('locSelect', v);
+          }
+          showMsg('📋 '+c.title+' · $'+c.pay, 2500);
+        }
+        renderContracts(); renderHUD();
+      });
+    });
+  }
+
+  /* ---------- SHOP ---------- */
   const shopEl=document.createElement('div'); shopEl.id='shopPanel';
-  shopEl.innerHTML=`<div class="cpHead"><span>🛒 HANGAR · UPGRADES</span><button id="spX">✕</button></div>
+  shopEl.innerHTML=`<div class="cpHead"><span>🛒 HANGAR</span><button id="spX">✕</button></div>
     <div id="spTabs">
       <button class="spTab on" data-tab="fleet">FLEET</button>
       <button class="spTab" data-tab="upg">UPGRADES</button>
@@ -5294,91 +5740,28 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
     </div>
     <div id="spBody"></div>`;
   document.body.appendChild(shopEl);
-
-  /* ---------- summary modal ---------- */
-  const sModal=document.createElement('div'); sModal.id='summaryModal';
-  document.body.appendChild(sModal);
-
-  /* ---------- style ---------- */
-
-
-  /* ---------- HUD render ---------- */
-  function renderHUD(){
-    document.getElementById('chMoney').textContent='$'+C.money.toLocaleString();
-    document.getElementById('chLvl').textContent='Lv '+C.level;
-    document.getElementById('chXp').textContent=C.xp+'/'+xpForLevel(C.level)+' XP';
-    const f=FLEET[C.upgrades.fleet]||FLEET[1];
-    const pax=currentFlight?currentFlight.passengers:(pendingContract?pendingContract.pax:f.pax);
-    document.getElementById('chPax').textContent=pax+' pax';
-  }
-  function pulse(id){const el=document.getElementById(id);if(!el)return;el.classList.remove('pulse');void el.offsetWidth;el.classList.add('pulse');}
-
-  /* ---------- contracts ---------- */
-  function genContracts(){
-    const dests=['LSZH','EGLL','KJFK','OMDB','RJTT','YSSY','KSFO','LFPG','EHAM','CYXE','CYQR'];
-    const wxs=['clear','cloudy','rain','storm','fog','snow','windy','turbulent'];
-    const wxBonus={clear:1,cloudy:1.05,rain:1.2,storm:1.55,fog:1.4,snow:1.3,windy:1.35,turbulent:1.45};
-    const list=[];
-    for(let i=0;i<4;i++){
-      const dest=dests[Math.floor(Math.random()*dests.length)];
-      const wx=wxs[Math.floor(Math.random()*wxs.length)];
-      const pax=100+Math.floor(Math.random()*110);
-      const pay=Math.round(pax*24*wxBonus[wx]*(0.85+Math.random()*0.35));
-      const xp=Math.round(pay/6);
-      const diff=wxBonus[wx]>1.4?'HARD':wxBonus[wx]>1.15?'MED':'EASY';
-      list.push({id:'c'+i, dest, wx, pax, pay, xp, difficulty:diff});
-    }
-    return list;
-  }
-  let contractList=genContracts();
-
-  function renderContracts(){
-    document.getElementById('cpList').innerHTML=contractList.map(c=>`
-      <div class="ctr ${pendingContract&&pendingContract.id===c.id?'sel':''}" data-cid="${c.id}">
-        <div>
-          <div class="ctr-title">${c.dest} · ${c.wx.toUpperCase()} · <span class="diff-${c.difficulty}">${c.difficulty}</span></div>
-          <div class="ctr-desc">${c.pax} passengers · Weather set to <b>${c.wx}</b> when you start. Payout scales with landing rate, comfort, engine efficiency and fault handling.</div>
-        </div>
-        <div class="ctr-reward">$${c.pay.toLocaleString()}<small>+${c.xp} XP</small></div>
-      </div>`).join('');
-    document.querySelectorAll('#cpList .ctr').forEach(n=>{
-      n.addEventListener('click',()=>{
-        const cid=n.dataset.cid, c=contractList.find(x=>x.id===cid);
-        if(pendingContract&&pendingContract.id===cid){ pendingContract=null; }
-        else {
-          pendingContract=c;
-          const ws=document.getElementById('wxSelect');
-          if(ws){ ws.value=c.wx; if(!currentFlight) ws.dispatchEvent(new Event('change')); }
-          showMsg('📋 CONTRACT SELECTED · '+c.wx.toUpperCase()+' · $'+c.pay, 2500);
-        }
-        renderContracts(); renderHUD();
-      });
-    });
-  }
-
-  /* ---------- shop ---------- */
   let shopTab='fleet';
   function renderShop(){
     const body=document.getElementById('spBody');
     document.querySelectorAll('.spTab').forEach(t=>t.classList.toggle('on',t.dataset.tab===shopTab));
     if(shopTab==='fleet'){
       body.innerHTML=FLEET.map((f,i)=>{
-        const owned=(i===0)||(C.upgrades.fleet>=i&&i<C.upgrades.fleet+1)||(i<C.upgrades.fleet);
-        const cur=C.upgrades.fleet===i;
         const ownedAll=i<=C.upgrades.fleet;
+        const cur=C.upgrades.fleet===i;
         const canBuy=!ownedAll&&C.money>=f.cost&&i===C.upgrades.fleet+1;
         const btn=cur?'<button class="spBuy cur">IN USE</button>'
           :ownedAll?'<button class="spBuy own">OWNED</button>'
           :`<button class="spBuy" ${canBuy?'':'disabled'} data-buy-fleet="${i}">$${f.cost.toLocaleString()}</button>`;
         return `<div class="spItem ${cur?'current':(ownedAll?'owned':'')}">
           <div><div class="spName">${f.name}</div>
-          <div class="spDesc">${f.pax} passengers · ${Math.round(f.speed*100)}% speed · ${Math.round(f.mult*100)}% payout multiplier${i===C.upgrades.fleet+1?' · <b style="color:#4fc3ff">NEXT TIER</b>':''}</div></div>
+          <div class="spDesc">${f.pax} pax · ${Math.round(f.speed*100)}% speed · ${Math.round(f.mult*100)}% payout${i===C.upgrades.fleet+1?' · <b style="color:#22d3ee">NEXT TIER</b>':''}</div></div>
           ${btn}</div>`;
       }).join('');
       body.querySelectorAll('[data-buy-fleet]').forEach(b=>b.addEventListener('click',()=>{
         const i=+b.dataset.buyFleet, f=FLEET[i];
         if(C.money>=f.cost&&i===C.upgrades.fleet+1){
-          C.money-=f.cost; C.upgrades.fleet=i; save(); renderShop(); renderHUD(); pulse('chMoney');
+          C.money-=f.cost; C.upgrades.fleet=i; save();
+          renderShop(); renderHUD(); pulse('chMoney');
           showMsg('✈ NEW FLEET · '+f.name, 2500);
         }
       }));
@@ -5395,148 +5778,298 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
       body.querySelectorAll('[data-buy-upg]').forEach(b=>b.addEventListener('click',()=>{
         const k=b.dataset.buyUpg,u=UPGRADES[k],lvl=C.upgrades[k]||0,cost=Math.round(u.baseCost*Math.pow(1.8,lvl));
         if(C.money>=cost&&lvl<u.max){
-          C.money-=cost; C.upgrades[k]=lvl+1; save(); renderShop(); renderHUD(); pulse('chMoney');
+          C.money-=cost; C.upgrades[k]=lvl+1; save();
+          renderShop(); renderHUD(); pulse('chMoney');
           showMsg('⚙ '+u.name+' → Lv '+(lvl+1), 2000);
         }
       }));
     } else {
+      const total=Object.keys(C.lessonsCompleted).filter(k=>C.lessonsCompleted[k]).length;
       body.innerHTML=`
-        <div class="spItem"><div><div class="spName">Total Flights</div></div><div style="font-size:20px;color:#7dffa0">${C.stats.flights}</div></div>
-        <div class="spItem"><div><div class="spName">Crashes</div></div><div style="font-size:20px;color:#ff6060">${C.stats.crashes}</div></div>
-        <div class="spItem"><div><div class="spName">Best Landing</div></div><div style="font-size:20px;color:#ffd060">${C.stats.bestLandingFpm<9999?C.stats.bestLandingFpm+' fpm':'—'}</div></div>
-        <div class="spItem"><div><div class="spName">Perfect Landings (S)</div></div><div style="font-size:20px;color:#ffd700">${C.stats.perfectLandings}</div></div>
-        <div class="spItem"><div><div class="spName">Faults Handled</div></div><div style="font-size:20px;color:#4fc3ff">${C.stats.faultsHandled}</div></div>
-        <div class="spItem"><div><div class="spName">Total Earned</div></div><div style="font-size:20px;color:#7dffa0">$${C.stats.totalEarned.toLocaleString()}</div></div>`;
+        <div class="spItem"><div><div class="spName">Total Flights</div></div><div style="font-size:20px;color:#4ade80;font-weight:800">${C.stats.flights}</div></div>
+        <div class="spItem"><div><div class="spName">Lessons Completed</div></div><div style="font-size:20px;color:#a855f7;font-weight:800">${total}/${LESSONS.length}</div></div>
+        <div class="spItem"><div><div class="spName">Crashes</div></div><div style="font-size:20px;color:#ef4444;font-weight:800">${C.stats.crashes}</div></div>
+        <div class="spItem"><div><div class="spName">Best Landing</div></div><div style="font-size:20px;color:#fbbf24;font-weight:800">${C.stats.bestLandingFpm<9999?C.stats.bestLandingFpm+' fpm':'—'}</div></div>
+        <div class="spItem"><div><div class="spName">Perfect Landings (S)</div></div><div style="font-size:20px;color:#fbbf24;font-weight:800">${C.stats.perfectLandings}</div></div>
+        <div class="spItem"><div><div class="spName">Faults Handled</div></div><div style="font-size:20px;color:#22d3ee;font-weight:800">${C.stats.faultsHandled}</div></div>
+        <div class="spItem"><div><div class="spName">Total Earned</div></div><div style="font-size:20px;color:#4ade80;font-weight:800">$${C.stats.totalEarned.toLocaleString()}</div></div>`;
     }
   }
 
-  /* ---------- wiring ---------- */
-  document.getElementById('chContr').addEventListener('click',()=>{
-    if(contrEl.classList.contains('show')){contrEl.classList.remove('show');return;}
-    contractList=genContracts(); renderContracts(); contrEl.classList.add('show'); shopEl.classList.remove('show');
-  });
-  document.getElementById('chShop').addEventListener('click',()=>{
-    if(shopEl.classList.contains('show')){shopEl.classList.remove('show');return;}
-    renderShop(); shopEl.classList.add('show'); contrEl.classList.remove('show');
-  });
-  document.getElementById('cpX').addEventListener('click',()=>contrEl.classList.remove('show'));
-  document.getElementById('spX').addEventListener('click',()=>shopEl.classList.remove('show'));
-  document.querySelectorAll('.spTab').forEach(t=>t.addEventListener('click',()=>{shopTab=t.dataset.tab;renderShop();}));
-  document.getElementById('respawnBtn').addEventListener('click',()=>{currentFlight=null;lastOnGround=false;});
-
-  /* ---------- flight lifecycle ---------- */
-  function addXP(amount){
-    C.xp+=amount; let levels=0;
-    while(C.xp>=xpForLevel(C.level)){ C.xp-=xpForLevel(C.level); C.level++; levels++; }
-    return levels;
+  /* ---------- OBJECTIVES HUD ---------- */
+  const objPanel=document.createElement('div'); objPanel.id='objHud';
+  document.body.appendChild(objPanel);
+  let lastObjState='';
+  function renderObjHud(){
+    if(!currentFlight){ objPanel.style.display='none'; lastObjState=''; return; }
+    const ov=document.getElementById('overlay');
+    if(!ov||!ov.classList.contains('hidden')){ objPanel.style.display='none'; lastObjState=''; return; }
+    const state=currentFlight.objectives.map(o=>o.met?'1':'0').join('');
+    if(state===lastObjState&&objPanel.style.display==='block') return;
+    lastObjState=state;
+    const completed=currentFlight.objectives.filter(o=>o.met).length;
+    const total=currentFlight.objectives.length;
+    const isLesson=currentFlight.type==='lesson';
+    const head=isLesson?'📚 LESSON':'📋 OBJECTIVES';
+    const cls=isLesson?' lesson':'';
+    objPanel.innerHTML=`
+      <div class="objHead"><span>${head}</span><span class="objProg">${completed}/${total}</span></div>
+      <div class="objList">${currentFlight.objectives.map(o=>
+        `<div class="obj${o.met?' met':''}${cls}"><span class="objCheck">${o.met?'✓':'○'}</span><span>${o.label}</span></div>`
+      ).join('')}</div>`;
+    objPanel.style.display='block';
   }
-  function fleet(){return FLEET[C.upgrades.fleet]||FLEET[1];}
+
+  /* ---------- SUMMARY MODAL ---------- */
+  const sModal=document.createElement('div'); sModal.id='summaryModal';
+  document.body.appendChild(sModal);
+
+  function showSummary(data){
+    const {isCrash,grade,title,rows,reward,xp,levelUp,extraBadge}=data;
+    sModal.innerHTML=`<div class="sumCard">
+      <div class="sumTitle">${isCrash?'MISSION FAILED':'MISSION COMPLETE'}</div>
+      <div class="sumGrade ${grade}">${grade}</div>
+      <div class="sumSubtitle">${title}</div>
+      ${rows.map(r=>`<div class="sumRow"><span class="lbl">${r.l}</span><span style="color:${r.c||'#e6edf6'}">${r.v}</span></div>`).join('')}
+      ${levelUp>0?`<div class="sumLevelUp">⭐ LEVEL UP → Lv ${C.level}</div>`:''}
+      ${extraBadge||''}
+      <div class="sumRow final"><span class="lbl">${isCrash?'PENALTY':'PAYOUT'}</span><span style="color:${isCrash?'#ef4444':'#4ade80'}">${isCrash?'−$'+Math.abs(reward).toLocaleString():'+$'+reward.toLocaleString()}</span></div>
+      ${!isCrash?`<div class="sumRow" style="border:none"><span class="lbl">XP</span><span style="color:#fbbf24">+${xp}</span></div>`:''}
+      <button class="sumBtn" id="sumClose">CONTINUE</button></div>`;
+    sModal.classList.add('show');
+    document.getElementById('sumClose').addEventListener('click',()=>{
+      sModal.classList.remove('show');
+      // For crashes, respawn and reopen overlay; for success, reopen overlay to pick new mission
+      if(isCrash){
+        try{ respawn(); }catch(e){}
+      }
+      const ov=document.getElementById('overlay');
+      if(ov) ov.classList.remove('hidden');
+    });
+  }
+
+  /* ---------- STATE ---------- */
+  let pendingContract=null;
+  let currentFlight=null;
+  let careerBlockAutoStart=false;
+
+  /* ---------- FLIGHT LIFECYCLE ---------- */
+  function buildFlight(c){
+    return {
+      type:c.type,
+      contract:c,
+      title:c.title,
+      passengers:c.pax||0,
+      startedAt:performance.now(),
+      elapsed:0,
+      faultsSeen:new Set(),
+      everAirborne:false,
+      touchdownFpm:null,
+      objectives:c.objectives.map(o=>({id:o.id,label:o.label,check:o.check,met:false}))
+    };
+  }
 
   function startFlightIfNeeded(){
-    if(currentFlight||plane.hold||plane.crashed)return;
+    if(currentFlight) return;
+    if(careerBlockAutoStart) return;
+    if(plane.hold || plane.crashed) return;
     const ov=document.getElementById('overlay');
-    if(!ov||!ov.classList.contains('hidden'))return;
-    currentFlight={
-      tStart:performance.now(),
-      departure:currentLocation.code,
-      contract:pendingContract,
-      passengers:Math.min(fleet().pax, pendingContract?pendingContract.pax:fleet().pax),
-      faultsSeen:new Set()
-    };
-    pendingContract=null; renderHUD();
+    if(!ov || !ov.classList.contains('hidden')) return;
+
+    const c=pendingContract;
+    pendingContract=null;
+    if(c){
+      currentFlight=buildFlight(c);
+    } else {
+      // Free flight fallback
+      currentFlight=buildFlight(makeFree('free'));
+    }
+    renderObjHud();
+    renderHUD();
   }
 
-  function completeLanding(){
-    if(!currentFlight)return;
-    const fpm=Math.round(Math.max(0,(plane.gearCompress||0)*4)*196.85);
-    let q;
-    if(fpm<110) q={mult:2.0, grade:'S', label:fpm+' fpm · GREASER'};
-    else if(fpm<220) q={mult:1.5, grade:'A', label:fpm+' fpm · SMOOTH'};
-    else if(fpm<550) q={mult:1.0, grade:'B', label:fpm+' fpm · FIRM'};
-    else q={mult:0.6, grade:'C', label:fpm+' fpm · HARD'};
-
+  function completeSuccess(){
+    if(!currentFlight) return;
+    const c=currentFlight.contract;
     const f=fleet();
     const comfortMult=1+(C.upgrades.comfort||0)*UPGRADES.comfort.per;
     const safetyMult=1+(C.upgrades.safety||0)*UPGRADES.safety.per;
     const engineMult=1+(C.upgrades.engines||0)*UPGRADES.engines.per;
-    const farePerPax=currentFlight.contract?(currentFlight.contract.pay/currentFlight.contract.pax):200;
+
+    const fpm=currentFlight.touchdownFpm||9999;
+    let q;
+    if(currentFlight.type==='takeoff'||!(currentFlight.objectives.some(o=>o.id==='land'||o.id==='touch'))){
+      q={grade:'A',mult:1.2,label:'Takeoff Complete'};
+    } else if(fpm<110) q={grade:'S',mult:2.0,label:fpm+' fpm · GREASER'};
+    else if(fpm<220) q={grade:'A',mult:1.5,label:fpm+' fpm · SMOOTH'};
+    else if(fpm<550) q={grade:'B',mult:1.0,label:fpm+' fpm · FIRM'};
+    else q={grade:'C',mult:0.6,label:fpm+' fpm · HARD'};
+
     const faultBonus=currentFlight.faultsSeen.size>0?1+Math.min(1.5,currentFlight.faultsSeen.size*0.25):1;
     const wxName=(currentWeather&&currentWeather.name?currentWeather.name.toLowerCase():'clear');
     const wxBonus={clear:1,cloudy:1.05,rain:1.15,storm:1.4,fog:1.3,snow:1.2,crosswind:1.25,turbulent:1.35}[wxName]||1;
 
-    let base=currentFlight.passengers*farePerPax*f.mult*q.mult*comfortMult*engineMult*faultBonus*wxBonus*safetyMult;
-    const reward=Math.round(base);
-    const xp=Math.round((currentFlight.contract?currentFlight.contract.xp:100)*q.mult*faultBonus);
+    let reward,xp,extraBadge='';
+    const rows=[];
 
-    C.money+=reward; C.stats.totalEarned+=reward; C.stats.flights++;
+    if(currentFlight.type==='lesson'){
+      const base=c.pay||800;
+      const replay=C.lessonsCompleted[c.id]?0.25:1.0;
+      reward=Math.round(base*replay);
+      xp=Math.round((c.xp||50)*replay);
+      const wasNew=!C.lessonsCompleted[c.id];
+      C.lessonsCompleted[c.id]=true;
+      C.stats.lessonsDone=Object.keys(C.lessonsCompleted).filter(k=>C.lessonsCompleted[k]).length;
+      rows.push({l:'Lesson',v:c.title});
+      rows.push({l:'Objectives',v:currentFlight.objectives.length+'/'+currentFlight.objectives.length,c:'#4ade80'});
+      if(wasNew){
+        const idx=LESSONS.findIndex(l=>l.id===c.id);
+        if(idx<LESSONS.length-1){
+          extraBadge=`<div style="margin:14px 0 6px;padding:10px 14px;background:#4c1d95;border:2px solid #a855f7;border-radius:8px;color:#e9d5ff;font-size:12px;font-weight:700">
+            🔓 UNLOCKED · ${LESSONS[idx+1].title}</div>`;
+        } else {
+          extraBadge=`<div style="margin:14px 0 6px;padding:10px 14px;background:#14532d;border:2px solid #22c55e;border-radius:8px;color:#bbf7d0;font-size:12px;font-weight:700">
+            🎓 ALL LESSONS COMPLETE!</div>`;
+        }
+      }
+    } else if(currentFlight.type==='free'){
+      reward=Math.round(300*q.mult*comfortMult);
+      xp=25;
+      rows.push({l:'Landing Rate',v:q.label});
+    } else {
+      const base=c.pay||1000;
+      reward=Math.round(base*q.mult*comfortMult*engineMult*faultBonus*wxBonus*safetyMult);
+      xp=Math.round((c.xp||100)*q.mult*faultBonus);
+      rows.push({l:'Landing',v:q.label});
+      rows.push({l:'Passengers',v:currentFlight.passengers});
+      if(faultBonus>1) rows.push({l:'Fault Bonus',v:'×'+faultBonus.toFixed(2),c:'#22d3ee'});
+      if(wxBonus>1) rows.push({l:'Weather Bonus',v:'×'+wxBonus.toFixed(2),c:'#22d3ee'});
+    }
+
+    C.money+=reward;
+    C.stats.totalEarned+=reward;
+    C.stats.flights++;
     if(fpm<C.stats.bestLandingFpm) C.stats.bestLandingFpm=fpm;
     if(q.grade==='S') C.stats.perfectLandings++;
     C.stats.faultsHandled+=currentFlight.faultsSeen.size;
-    const leveled=addXP(xp);
+    const levelUp=addXP(xp);
     save();
 
-    lastFlightPax=currentFlight.passengers; lastFlightDep=currentFlight.departure;
-    const seenFaults=currentFlight.faultsSeen.size;
     currentFlight=null;
-    renderHUD(); pulse('chMoney');
-    showSummary(q,{reward,xp,faultBonus,wxBonus,seenFaults,leveled},false);
-    contractList=genContracts();
+    careerBlockAutoStart=true;
+    renderObjHud();
+    renderHUD();
+    pulse('chMoney');
+
+    showSummary({
+      isCrash:false, grade:q.grade,
+      title:(c?c.title:'Mission')+' — COMPLETE',
+      rows, reward, xp, levelUp, extraBadge
+    });
+    contractList=genContractList();
   }
 
   function completeCrash(){
-    if(!currentFlight)return;
+    if(!currentFlight) return;
     const disc=1-(C.upgrades.safety||0)*0.08;
     const penalty=Math.round(2000*disc);
     C.money=Math.max(0,C.money-penalty);
-    C.stats.crashes++; C.stats.flights++;
+    C.stats.crashes++;
+    C.stats.flights++;
     save();
-    lastFlightPax=currentFlight.passengers;
-    const seenFaults=currentFlight.faultsSeen.size;
-    currentFlight=null;
-    renderHUD();
     const reason=document.getElementById('crashReason')?.textContent||'IMPACT';
-    showSummary({mult:0,grade:'F',label:reason},{reward:-penalty,xp:0,faultBonus:1,wxBonus:1,seenFaults,leveled:0},true);
-    contractList=genContracts();
+    const title=currentFlight.contract?currentFlight.contract.title:'Mission';
+    currentFlight=null;
+    careerBlockAutoStart=true;
+    renderObjHud();
+    renderHUD();
+    // Replace the sim's crash overlay with our summary
+    const co=document.getElementById('crashOverlay');
+    if(co) co.classList.remove('show');
+    showSummary({
+      isCrash:true, grade:'F',
+      title,
+      rows:[{l:'Reason',v:reason,c:'#fca5a5'}],
+      reward:-penalty, xp:0, levelUp:0
+    });
+    contractList=genContractList();
   }
 
-  function showSummary(q,r,isCrash){
-    const el=document.getElementById('summaryModal');
-    el.innerHTML=`<div class="sumCard">
-      <div class="sumTitle">${isCrash?'FLIGHT ENDED':'MISSION COMPLETE'}</div>
-      <div class="sumGrade ${q.grade}">${q.grade}</div>
-      <div class="sumSubtitle">${isCrash?'CRASHED':'LANDED SUCCESSFULLY'}</div>
-      ${isCrash?`<div class="sumRow"><span class="lbl">Reason</span><span>${q.label}</span></div>`
-        :`<div class="sumRow"><span class="lbl">Landing Rate</span><span>${q.label}</span></div>
-          <div class="sumRow"><span class="lbl">Passengers</span><span>${lastFlightPax}</span></div>`}
-      ${!isCrash&&r.faultBonus>1?`<div class="sumRow"><span class="lbl">Fault Handling Bonus</span><span style="color:#4fc3ff">×${r.faultBonus.toFixed(2)}</span></div>`:''}
-      ${!isCrash&&r.wxBonus>1?`<div class="sumRow"><span class="lbl">Weather Bonus</span><span style="color:#4fc3ff">×${r.wxBonus.toFixed(2)}</span></div>`:''}
-      ${r.leveled>0?`<div class="sumLevelUp">⭐ LEVEL UP → Lv ${C.level}</div>`:''}
-      <div class="sumRow final"><span class="lbl">${isCrash?'PENALTY':'PAYOUT'}</span>
-        <span style="color:${isCrash?'#ff6060':'#7dffa0'}">${isCrash?'−$'+Math.abs(r.reward).toLocaleString():'+$'+r.reward.toLocaleString()}</span></div>
-      ${!isCrash?`<div class="sumRow" style="border:none"><span class="lbl">XP</span><span style="color:#ffd060">+${r.xp}</span></div>`:''}
-      <button class="sumBtn" id="sumClose">CONTINUE</button></div>`;
-    el.classList.add('show');
-    document.getElementById('sumClose').addEventListener('click',()=>el.classList.remove('show'));
+  /* ---------- WIRING ---------- */
+  document.getElementById('chContr').addEventListener('click',()=>{
+    if(contrEl.classList.contains('show')){ contrEl.classList.remove('show'); return; }
+    renderContracts(); contrEl.classList.add('show'); shopEl.classList.remove('show');
+  });
+  document.getElementById('chShop').addEventListener('click',()=>{
+    if(shopEl.classList.contains('show')){ shopEl.classList.remove('show'); return; }
+    renderShop(); shopEl.classList.add('show'); contrEl.classList.remove('show');
+  });
+  document.getElementById('cpX').addEventListener('click',()=>contrEl.classList.remove('show'));
+  document.getElementById('spX').addEventListener('click',()=>shopEl.classList.remove('show'));
+  document.getElementById('cpRefresh').addEventListener('click',()=>{
+    contractList=genContractList();
+    renderContracts();
+    showMsg('↻ CONTRACTS REFRESHED', 1800);
+  });
+  document.querySelectorAll('.spTab').forEach(t=>t.addEventListener('click',()=>{shopTab=t.dataset.tab;renderShop();}));
+
+  // Reset block when Start Flight is clicked
+  const startBtnEl=document.getElementById('startBtn');
+  if(startBtnEl){
+    startBtnEl.addEventListener('click',()=>{ careerBlockAutoStart=false; });
   }
 
-  /* ---------- per-frame tick ---------- */
+  // Sim's respawn also clears our state
+  const respawnBtnEl=document.getElementById('respawnBtn');
+  if(respawnBtnEl){
+    respawnBtnEl.addEventListener('click',()=>{ currentFlight=null; careerBlockAutoStart=true; renderObjHud(); });
+  }
+
+  /* ---------- TICK ---------- */
   scene.registerBeforeRender(()=>{
     if(!currentFlight){
       startFlightIfNeeded();
-      if(currentFlight) showMsg('✈ FLIGHT STARTED · '+currentFlight.passengers+' PAX', 2500);
+      return;
     }
-    if(currentFlight){
-      const active=faults.list();
-      for(const f of active) currentFlight.faultsSeen.add(f);
+    if(plane.crashed){ completeCrash(); return; }
 
-      if(plane.crashed){ completeCrash(); lastOnGround=plane.onGround; return; }
-      if(plane.justTouched && plane.gearPos>0.9 && !lastOnGround){ completeLanding(); }
-      lastOnGround=plane.onGround;
+    currentFlight.elapsed=(performance.now()-currentFlight.startedAt)/1000;
+
+    // Capture touchdown rate
+    if(plane.justTouched && !currentFlight.touchdownFpm){
+      currentFlight.touchdownFpm=Math.round(Math.max(0,(plane.gearCompress||0)*4*196.85));
     }
+
+    // Accumulate seen faults
+    for(const fid of faults.list()) currentFlight.faultsSeen.add(fid);
+
+    // Custom per-flight tick
+    if(currentFlight.contract&&typeof currentFlight.contract.tick==='function'){
+      try{ currentFlight.contract.tick(currentFlight); }catch(e){}
+    }
+
+    // Check objectives
+    let allMet=true;
+    let newlyMet=null;
+    for(const obj of currentFlight.objectives){
+      if(obj.met) continue;
+      let r=false;
+      try{ r=!!obj.check(currentFlight); }catch(e){}
+      if(r && !obj.met) newlyMet=obj;
+      obj.met=r;
+      if(!r) allMet=false;
+    }
+    if(newlyMet) showMsg('✓ '+newlyMet.label, 1400);
+
+    if(allMet){ completeSuccess(); return; }
+
+    renderObjHud();
   });
 
+  /* ---------- BOOT ---------- */
   renderHUD();
-  console.log('[CAREER] initialized · money=$'+C.money+' level='+C.level);
+  renderContracts();
+  console.log('[CAREER v2] ready · money=$'+C.money+' · lessons='+C.stats.lessonsDone+'/'+LESSONS.length);
 })();
 } /* end main */
 </script>
