@@ -3614,7 +3614,7 @@ function computeCamTarget(dt,out){
       out.fov=.72;out.lerpRate=9;break;
     }
     case 1:{
-      const eyeOff=new BABYLON.Vector3(-.6,.30,14.0);
+      const _e=window._ckEye||[-.6,.30,14.0];const eyeOff=new BABYLON.Vector3(_e[0],_e[1],_e[2]);
       out.pos.copyFrom(plane.pos).addInPlace(BABYLON.Vector3.TransformNormal(eyeOff,_cm));
       const headLerp=1-Math.exp(-9*dt);
       camState.headYaw+=(camState.targetHeadYaw-camState.headYaw)*headLerp;
@@ -5397,15 +5397,15 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
   /* ---------- FLEET PROGRESSION ---------- */
   const FLEET=[
     { id:'cessna', name:'Cessna 172',     tag:'GA trainer',        pax:3,   fare:120, cruise:120, cost:0,      model:'cessna', camScale:0.35,
-      physics:{mass:4000,  wingArea:16,   thrust:12000, CLmax:1.7, gearHeight:4.25}, fixedGear:true,  hasCockpit:false },
+      physics:{mass:4000,  wingArea:16,   thrust:12000, CLmax:1.7, gearHeight:4.25}, fixedGear:true,  hasCockpit:true },
     { id:'atr',    name:'ATR 72',         tag:'Regional turboprop',pax:70,  fare:80,  cruise:270, cost:3000,   model:'atr', camScale:0.55,
-      physics:{mass:22000, wingArea:61,   thrust:55000, CLmax:1.8, gearHeight:2.35}, fixedGear:false, hasCockpit:false },
+      physics:{mass:22000, wingArea:61,   thrust:55000, CLmax:1.8, gearHeight:2.35}, fixedGear:false, hasCockpit:true  },
     { id:'e190',   name:'Embraer E190',   tag:'Regional jet',      pax:100, fare:60,  cruise:450, cost:12000,  model:'e190', camScale:0.8,
-      physics:{mass:50000, wingArea:92,   thrust:130000,CLmax:1.8, gearHeight:2.7 }, fixedGear:false, hasCockpit:false },
+      physics:{mass:50000, wingArea:92,   thrust:130000,CLmax:1.8, gearHeight:2.7 }, fixedGear:false, hasCockpit:true  },
     { id:'b737',   name:'Boeing 737-800', tag:'Narrowbody',        pax:180, fare:45,  cruise:470, cost:40000,  model:'737', camScale:1.0,
       physics:{mass:65000, wingArea:124.6,thrust:245000,CLmax:1.85,gearHeight:4.05}, fixedGear:false, hasCockpit:true  },
     { id:'b787',   name:'Boeing 787-9',   tag:'Widebody',          pax:290, fare:55,  cruise:490, cost:100000, model:'787', camScale:1.2,
-      physics:{mass:250000,wingArea:377,  thrust:640000,CLmax:1.9, gearHeight:5.47}, fixedGear:false, hasCockpit:false }
+      physics:{mass:250000,wingArea:377,  thrust:640000,CLmax:1.9, gearHeight:5.47}, fixedGear:false, hasCockpit:true  }
   ];
   const UPGRADES={
     engines:{name:'Engine Efficiency',max:5,baseCost:4000,per:0.05,effect:'+5% payout per level'},
@@ -5435,7 +5435,7 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
   function pickRandomLoc(){
     const sel=document.getElementById('locSelect');
     if(!sel) return {code:'LSZH',value:'47.4647,8.5492,432,LSZH'};
-    const opts=[...sel.options].filter(o=>o.value!=='CUSTOM');
+    const opts=[...sel.options].filter(o=>o.value!=='CUSTOM'&&RUNWAYS[o.value.split(',').pop()]);
     const pick=opts[Math.floor(Math.random()*opts.length)];
     return {code:pick.value.split(',').pop(),value:pick.value};
   }
@@ -5656,8 +5656,33 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
     return g;
   }
 
+  /* ---- Cockpit cameras for the non-737 aircraft ---- */
+  const CK_EYE={cessna:[-.4,.5,.4],atr:[-.6,.8,10.9],e190:[-.6,.7,14.8]};
+  const CK_K={cessna:.8,atr:1.0,e190:1.0};
+  const ckFrames={};
+  function buildCockpitFrame(id){
+    if(ckFrames[id])return ckFrames[id];
+    const e=CK_EYE[id],k=CK_K[id],list=[];
+    const add=(n,w,h,d,x,y,z,rot)=>{const m=box(aircraftRoot,'ckf_'+id+'_'+n,w*k,h*k,d*k,MAT.dark,[e[0]+x*k,e[1]+y*k,e[2]+z*k],rot);m.setEnabled(false);list.push(m);return m;};
+    add('dash',2.4,.32,.5, .5,-.42,.65);
+    add('glare',2.4,.06,.5, .5,-.22,.75);
+    add('roof',2.4,.05,1.3, .5,.6,.3);
+    add('pL',.08,.9,.12,-.7,.2,.8,[0,0,.12]);
+    add('pR',.08,.9,.12,1.7,.2,.8,[0,0,-.12]);
+    add('sillL',.05,.5,1.4,-.7,-.1,.2);
+    add('sillR',.05,.5,1.4,1.7,-.1,.2);
+    ckFrames[id]=list;return list;
+  }
+  function applyCockpitView(id,on){
+    const root=modelRoots[id];if(!root)return;
+    for(const m of root.getChildMeshes()){if(/_fus|_ws$|_sw[LR]$/.test(m.name))m.setEnabled(!on);}
+    for(const k2 of Object.keys(CK_EYE)){const l=ckFrames[k2];if(l)l.forEach(m=>m.setEnabled(on&&k2===id));}
+    if(on)buildCockpitFrame(id).forEach(m=>m.setEnabled(true));
+  }
+
   function setActiveAircraft(modelId){
     activeModelId=modelId;
+    window._ckEye=CK_EYE[modelId]||null;
     try{ exteriorRoot.setEnabled(false); }catch(e){}
     try{ interiorRoot.setEnabled(false); }catch(e){}
     Object.values(modelRoots).forEach(m=>{if(m)try{m.setEnabled(false);}catch(e){}});
@@ -5679,9 +5704,7 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
       if(fd.physics.gearHeight!=null) ACFG.gearHeight=fd.physics.gearHeight;
     }
 
-    if(camMode===1&&fd&&!fd.hasCockpit){
-      try{ setCamMode(0); }catch(e){}
-    }
+    if(camMode===1){ try{ setCamMode(1); }catch(e){} }
   }
 
   function filterObjectives(objs){
@@ -6195,16 +6218,14 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
 
   const _origSetCamMode=setCamMode;
   setCamMode=function(m){
-    if(m===1 && !fleet().hasCockpit){
-      m=2;
-      try{ showMsg('NO COCKPIT · '+fleet().name, 1800); }catch(e){}
-    }
     _origSetCamMode(m);
+    for(const _id of Object.keys(CK_EYE))applyCockpitView(_id,m===1&&activeModelId===_id);
+    if(activeModelId!=='737'&&activeModelId!=='787')document.body.classList.remove('cockpit');
 
     if(activeModelId==='737'){
       try{ exteriorRoot.setEnabled(true); exteriorRoot.scaling.set(1,1,1); }catch(e){}
     } else if(activeModelId==='787'){
-      try{ exteriorRoot.setEnabled(true); exteriorRoot.scaling.set(1.35,1.15,1.35); interiorRoot.setEnabled(false); }catch(e){}
+      try{ exteriorRoot.setEnabled(true); exteriorRoot.scaling.set(1.35,1.15,1.35); interiorRoot.setEnabled(m===1); }catch(e){}
     } else {
       try{
         exteriorRoot.setEnabled(false);
