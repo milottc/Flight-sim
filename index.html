@@ -5393,6 +5393,9 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
       lessonsCompleted:Object.assign({},s.lessonsCompleted||{})});
   }catch(e){} return JSON.parse(JSON.stringify(DEF));})();
   const save=()=>{try{localStorage.setItem(SAVE,JSON.stringify(C));}catch(e){}};
+  if(!C.fleetV){const old=['cessna','atr','e190','b737','b787'];const nw=['cessna','atr','e190','dc9','b737','dc10','b787','a350'];
+    const k=nw.indexOf(old[C.upgrades.fleet]);C.upgrades.fleet=k>=0?k:0;C.fleetV=2;save();}
+  if(C.maxFleet==null||C.maxFleet<C.upgrades.fleet){C.maxFleet=C.upgrades.fleet;save();}
 
   /* ---------- FLEET PROGRESSION ---------- */
   const FLEET=[
@@ -5402,10 +5405,16 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
       physics:{mass:22000, wingArea:61,   thrust:55000, CLmax:1.8, gearHeight:2.35}, fixedGear:false, hasCockpit:true  },
     { id:'e190',   name:'Embraer E190',   tag:'Regional jet',      pax:100, fare:60,  cruise:450, cost:12000,  model:'e190', camScale:0.8,
       physics:{mass:50000, wingArea:92,   thrust:130000,CLmax:1.8, gearHeight:2.7 }, fixedGear:false, hasCockpit:true  },
+    { id:'dc9',    name:'McDonnell Douglas DC-9', tag:'Classic jet',   pax:115, fare:50,  cruise:440, cost:24000,  model:'dc9', camScale:0.9,
+      physics:{mass:48000, wingArea:93,   thrust:140000,CLmax:1.8, gearHeight:2.1}, fixedGear:false, hasCockpit:true  },
     { id:'b737',   name:'Boeing 737-800', tag:'Narrowbody',        pax:180, fare:45,  cruise:470, cost:40000,  model:'737', camScale:1.0,
       physics:{mass:65000, wingArea:124.6,thrust:245000,CLmax:1.85,gearHeight:4.05}, fixedGear:false, hasCockpit:true  },
+    { id:'dc10',   name:'McDonnell Douglas DC-10', tag:'Classic trijet',pax:270, fare:50,  cruise:480, cost:70000,  model:'dc10', camScale:1.3,
+      physics:{mass:200000,wingArea:340,  thrust:520000,CLmax:1.9, gearHeight:3.6}, fixedGear:false, hasCockpit:true  },
     { id:'b787',   name:'Boeing 787-9',   tag:'Widebody',          pax:290, fare:55,  cruise:490, cost:100000, model:'787', camScale:1.2,
-      physics:{mass:250000,wingArea:377,  thrust:640000,CLmax:1.9, gearHeight:5.47}, fixedGear:false, hasCockpit:true  }
+      physics:{mass:250000,wingArea:377,  thrust:640000,CLmax:1.9, gearHeight:5.47}, fixedGear:false, hasCockpit:true  },
+    { id:'a350',   name:'Airbus A350-900', tag:'Widebody',         pax:325, fare:58,  cruise:490, cost:150000, model:'a350', camScale:1.25,
+      physics:{mass:260000,wingArea:442,  thrust:680000,CLmax:1.9, gearHeight:3.8}, fixedGear:false, hasCockpit:true  }
   ];
   const UPGRADES={
     engines:{name:'Engine Efficiency',max:5,baseCost:4000,per:0.05,effect:'+5% payout per level'},
@@ -5656,12 +5665,369 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
     return g;
   }
 
+
+  /* ================= MODEL DRESSING: windows, liveries, engines, props, lights ================= */
+  const DRESS={};
+  (function(){
+    const F=(arr)=>arr.map(p=>({w:1,h:1,yo:0,...p}));
+    DRESS.cessna={
+      fus:F([{z:4.1,r:.05},{z:3.6,r:.45},{z:2.8,r:.55,h:1.05},{z:1,r:.6,h:1.1},{z:-1,r:.55,yo:.1},{z:-3,r:.3,yo:.3},{z:-4,r:.1,yo:.4},{z:-4.2,r:.02,yo:.45}]),
+      wing:[{s:5.5,y:.75,zLE:1.2,c:1.2}],fin:{top:1.6,zLE:-4.2,c:.5},
+      stripes:[[.0,.11,[.10,.30,.75]],[.14,.17,[.85,.15,.12]]],stripeZ:[3.1,-3.6],
+      finColor:[.10,.30,.75],spin:[.85,.15,.12],blades:{n:2,len:1.0,w:.11}
+    };
+    DRESS.atr={
+      fus:F([{z:13.5,r:.1},{z:12,r:.8},{z:10,r:1.3},{z:5,r:1.4},{z:0,r:1.4},{z:-5,r:1.3},{z:-10,r:.9,yo:.3},{z:-13,r:.2,yo:.8}]),
+      wing:[{s:13.5,y:1.9,zLE:.5,c:1.5}],fin:{top:4.0,zLE:-12.5,c:1.0},
+      windows:{z0:8.6,z1:-8.4,step:.85,y:.4,w:.2,h:.26},
+      stripes:[[-.35,-.08,[.05,.55,.7]],[-.05,.0,[.95,.75,.1]]],stripeZ:[9,-9.5],
+      finColor:[.05,.55,.7],engines:[{x:6.5,y:1.5,zF:4,zR:-2.5,r:.6,prop:{n:4,len:1.9,w:.2,z:4.2}},{x:-6.5,y:1.5,zF:4,zR:-2.5,r:.6,prop:{n:4,len:1.9,w:.2,z:4.2}}],
+      panes:{z:11.6,k:.8},lip:[.95,.75,.1]
+    };
+    DRESS.e190={
+      fus:F([{z:18,r:.1},{z:16.5,r:.8},{z:14,r:1.1},{z:5,r:1.2},{z:-5,r:1.2},{z:-12,r:.9,yo:.3},{z:-16,r:.3,yo:.8},{z:-17.5,r:.1,yo:1}]),
+      wing:[{s:1.5,y:-.5,zLE:2,c:4.5},{s:7,y:-.2,zLE:1,c:3.5},{s:14,y:.2,zLE:-1,c:1.5}],fin:{top:6.0,zLE:-16.5,c:1.5},
+      windows:{z0:12.5,z1:-10.5,step:.8,y:.45,w:.2,h:.26},
+      stripes:[[-.3,-.05,[.95,.45,.05]],[0,.05,[.15,.15,.18]]],stripeZ:[13,-12.5],
+      finColor:[.95,.45,.05],engines:[{x:5,y:-1.8,zF:3,zR:-1.5,r:.9,pylon:true},{x:-5,y:-1.8,zF:3,zR:-1.5,r:.9,pylon:true}],
+      panes:{z:15.2,k:.8},winglet:{h:1.7,c0:1.3,c1:.5},lip:[.95,.45,.05]
+    };
+    DRESS.dc9={
+      fus:F([{z:17,r:.1},{z:15.5,r:.8},{z:13.5,r:1.15},{z:6,r:1.25},{z:-6,r:1.25},{z:-12,r:.95,yo:.35},{z:-16,r:.4,yo:.9},{z:-17.5,r:.1,yo:1.1}]),
+      wing:[{s:1.5,y:-.6,zLE:2,c:4.5},{s:7,y:-.3,zLE:0,c:3.4},{s:14,y:0,zLE:-2.5,c:1.6}],fin:{top:8,zLE:-16,c:1.8},
+      windows:{z0:12,z1:-9.5,step:.78,y:.4,w:.2,h:.26},
+      stripes:[[-.4,-.1,[.8,.1,.1]],[-.05,.05,[.15,.15,.18]]],stripeZ:[12.5,-11],
+      finColor:[.8,.1,.1],engines:[{x:2.2,y:.6,zF:-7.7,zR:-12.3,r:.85,pylon:'fus'},{x:-2.2,y:.6,zF:-7.7,zR:-12.3,r:.85,pylon:'fus'}],
+      panes:{z:14.7,k:.8},lip:[.8,.1,.1]
+    };
+    DRESS.dc10={
+      fus:F([{z:24,r:.15},{z:21.5,r:1.3},{z:19,r:2.1},{z:14,r:2.55},{z:-10,r:2.55},{z:-18,r:2,yo:.4},{z:-23,r:.9,yo:1.2},{z:-25,r:.15,yo:1.6}]),
+      wing:[{s:2.5,y:-1.2,zLE:4,c:8},{s:13,y:-.4,zLE:-2,c:5},{s:25,y:.9,zLE:-9,c:2}],fin:{top:12.5,zLE:-23,c:2.5},
+      windows:{z0:17.5,z1:-15,step:.85,y:.75,w:.24,h:.3},
+      stripes:[[-.6,-.15,[.1,.25,.65]],[-.1,.0,[.85,.1,.1]]],stripeZ:[18.5,-16.5],
+      finColor:[.1,.25,.65],engines:[{x:8,y:-2.4,zF:2.5,zR:-4.5,r:1.45,pylon:true},{x:-8,y:-2.4,zF:2.5,zR:-4.5,r:1.45,pylon:true},{x:0,y:5.4,zF:-14,zR:-21,r:1.45}],
+      panes:{z:21,k:1.2},lip:[.85,.1,.1]
+    };
+    DRESS.a350={
+      fus:F([{z:27,r:.15},{z:24.5,r:1.4},{z:21,r:2.3},{z:15,r:2.75},{z:-12,r:2.75},{z:-22,r:2.1,yo:.5},{z:-27,r:.9,yo:1.2},{z:-29,r:.2,yo:1.6}]).map(p=>({...p,h:1.03})),
+      wing:[{s:2.8,y:-1.3,zLE:3,c:9},{s:14,y:-.3,zLE:-4,c:5.2},{s:25,y:1.8,zLE:-11,c:3},{s:32,y:3,zLE:-14,c:1.6}],fin:{top:10.5,zLE:-26.5,c:2.5},
+      windows:{z0:20,z1:-18,step:.82,y:.85,w:.24,h:.3},
+      stripes:[[-.7,-.2,[.05,.12,.3]],[-.15,-.05,[.0,.7,.85]]],stripeZ:[21,-20],
+      finColor:[.05,.12,.3],engines:[{x:9.2,y:-2.6,zF:4.75,zR:-2.75,r:1.5,pylon:true},{x:-9.2,y:-2.6,zF:4.75,zR:-2.75,r:1.5,pylon:true}],
+      panes:{z:24.2,k:1.2},winglet:{h:2.4,c0:1.6,c1:.6},lip:[.0,.7,.85]
+    };
+  })();
+
+  function surfHW(st,z,y){
+    for(let i=0;i<st.length-1;i++){
+      const a=st[i],b=st[i+1],hi=Math.max(a.z,b.z),lo=Math.min(a.z,b.z);
+      if(z<=hi&&z>=lo&&hi>lo){
+        const t=(a.z-z)/(a.z-b.z),L=k=>a[k]*(1-t)+b[k]*t;
+        const r=L('r'),w=L('w'),h=L('h'),yo=L('yo');
+        const q=(y-yo)/(r*h);
+        return {hw:r*w*Math.sqrt(Math.max(0,1-q*q)),r,w,h,yo};
+      }
+    }
+    return null;
+  }
+  function dressModel(id,g){
+    const D=DRESS[id];if(!D||!g)return;
+    const sm=(n,c,o)=>{const m=new BABYLON.StandardMaterial('dr_'+id+'_'+n,scene);m.diffuseColor=new BABYLON.Color3(c[0],c[1],c[2]);m.specularColor=new BABYLON.Color3(.25,.25,.25);m.specularPower=32;if(o&&o.emis){m.emissiveColor=new BABYLON.Color3(c[0],c[1],c[2]);m.disableLighting=true;}if(o&&o.alpha!==undefined)m.alpha=o.alpha;if(o&&o.dbl)m.backFaceCulling=false;return m;};
+    const glassM=sm('glass',[.02,.04,.07]);glassM.specularColor=new BABYLON.Color3(.8,.85,.9);glassM.specularPower=64;
+    const dark=sm('dark',[.12,.12,.14]),metal=sm('metal',[.55,.57,.6]);
+    const put=(m,parent,x,y,z)=>{m.parent=parent||g;m.position.set(x,y,z);m.isPickable=false;return m;};
+
+    /* cabin windows (thin instances) */
+    if(D.windows){
+      const W=D.windows,base=BABYLON.MeshBuilder.CreateBox(id+'_fusWin',{width:.05,height:W.h,depth:W.w*1.25},scene);
+      base.material=glassM;base.parent=g;base.isPickable=false;
+      for(let z=W.z0;z>=W.z1;z-=W.step){
+        const sf=surfHW(D.fus,z,W.y);if(!sf||sf.hw<.2)continue;
+        for(const sd of [-1,1])base.thinInstanceAdd(BABYLON.Matrix.Translation(sd*(sf.hw+.005),W.y,z),false);
+      }
+      base.thinInstanceBufferUpdated('matrix');base.alwaysSelectAsActiveMesh=true;
+    }
+    /* cheat-line stripes */
+    if(D.stripes){
+      D.stripes.forEach((st,i)=>{
+        const mat=sm('str'+i,st[2]);
+        for(const sd of [-1,1]){
+          const lo=[],hi=[];
+          for(let z=D.stripeZ[0];z>=D.stripeZ[1];z-=.7){
+            const a=surfHW(D.fus,z,st[0]),b=surfHW(D.fus,z,st[1]);if(!a||!b||a.hw<.05||b.hw<.05)continue;
+            lo.push(new BABYLON.Vector3(sd*(a.hw+.012),st[0],z));hi.push(new BABYLON.Vector3(sd*(b.hw+.012),st[1],z));
+          }
+          if(lo.length<2)continue;
+          const rb=BABYLON.MeshBuilder.CreateRibbon(id+'_fusStripe'+i+sd,{pathArray:[lo,hi],sideOrientation:BABYLON.Mesh.DOUBLESIDE},scene);
+          rb.material=mat;rb.parent=g;rb.isPickable=false;
+        }
+      });
+    }
+    /* tail colour */
+    if(D.finColor){const fm=g.getChildMeshes().find(m=>m.name===id+'_fin'||m.name==='c172_fin');if(fm)fm.material=sm('fin',D.finColor);}
+    /* cockpit windows */
+    if(D.panes){
+      const k=D.panes.k;
+      for(const phi of [-.95,-.32,.32,.95]){
+        const f=surfHW(D.fus,D.panes.z,0);if(!f)continue;
+        const pane=BABYLON.MeshBuilder.CreateBox(id+'_fusPane',{width:.42*k,height:.035,depth:.55*k},scene);
+        pane.material=glassM;
+        put(pane,g,Math.sin(phi)*(f.r*f.w+.012),f.yo+Math.cos(phi)*(f.r*f.h+.012),D.panes.z);
+        pane.rotation.z=-phi;
+      }
+    }
+    /* engines: fan, spinner, lip, exhaust, pylon */
+    (D.engines||[]).forEach((e,i)=>{
+      const fan=BABYLON.MeshBuilder.CreateDisc(id+'_engFan'+i,{radius:e.r*.92,tessellation:28},scene);
+      fan.material=e.prop?dark:sm('fan',[.18,.18,.2]);fan.rotation.y=Math.PI;fan.material.backFaceCulling=false;put(fan,g,e.x,e.y,e.zF+.02);
+      if(!e.prop){
+        const hub=BABYLON.MeshBuilder.CreateCylinder(id+'_engHub'+i,{diameterTop:0,diameterBottom:e.r*.5,height:e.r*.55,tessellation:14},scene);
+        hub.material=metal;hub.rotation.x=Math.PI/2;put(hub,g,e.x,e.y,e.zF+e.r*.25);
+      }
+      const lip=BABYLON.MeshBuilder.CreateTorus(id+'_engLip'+i,{diameter:e.r*1.94,thickness:.07,tessellation:28},scene);
+      lip.material=sm('lip',D.lip||[.8,.8,.85]);lip.rotation.x=Math.PI/2;put(lip,g,e.x,e.y,e.zF-.03);
+      const ex=BABYLON.MeshBuilder.CreateDisc(id+'_engEx'+i,{radius:e.r*.5,tessellation:20},scene);
+      ex.material=dark;ex.material.backFaceCulling=false;put(ex,g,e.x,e.y,e.zR-.02);
+      if(e.pylon===true){
+        let wy=0;const sg=D.wing;for(let q=0;q<sg.length-1;q++){if(Math.abs(e.x)>=sg[q].s&&Math.abs(e.x)<=sg[q+1].s){const t=(Math.abs(e.x)-sg[q].s)/(sg[q+1].s-sg[q].s);wy=sg[q].y*(1-t)+sg[q+1].y*t;}}
+        const top=wy+.1,bot=e.y+e.r*.55,hh=Math.max(.3,top-bot);
+        const py=BABYLON.MeshBuilder.CreateBox(id+'_engPyl'+i,{width:.28,height:hh,depth:(e.zF-e.zR)*.55},scene);
+        py.material=sm('pyl',[.93,.94,.96]);put(py,g,e.x,bot+hh/2,(e.zF+e.zR)/2+.8);
+      } else if(e.pylon==='fus'){
+        const py=BABYLON.MeshBuilder.CreateBox(id+'_engPyl'+i,{width:Math.abs(e.x)-1,height:.5,depth:2.6},scene);
+        py.material=sm('pyl',[.93,.94,.96]);put(py,g,Math.sign(e.x)*(Math.abs(e.x)+1)/2*.92,e.y,(e.zF+e.zR)/2+.4);
+      }
+      if(e.prop){
+        const P=e.prop,disc=BABYLON.MeshBuilder.CreateDisc(id+'_prop'+i,{radius:P.len,tessellation:28},scene);
+        disc.material=sm('blur',[.1,.1,.12],{alpha:.14,dbl:true});put(disc,g,e.x,e.y,P.z);
+        const sp=BABYLON.MeshBuilder.CreateCylinder(id+'_propSp'+i,{diameterTop:0,diameterBottom:.45,height:.55,tessellation:14},scene);
+        sp.material=sm('spin',D.lip||[.9,.9,.9]);sp.rotation.x=Math.PI/2;sp.parent=disc;sp.position.set(0,0,-.2);sp.isPickable=false;
+        for(let b=0;b<P.n;b++){
+          const bl=BABYLON.MeshBuilder.CreateBox(id+'_propBl'+i+b,{width:P.w,height:P.len*.92,depth:.03},scene);
+          bl.material=dark;bl.parent=disc;bl.isPickable=false;
+          const a=b*Math.PI*2/P.n;bl.rotation.z=a;bl.position.set(-Math.sin(a)*P.len*.46,Math.cos(a)*P.len*.46,0);
+        }
+        (g._spin=g._spin||[]).push(disc);
+        const old=g._props&&g._props[i];if(old)old.setEnabled(false);
+      }
+    });
+    /* Cessna propeller (blades inside the existing disc) */
+    if(id==='cessna'&&g._prop){
+      const disc=g._prop,B=D.blades;disc.material=sm('blur',[.1,.1,.12],{alpha:.14,dbl:true});
+      for(let b=0;b<B.n;b++){
+        const bl=BABYLON.MeshBuilder.CreateBox('c172_prop_bl'+b,{width:B.w,height:B.len*.92,depth:.03},scene);
+        bl.material=dark;bl.parent=disc;bl.isPickable=false;
+        const a=b*Math.PI*2/B.n;bl.rotation.z=a;bl.position.set(-Math.sin(a)*B.len*.46,Math.cos(a)*B.len*.46,0);
+      }
+      const sp=g.getChildMeshes().find(m=>m.name==='c172_spin');if(sp)sp.material=sm('spin',D.spin);
+      (g._spin=g._spin||[]).push(disc);
+    }
+    /* winglets */
+    const tip=D.wing[D.wing.length-1];
+    if(D.winglet){
+      const W=D.winglet;
+      for(const sd of [-1,1]){
+        const wl=vert(id+'_wlet'+sd,[{s:0,c:W.c0,t:.08,zLE:tip.zLE},{s:W.h,c:W.c1,t:.05,zLE:tip.zLE-(W.c0-W.c1)-.6}],MAT.white,g);
+        wl.position.set(sd*tip.s,tip.y,0);
+      }
+    }
+    /* navigation lights + strobes */
+    const lightMat=(c)=>sm('nav',c,{emis:true});
+    const mkL=(n,c,x,y,z)=>{const m=BABYLON.MeshBuilder.CreateSphere(id+'_nav'+n,{diameter:Math.max(.22,tip.s*.012)},scene);m.material=lightMat(c);put(m,g,x,y,z);return m;};
+    const ty=tip.y+(D.winglet?D.winglet.h:0)+.05,tz=tip.zLE-tip.c*.5;
+    mkL('L',[1,.05,.05],-tip.s,ty,tz);mkL('R',[.05,1,.1],tip.s,ty,tz);
+    const strobeA=mkL('SA',[1,1,1],tip.s*.98,ty,tz-.3),strobeB=mkL('SB',[1,1,1],-tip.s*.98,ty,tz-.3);
+    const tail=mkL('T',[1,1,1],0,D.fin.top+.1,D.fin.zLE-D.fin.c);
+    (g._strobes=g._strobes||[]).push(strobeA,strobeB,tail);
+  }
+  (function(){
+    scene.registerBeforeRender(()=>{
+      const g=modelRoots[activeModelId];if(!g||!g.metadata)return;
+      const dt=Math.min(.1,scene.getEngine().getDeltaTime()/1000);
+      try{
+        const gg=g.metadata.gearGroup;if(gg&&!g.metadata.fixed)gg.setEnabled(plane.gearPos>.5);
+        if(g._spin&&ENG.L.state==='RUNNING'){const r=(25+plane.throttle*70)*dt;g._spin.forEach(d=>d.rotation.z+=r);}
+        if(g._strobes){const on=(Math.floor(performance.now()/450)%3)===0;g._strobes.forEach((m,i)=>m.setEnabled(i<2?on:true));}
+      }catch(e){}
+    });
+  })();
+
+  /* ---- Generic parametric jet builder (DC-9, DC-10, A350) ---- */
+  function buildJet(id,sp){
+    const g=new BABYLON.TransformNode('ac_'+id,scene);g.parent=aircraftRoot;
+    tubeSmooth(id+'_fus',sp.fus,MAT.white,g);
+    horiz(id+'_wR',sp.wing,MAT.white,g);
+    horiz(id+'_wL',sp.wing.map(st=>({...st,s:-st.s})),MAT.white,g);
+    vert(id+'_fin',sp.fin,MAT.white,g);
+    horiz(id+'_hR',sp.htail,MAT.white,g);
+    horiz(id+'_hL',sp.htail.map(st=>({...st,s:-st.s})),MAT.white,g);
+    const nac=(name,x,y,z,r,len)=>{
+      tubeSmooth(name,[
+        {z:len*.5,r:r*.55,w:1,h:1,yo:0,flat:.1},
+        {z:len*.4,r:r,w:1,h:1,yo:0,flat:.1},
+        {z:-len*.2,r:r,w:1,h:1,yo:0,flat:.1},
+        {z:-len*.5,r:r*.6,w:1,h:1,yo:0,flat:.1}
+      ],MAT.white,g).position.set(x,y,z);
+    };
+    (sp.engines||[]).forEach((e,i)=>nac(id+'_eng'+i,e.x,e.y,e.z,e.r,e.len));
+    box(g,id+'_ws',sp.ws[0],sp.ws[1],.2,MAT.glass,[0,sp.ws[2],sp.ws[3]]);
+    const gear=new BABYLON.TransformNode(id+'_gear',scene);gear.parent=g;
+    for(const [x,z] of sp.gear){
+      cyl(gear,id+'_strut',.09,.09,sp.gh*.8,MAT.gear,[x,-sp.gh*.4-.2,z]);
+      cyl(gear,id+'_wheel',.8,.8,.28,MAT.dark,[x,-sp.gh,z],[0,0,Math.PI/2]);
+    }
+    g.metadata={gearGroup:gear,fixed:false};
+    return g;
+  }
+  function buildDC9Model(){
+    return buildJet('dc9',{
+      fus:[{z:17,r:.1},{z:15.5,r:.8},{z:13.5,r:1.15},{z:6,r:1.25},{z:-6,r:1.25},{z:-12,r:.95,yo:.35},{z:-16,r:.4,yo:.9},{z:-17.5,r:.1,yo:1.1}]
+        .map(p=>({w:1,h:1,yo:0,flat:.15,...p})),
+      wing:[{s:1.5,c:4.5,t:.13,zLE:2,y:-.6},{s:7,c:3.4,t:.11,zLE:0,y:-.3},{s:14,c:1.6,t:.1,zLE:-2.5,y:0}],
+      fin:[{s:1.5,c:5,t:.14,zLE:-11},{s:5,c:3.5,t:.12,zLE:-13.5},{s:8,c:1.8,t:.1,zLE:-16}],
+      htail:[{s:.2,c:2.8,t:.12,zLE:-14.5,y:8},{s:4.5,c:1.6,t:.1,zLE:-16.5,y:8}],
+      engines:[{x:2.2,y:.6,z:-10,r:.85,len:4.6},{x:-2.2,y:.6,z:-10,r:.85,len:4.6}],
+      ws:[1.2,.8,.7,14.8],gear:[[0,14],[-2.3,-1],[2.3,-1]],gh:1.9});
+  }
+  function buildDC10Model(){
+    return buildJet('dc10',{
+      fus:[{z:24,r:.15},{z:21.5,r:1.3},{z:19,r:2.1},{z:14,r:2.55},{z:-10,r:2.55},{z:-18,r:2.0,yo:.4},{z:-23,r:.9,yo:1.2},{z:-25,r:.15,yo:1.6}]
+        .map(p=>({w:1,h:1,yo:0,flat:.12,...p})),
+      wing:[{s:2.5,c:8,t:.13,zLE:4,y:-1.2},{s:13,c:5,t:.11,zLE:-2,y:-.4},{s:25,c:2,t:.1,zLE:-9,y:.9}],
+      fin:[{s:2.6,c:8,t:.14,zLE:-17},{s:8,c:5,t:.12,zLE:-20.5},{s:12.5,c:2.5,t:.1,zLE:-23}],
+      htail:[{s:.3,c:4.5,t:.12,zLE:-20,y:1.6},{s:7,c:2.6,t:.1,zLE:-24,y:2.2}],
+      engines:[{x:8,y:-2.4,z:-1,r:1.45,len:7},{x:-8,y:-2.4,z:-1,r:1.45,len:7},{x:0,y:5.4,z:-17.5,r:1.45,len:7}],
+      ws:[1.6,1,1.3,21.2],gear:[[0,20.5],[-3.2,-3],[3.2,-3],[-1.1,-7],[1.1,-7]],gh:3.4});
+  }
+  function buildA350Model(){
+    return buildJet('a350',{
+      fus:[{z:27,r:.15},{z:24.5,r:1.4},{z:21,r:2.3},{z:15,r:2.75},{z:-12,r:2.75},{z:-22,r:2.1,yo:.5},{z:-27,r:.9,yo:1.2},{z:-29,r:.2,yo:1.6}]
+        .map(p=>({w:1,h:1.03,yo:0,flat:.12,...p})),
+      wing:[{s:2.8,c:9,t:.13,zLE:3,y:-1.3},{s:14,c:5.2,t:.11,zLE:-4,y:-.3},{s:25,c:3,t:.1,zLE:-11,y:1.8},{s:32,c:1.6,t:.08,zLE:-14,y:3}],
+      fin:[{s:2.8,c:8,t:.14,zLE:-21},{s:7,c:5,t:.12,zLE:-24},{s:10.5,c:2.5,t:.1,zLE:-26.5}],
+      htail:[{s:.3,c:5,t:.12,zLE:-23,y:1.8},{s:8,c:2.6,t:.1,zLE:-27.5,y:2.6}],
+      engines:[{x:9.2,y:-2.6,z:1,r:1.5,len:7.5},{x:-9.2,y:-2.6,z:1,r:1.5,len:7.5}],
+      ws:[1.7,1,1.4,24],gear:[[0,23],[-3.6,-4],[3.6,-4],[-3.6,-7],[3.6,-7]],gh:3.6});
+  }
+
   /* ---- Cockpit cameras for the non-737 aircraft ---- */
-  const CK_EYE={cessna:[-.4,.5,.4],atr:[-.6,.8,10.9],e190:[-.6,.7,14.8]};
-  const CK_K={cessna:.8,atr:1.0,e190:1.0};
+  const CK_EYE={cessna:[-.4,.5,.4],atr:[-.6,.8,10.9],e190:[-.6,.7,14.8],dc9:[-.6,.7,14.2],dc10:[-.7,1.2,20.2],a350:[-.7,1.3,23]};
+  const CK_K={cessna:.8,atr:1.0,e190:1.0,dc9:1.0,dc10:1.4,a350:1.4};
   const ckFrames={};
+  const USE_INT=new Set(['atr','e190','dc9','dc10','a350']);
+  const INT_S={atr:1,e190:1,dc9:1,dc10:1.2,a350:1.2};
+  const CK_HIDE=/_fus|_ws$|_sw[LR]$|_strut|_wheel|_ng[SW]|_mg[SW]|c172_prop|c172_spin/;
+
+  /* ---- Detailed Cessna 172 cockpit ---- */
+  let _cessYoke=null,_cessTick=0;
+  function buildCessnaCockpit(){
+    const list=[];
+    const mk=(n,c,rough)=>{const m=new BABYLON.StandardMaterial('c172k_'+n,scene);m.diffuseColor=new BABYLON.Color3(c[0],c[1],c[2]);m.specularColor=new BABYLON.Color3(.08,.08,.08);m.specularPower=24;return m;};
+    const plastic=mk('plastic',[.10,.10,.11]),trim=mk('trim',[.30,.28,.25]),liner=mk('liner',[.46,.43,.38]),
+          carpet=mk('carpet',[.18,.17,.16]),seat=mk('seat',[.22,.18,.14]),metal=mk('metal',[.5,.5,.52]);
+    metal.specularColor=new BABYLON.Color3(.5,.5,.5);
+    const add=(n,w,h,d,x,y,z,mat,rot,par)=>{
+      const m=BABYLON.MeshBuilder.CreateBox('ckf_cessna_'+n,{width:w,height:h,depth:d},scene);
+      m.position.set(x,y,z);if(rot)m.rotation.set(rot[0]||0,rot[1]||0,rot[2]||0);
+      m.material=mat;m.parent=par||aircraftRoot;m.isPickable=false;m.setEnabled(false);list.push(m);return m;};
+    /* floor, roof liner, side walls */
+    add('floor',1.9,.05,2.6,0,-.38,.2,carpet);
+    add('roof',1.9,.04,2.4,0,.98,.1,liner);
+    for(const sx of [-1,1]){
+      add('wall'+sx,.05,.62,2.3,sx*.93,.18,.15,trim);
+      add('sill'+sx,.07,.05,2.3,sx*.92,.5,.15,plastic);
+      add('rail'+sx,.07,.05,2.3,sx*.92,.95,.15,plastic);
+      add('bpil'+sx,.07,.46,.09,sx*.92,.72,-.55,plastic);
+      add('apil'+sx,.07,.5,.09,sx*.86,.75,1.55,plastic,[0,0,sx*-.25]);
+      /* seats */
+      add('seatBase'+sx,.46,.1,.55,sx*.4,-.22,0,seat);
+      add('seatBack'+sx,.46,.62,.12,sx*.4,.1,-.3,seat,[-.12,0,0]);
+      add('headrest'+sx,.3,.2,.1,sx*.4,.5,-.34,seat,[-.12,0,0]);
+    }
+    /* dash body and glareshield */
+    add('dash',1.8,.55,.55,0,-.12,1.45,plastic);
+    add('glare',1.8,.07,.5,0,.40,1.42,plastic);
+    add('hdr',1.8,.07,.4,0,.98,1.35,plastic);
+    add('mid',.05,.5,.07,0,.74,1.58,plastic);
+    /* centre console / throttle quadrant */
+    add('console',.34,.34,.9,0,-.2,.55,trim);
+    add('throttle',.04,.04,.2,.0,.02,.72,metal).material=mk('red',[.75,.12,.1]);
+    add('mixture',.04,.04,.2,.07,.02,.72,metal).material=mk('red2',[.12,.12,.75]);
+    /* instrument panel with live gauges */
+    const pw=1.5,ph=.38,tex=new BABYLON.DynamicTexture('c172_panelT',{width:1024,height:256},scene,false);
+    const pm=new BABYLON.StandardMaterial('c172_panelM',scene);
+    pm.emissiveTexture=tex;pm.diffuseColor=new BABYLON.Color3(0,0,0);pm.specularColor=new BABYLON.Color3(0,0,0);pm.disableLighting=true;pm.backFaceCulling=false;
+    const panel=BABYLON.MeshBuilder.CreatePlane('ckf_cessna_panel',{width:pw,height:ph,sideOrientation:BABYLON.Mesh.DOUBLESIDE},scene);
+    panel.position.set(0,.2,1.17);panel.material=pm;panel.parent=aircraftRoot;panel.isPickable=false;panel.setEnabled(false);list.push(panel);
+    /* yoke */
+    const yoke=new BABYLON.TransformNode('c172_yoke',scene);yoke.parent=aircraftRoot;yoke.position.set(-.4,.24,.85);
+    const col=BABYLON.MeshBuilder.CreateCylinder('ckf_cessna_col',{diameter:.045,height:.45,tessellation:10},scene);
+    col.rotation.x=Math.PI/2;col.position.set(0,-.05,.2);col.material=metal;col.parent=yoke;col.setEnabled(false);list.push(col);
+    const rim=BABYLON.MeshBuilder.CreateTorus('ckf_cessna_rim',{diameter:.24,thickness:.028,tessellation:24},scene);
+    rim.rotation.x=Math.PI/2;rim.material=plastic;rim.parent=yoke;rim.setEnabled(false);list.push(rim);
+    const hub=BABYLON.MeshBuilder.CreateCylinder('ckf_cessna_hub',{diameter:.07,height:.05,tessellation:12},scene);
+    hub.rotation.x=Math.PI/2;hub.material=metal;hub.parent=yoke;hub.setEnabled(false);list.push(hub);
+    _cessYoke=yoke;
+
+    /* gauge renderer */
+    const ctx=tex.getContext();
+    const R=95,cy=128,cx=i=>110+i*201;
+    const face=(x)=>{ctx.beginPath();ctx.arc(x,cy,R,0,Math.PI*2);ctx.fillStyle='#050608';ctx.fill();ctx.lineWidth=5;ctx.strokeStyle='#8a8f98';ctx.stroke();};
+    const ang=(a)=>(a-90)*Math.PI/180;
+    const needle=(x,a,len,w,col)=>{ctx.save();ctx.translate(x,cy);ctx.rotate(ang(a));ctx.strokeStyle=col;ctx.lineWidth=w;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(-len*.18,0);ctx.lineTo(len,0);ctx.stroke();ctx.restore();ctx.beginPath();ctx.arc(x,cy,6,0,Math.PI*2);ctx.fillStyle='#ddd';ctx.fill();};
+    const ticks=(x,n,a0,a1,len,lab)=>{ctx.strokeStyle='#e8e8e8';ctx.fillStyle='#e8e8e8';ctx.lineWidth=2;ctx.font='bold 15px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+      for(let i=0;i<=n;i++){const a=a0+(a1-a0)*i/n,r=ang(a);ctx.beginPath();ctx.moveTo(x+Math.cos(r)*(R-4),cy+Math.sin(r)*(R-4));ctx.lineTo(x+Math.cos(r)*(R-4-len),cy+Math.sin(r)*(R-4-len));ctx.stroke();
+        if(lab&&lab[i]!==undefined)ctx.fillText(lab[i],x+Math.cos(r)*(R-26),cy+Math.sin(r)*(R-26));}};
+    function paint(){
+      const d=(typeof DV!=='undefined'&&DV)?DV:{spd:0,alt:0,vs:0,hdg:0,pitch:0,bank:0};
+      ctx.fillStyle='#14151a';ctx.fillRect(0,0,1024,256);
+      /* 0 ASI */
+      let x=cx(0);face(x);ticks(x,8,225,495,9,['0','20','40','60','80','100','120','140','160']);
+      ctx.fillStyle='#e8e8e8';ctx.font='bold 13px sans-serif';ctx.fillText('KNOTS',x,cy+40);
+      needle(x,225+Math.max(0,Math.min(d.spd,160))/160*270,R-18,4,'#fff');
+      /* 1 attitude */
+      x=cx(1);ctx.save();ctx.beginPath();ctx.arc(x,cy,R-3,0,Math.PI*2);ctx.clip();
+      ctx.translate(x,cy);ctx.rotate(-(d.bank||0)*Math.PI/180);
+      const po=(d.pitch||0)*3.2;
+      ctx.fillStyle='#3b7fc4';ctx.fillRect(-150,-300+po,300,300);
+      ctx.fillStyle='#7a5230';ctx.fillRect(-150,po,300,300);
+      ctx.strokeStyle='#fff';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(-150,po);ctx.lineTo(150,po);ctx.stroke();
+      for(const p of [-20,-10,10,20]){const yy=po-p*3.2;ctx.beginPath();ctx.moveTo(-18,yy);ctx.lineTo(18,yy);ctx.lineWidth=2;ctx.stroke();}
+      ctx.restore();
+      ctx.beginPath();ctx.arc(x,cy,R,0,Math.PI*2);ctx.lineWidth=5;ctx.strokeStyle='#8a8f98';ctx.stroke();
+      ctx.strokeStyle='#ffc400';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(x-55,cy);ctx.lineTo(x-16,cy);ctx.lineTo(x-16,cy+8);ctx.moveTo(x+55,cy);ctx.lineTo(x+16,cy);ctx.lineTo(x+16,cy+8);ctx.stroke();
+      ctx.fillStyle='#ffc400';ctx.fillRect(x-3,cy-3,6,6);
+      /* 2 altimeter */
+      x=cx(2);face(x);ticks(x,10,0,360,9,['0','1','2','3','4','5','6','7','8','9','0']);
+      ctx.fillStyle='#e8e8e8';ctx.font='bold 13px sans-serif';ctx.fillText('ALT',x,cy+40);
+      const alt=Math.max(0,d.alt||0);
+      needle(x,(alt%1000)/1000*360,R-14,3,'#fff');needle(x,(alt%10000)/10000*360,R-44,6,'#ddd');
+      /* 3 heading */
+      x=cx(3);face(x);ctx.save();ctx.translate(x,cy);ctx.rotate(-(d.hdg||0)*Math.PI/180);
+      ctx.fillStyle='#e8e8e8';ctx.strokeStyle='#e8e8e8';ctx.font='bold 20px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+      for(let k=0;k<36;k++){const a=k*10*Math.PI/180;ctx.save();ctx.rotate(a);ctx.lineWidth=k%3===0?3:1.5;ctx.beginPath();ctx.moveTo(0,-R+6);ctx.lineTo(0,-R+(k%3===0?20:14));ctx.stroke();
+        if(k%9===0){ctx.fillText(['N','E','S','W'][k/9],0,-R+36);}else if(k%3===0){ctx.font='bold 13px sans-serif';ctx.fillText(String(k),0,-R+34);ctx.font='bold 20px sans-serif';}ctx.restore();}
+      ctx.restore();
+      ctx.fillStyle='#ffc400';ctx.beginPath();ctx.moveTo(x,cy-8);ctx.lineTo(x-14,cy+18);ctx.lineTo(x,cy+10);ctx.lineTo(x+14,cy+18);ctx.closePath();ctx.fill();
+      ctx.fillStyle='#ffc400';ctx.fillRect(x-3,cy-R+2,6,12);
+      /* 4 VSI */
+      x=cx(4);face(x);ticks(x,8,180,360,9,['','','','','','','','','']);
+      ctx.fillStyle='#e8e8e8';ctx.font='bold 15px sans-serif';ctx.textAlign='center';ctx.fillText('UP',x,cy-48);ctx.fillText('DN',x,cy+52);ctx.font='bold 12px sans-serif';ctx.fillText('x100 FPM',x,cy+26);
+      const vs=Math.max(-2000,Math.min(2000,d.vs||0));
+      needle(x,270-0+(-vs/2000)*90*-1,R-16,4,'#fff');
+      tex.update();
+    }
+    paint();
+    scene.registerBeforeRender(()=>{
+      if(camMode!==1||activeModelId!=='cessna')return;
+      if((++_cessTick)%3===0)try{paint();}catch(e){}
+      try{_cessYoke.rotation.z=-(plane.aileron||0)*.9;_cessYoke.position.z=.85-(plane.elevator||0)*.07;}catch(e){}
+    });
+    return list;
+  }
   function buildCockpitFrame(id){
     if(ckFrames[id])return ckFrames[id];
+    if(id==='cessna'){ckFrames[id]=buildCessnaCockpit();return ckFrames[id];}
     const e=CK_EYE[id],k=CK_K[id],list=[];
     const add=(n,w,h,d,x,y,z,rot)=>{const m=box(aircraftRoot,'ckf_'+id+'_'+n,w*k,h*k,d*k,MAT.dark,[e[0]+x*k,e[1]+y*k,e[2]+z*k],rot);m.setEnabled(false);list.push(m);return m;};
     add('dash',2.4,.32,.5, .5,-.42,.65);
@@ -5675,9 +6041,9 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
   }
   function applyCockpitView(id,on){
     const root=modelRoots[id];if(!root)return;
-    for(const m of root.getChildMeshes()){if(/_fus|_ws$|_sw[LR]$/.test(m.name))m.setEnabled(!on);}
-    for(const k2 of Object.keys(CK_EYE)){const l=ckFrames[k2];if(l)l.forEach(m=>m.setEnabled(on&&k2===id));}
-    if(on)buildCockpitFrame(id).forEach(m=>m.setEnabled(true));
+    for(const m of root.getChildMeshes()){if(CK_HIDE.test(m.name))m.setEnabled(!on);}
+    const fr=(on&&id==='cessna')?buildCockpitFrame(id):ckFrames[id];
+    if(fr)fr.forEach(m=>m.setEnabled(on));
   }
 
   function setActiveAircraft(modelId){
@@ -5788,7 +6154,7 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
   const WX_LIST=Object.keys(WX_BONUS);
   const pickWx=()=>WX_LIST[Math.floor(Math.random()*WX_LIST.length)];
   const diffFor=b=>b>1.4?'HARD':b>1.15?'MED':'EASY';
-  const altCeiling=()=>({cessna:6000,atr:20000,e190:32000,b737:35000,b787:41000}[fleet().id])||30000;
+  const altCeiling=()=>({cessna:6000,atr:20000,e190:32000,dc9:33000,b737:35000,dc10:40000,b787:41000,a350:42000}[fleet().id])||30000;
   const rndPax=()=>{
     const cap=fleet().pax;
     if(cap<=6) return 1+Math.floor(Math.random()*cap);
@@ -5992,11 +6358,11 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
     if(shopTab==='fleet'){
       body.innerHTML=FLEET.map((f,i)=>{
         const cur=i===C.upgrades.fleet;
-        const owned=i<C.upgrades.fleet;
-        const next=i===C.upgrades.fleet+1;
+        const owned=i<=C.maxFleet&&!cur;
+        const next=i===C.maxFleet+1;
         const canBuy=next&&C.money>=f.cost;
         const btn=cur?'<button class="spBuy cur">IN USE</button>'
-          :owned?'<button class="spBuy own">OWNED</button>'
+          :owned?`<button class="spBuy own" data-sel-fleet="${i}">SELECT</button>`
           :next?`<button class="spBuy" ${canBuy?'':'disabled'} data-buy-fleet="${i}">$${f.cost.toLocaleString()}</button>`
           :`<button class="spBuy" disabled>LOCKED</button>`;
         return `<div class="spItem ${cur?'current':(owned?'owned':(next?'':'locked'))}">
@@ -6004,10 +6370,19 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
           <div class="spDesc">${f.tag} · ${f.pax} pax · cruise ${f.cruise} kts · $${f.fare}/pax${next?' · <b style="color:#22d3ee">NEXT TIER</b>':''}</div></div>
           ${btn}</div>`;
       }).join('');
+      body.querySelectorAll('[data-sel-fleet]').forEach(b=>b.addEventListener('click',()=>{
+        const i=+b.dataset.selFleet,f=FLEET[i];
+        if(i>C.maxFleet)return;
+        C.upgrades.fleet=i;save();
+        setActiveAircraft(f.model);
+        contractList=genContractList();
+        renderShop();renderHUD();renderContracts();
+        showMsg('✈ SELECTED · '+f.name,2500);
+      }));
       body.querySelectorAll('[data-buy-fleet]').forEach(b=>b.addEventListener('click',()=>{
         const i=+b.dataset.buyFleet,f=FLEET[i];
-        if(C.money>=f.cost&&i===C.upgrades.fleet+1){
-          C.money-=f.cost; C.upgrades.fleet=i; save();
+        if(C.money>=f.cost&&i===C.maxFleet+1){
+          C.money-=f.cost; C.upgrades.fleet=i; C.maxFleet=i; save();
           setActiveAircraft(f.model);
           contractList=genContractList();
           renderShop(); renderHUD(); renderContracts(); pulse('chMoney');
@@ -6220,7 +6595,14 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
   setCamMode=function(m){
     _origSetCamMode(m);
     for(const _id of Object.keys(CK_EYE))applyCockpitView(_id,m===1&&activeModelId===_id);
-    if(activeModelId!=='737'&&activeModelId!=='787')document.body.classList.remove('cockpit');
+    if(activeModelId==='cessna')document.body.classList.remove('cockpit');
+    try{
+      if(USE_INT.has(activeModelId)){
+        const e=CK_EYE[activeModelId],sc=INT_S[activeModelId]||1;
+        interiorRoot.scaling.setAll(sc);
+        interiorRoot.position.set(e[0]+.6*sc,e[1]-.30*sc,e[2]-14.0*sc);
+      }else{interiorRoot.scaling.setAll(1);interiorRoot.position.set(0,0,0);}
+    }catch(er){}
 
     if(activeModelId==='737'){
       try{ exteriorRoot.setEnabled(true); exteriorRoot.scaling.set(1,1,1); }catch(e){}
@@ -6229,7 +6611,7 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
     } else {
       try{
         exteriorRoot.setEnabled(false);
-        interiorRoot.setEnabled(false);
+        interiorRoot.setEnabled(m===1&&USE_INT.has(activeModelId));
         if(modelRoots[activeModelId]) modelRoots[activeModelId].setEnabled(true);
       }catch(e){}
     }
@@ -6247,14 +6629,14 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
           exteriorRoot.getChildMeshes().forEach(m => m.setEnabled(false));
         } else {
           exteriorRoot.setEnabled(true);
-          exteriorRoot.getChildMeshes().forEach(m => m.setEnabled(true));
+          exteriorRoot.getChildMeshes().forEach(m => m.setEnabled(!(camMode===1 && /^(fuselage|cpGlass|cw|stripe|bc|nac|lip|fan|spin|exh|pyl|revD)/.test(m.name))));
         }
       }
 
       if (!shouldShow737 && modelRoots[activeModelId]) {
         const root = modelRoots[activeModelId];
         root.setEnabled(true);
-        root.getChildMeshes().forEach(m => m.setEnabled(true));
+        root.getChildMeshes().forEach(m => m.setEnabled(!(camMode===1 && CK_HIDE.test(m.name))));
       }
     }
 
@@ -6292,14 +6674,36 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
   modelRoots.cessna=buildCessnaModel();
   modelRoots.atr=buildATRModel();
   modelRoots.e190=buildE190Model();
+  modelRoots.dc9=buildDC9Model();
+  modelRoots.dc10=buildDC10Model();
+  modelRoots.a350=buildA350Model();
+  ['cessna','atr','e190','dc9','dc10','a350'].forEach(id=>{try{dressModel(id,modelRoots[id]);}catch(e){console.error('dress',id,e);}});
   modelRoots.cessna.setEnabled(false);
   modelRoots.atr.setEnabled(false);
   modelRoots.e190.setEnabled(false);
+  modelRoots.dc9.setEnabled(false);
+  modelRoots.dc10.setEnabled(false);
+  modelRoots.a350.setEnabled(false);
 
   setActiveAircraft(fleet().model);
   renderHUD();
   renderContracts();
-  console.log('[CAREER v4] ready');
+  window.cheat={
+    money:(n=1e6)=>{C.money=n;save();renderHUD();renderShop();return '$'+n;},
+    list:()=>FLEET.map((f,i)=>i+': '+f.id+' · '+f.name),
+    fly:(x)=>{const i=typeof x==='number'?x:FLEET.findIndex(f=>f.id===x);
+      if(i<0||!FLEET[i])return 'unknown aircraft. try cheat.list()';
+      C.upgrades.fleet=i;C.maxFleet=Math.max(C.maxFleet,i);save();setActiveAircraft(FLEET[i].model);
+      contractList=genContractList();renderShop();renderHUD();renderContracts();
+      if(camMode===1)setCamMode(1);
+      showMsg('CHEAT · '+FLEET[i].name,2500);return FLEET[i].name;},
+    next:()=>cheat.fly(Math.min(FLEET.length-1,C.upgrades.fleet+1)),
+    prev:()=>cheat.fly(Math.max(0,C.upgrades.fleet-1)),
+    xp:(n=1000)=>{try{addXP(n);}catch(e){return 'addXP failed';}return '+'+n+' XP';},
+    lessons:()=>{LESSONS.forEach(L=>C.lessonsCompleted[L.id]=true);save();renderContracts();return 'all lessons unlocked';},
+    all:()=>{cheat.money(1e7);cheat.lessons();return 'money + lessons unlocked. use cheat.fly("a350")';}
+  };
+  console.log('[CAREER v4] ready · cheats: cheat.list(), cheat.fly("a350"), cheat.next(), cheat.money()');
 })();
 
 } /* end main */
