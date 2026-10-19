@@ -6243,8 +6243,48 @@ function buildE190Model(){
 
   /* ---------- TICK ---------- */
   scene.registerBeforeRender(()=>{
+    // --- MODEL VISIBILITY LOCK ---
+    // Forcefully hide the default 737 exterior unless we are actually flying it.
+    // The base sim constantly tries to re-enable it in resetAircraft() and setCamMode().
+    if (typeof activeModelId !== 'undefined') {
+      const isB737 = (activeModelId === '737');
+      const isB787 = (activeModelId === '787');
+
+      // Manage default 737 exterior
+      if (exteriorRoot) {
+        const shouldShow = isB737 || isB787;
+        if (exteriorRoot.isEnabled() !== shouldShow) {
+          exteriorRoot.setEnabled(shouldShow);
+        }
+        if (isB787) exteriorRoot.scaling.set(1.35, 1.15, 1.35);
+        else if (isB737) exteriorRoot.scaling.set(1, 1, 1);
+      }
+
+      // Manage default 737 interior
+      if (interiorRoot) {
+        const shouldShow = isB737 && (camMode === 1);
+        if (interiorRoot.isEnabled() !== shouldShow) {
+          interiorRoot.setEnabled(shouldShow);
+        }
+      }
+
+      // Manage custom models (Cessna, ATR, E190)
+      if (typeof modelRoots !== 'undefined') {
+        Object.keys(modelRoots).forEach(key => {
+          if (modelRoots[key]) {
+            const shouldShow = (key === activeModelId);
+            if (modelRoots[key].isEnabled() !== shouldShow) {
+              modelRoots[key].setEnabled(shouldShow);
+            }
+          }
+        });
+      }
+    }
+    // --- END MODEL LOCK ---
+
     if(!currentFlight){startFlightIfNeeded();return;}
     if(plane.crashed){completeCrash();return;}
+    
     currentFlight.elapsed=(performance.now()-currentFlight.startedAt)/1000;
     if(plane.justTouched&&!currentFlight.touchdownFpm){
       currentFlight.touchdownFpm=Math.round(Math.max(0,(plane.gearCompress||0)*4*196.85));
@@ -6265,7 +6305,6 @@ function buildE190Model(){
     if(allMet){completeSuccess();return;}
     renderObjHud();
   });
-
   /* ---------- BOOT ---------- */
   initMats();
   modelRoots.cessna=buildCessnaModel();
