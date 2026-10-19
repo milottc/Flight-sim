@@ -5469,35 +5469,55 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
     m.material=mat;m.parent=g;m.isPickable=false;return m;
   }
 
-  function buildCessnaModel(){
-    const g=new BABYLON.TransformNode('ac_cessna',scene);g.parent=aircraftRoot;
-    /* fuselage */
-    cyl(g,'c172_fus',0.4,1.35,8.5,MAT.white,[0,0,-0.3],[Math.PI/2,0,0]);
-    sph(g,'c172_nose',1.3,MAT.white,[0,0,4.0]);
-    /* spinner + prop */
-    cyl(g,'c172_spin',0.08,0.45,0.55,MAT.dark,[0,0,4.5],[Math.PI/2,0,0]);
-    const prop=BABYLON.MeshBuilder.CreateDisc('c172_prop',{radius:1.0,tessellation:20},scene);
-    prop.position.set(0,0,4.55);prop.material=MAT.dark;prop.parent=g;
-    g._prop=prop;
-    /* high wing */
-    box(g,'c172_wing',11,0.18,1.7,MAT.white,[0,1.05,0.3]);
-    /* struts */
-    cyl(g,'c172_strutL',0.06,0.06,1.05,MAT.dark,[-2.5,0.5,0.3],[0,0,0.35]);
-    cyl(g,'c172_strutR',0.06,0.06,1.05,MAT.dark,[ 2.5,0.5,0.3],[0,0,-0.35]);
-    /* tail */
-    box(g,'c172_fin',0.12,1.5,1.5,MAT.red,[0,1.0,-3.9]);
-    box(g,'c172_stab',3.9,0.12,0.9,MAT.white,[0,0.35,-3.9]);
-    /* windows */
-    box(g,'c172_win',1.35,0.55,0.15,MAT.glass,[0,0.35,2.6]);
-    /* fixed gear */
-    const gear=new BABYLON.TransformNode('c172_gear',scene);gear.parent=g;
-    for(const [x,z] of [[0,3.2],[-1.3,0.2],[1.3,0.2]]){
-      cyl(gear,'c172_strut',0.06,0.06,0.7,MAT.dark,[x,-0.55,z]);
-      cyl(gear,'c172_wheel',0.44,0.44,0.14,MAT.dark,[x,-0.9,z],[0,0,Math.PI/2]);
-    }
-    g.metadata={gearGroup:gear,fixed:true};
-    return g;
+ function buildCessnaModel(){
+  const g=new BABYLON.TransformNode('ac_cessna',scene);g.parent=aircraftRoot;
+  const S=2.5; // visual scale so it reads at the 737-tuned chase distance
+  g.scaling.set(S,S,S);
+
+  /* Fuselage — cylindrical middle, tapered tail, chunky nose cowl */
+  cyl(g,'c172_fus',0.65,1.4,7.5,MAT.white,[0,0,-0.5],[Math.PI/2,0,0]);
+  cyl(g,'c172_tail',0.25,0.65,2.5,MAT.white,[0,0.35,-4.5],[Math.PI/2,0,0]);
+  sph(g,'c172_nose',1.3,MAT.white,[0,0,3.6]);
+
+  /* Spinner + prop (disc, faces +Z by default) */
+  cyl(g,'c172_spin',0.08,0.5,0.6,MAT.dark,[0,0,4.4],[Math.PI/2,0,0]);
+  const prop=BABYLON.MeshBuilder.CreateDisc('c172_prop',{radius:1.1,tessellation:20},scene);
+  prop.position.set(0,0,4.7);
+  prop.material=MAT.dark;
+  prop.parent=g;
+  prop.isPickable=false;
+  g._prop=prop;
+
+  /* HIGH WING — the defining Cessna feature */
+  box(g,'c172_wing',11,0.25,1.9,MAT.white,[0,1.15,0.2]);
+  box(g,'c172_tipL',0.6,0.25,1.9,MAT.red,[-5.5,1.15,0.2]);
+  box(g,'c172_tipR',0.6,0.25,1.9,MAT.red,[ 5.5,1.15,0.2]);
+
+  /* Wing struts (essential — high wings look wrong without them) */
+  cyl(g,'c172_strutL',0.09,0.09,1.15,MAT.dark,[-2.6,0.55,0.2],[0,0,0.35]);
+  cyl(g,'c172_strutR',0.09,0.09,1.15,MAT.dark,[ 2.6,0.55,0.2],[0,0,-0.35]);
+
+  /* Windows */
+  box(g,'c172_wsMain',1.4,0.7,0.15,MAT.glass,[0,0.4,2.7]);
+  box(g,'c172_wsRear',1.2,0.55,0.15,MAT.glass,[0,0.4,1.2]);
+
+  /* Tail — vertical fin + rudder + horizontal stab */
+  box(g,'c172_fin',0.18,1.7,1.5,MAT.white,[0,1.1,-5.5]);
+  box(g,'c172_rudder',0.15,1.5,0.5,MAT.red,[0,1.1,-6.2]);
+  box(g,'c172_stab',3.9,0.18,0.95,MAT.white,[0,0.4,-5.5]);
+
+  /* Fixed tricycle gear */
+  const gear=new BABYLON.TransformNode('c172_gear',scene);gear.parent=g;
+  cyl(gear,'c172_nStrut',0.1,0.1,0.9,MAT.dark,[0,-0.7,3.0]);
+  cyl(gear,'c172_nWheel',0.5,0.5,0.18,MAT.dark,[0,-1.15,3.0],[0,0,Math.PI/2]);
+  for(const s of [-1,1]){
+    cyl(gear,'c172_mStrut'+s,0.1,0.1,0.85,MAT.dark,[s*1.3,-0.7,0.0]);
+    cyl(gear,'c172_mWheel'+s,0.55,0.55,0.2,MAT.dark,[s*1.3,-1.15,0.0],[0,0,Math.PI/2]);
   }
+
+  g.metadata={gearGroup:gear,fixed:true};
+  return g;
+}
 
   function buildATRModel(){
     const g=new BABYLON.TransformNode('ac_atr',scene);g.parent=aircraftRoot;
