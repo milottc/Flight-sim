@@ -1241,6 +1241,15 @@ body.mobile .chBtn{padding:5px 9px;font-size:10px}
   .obj{font-size:10px}
   .objHead{font-size:9.5px}
 }
+  /* ============ FLEET BADGE in career HUD ============ */
+#chPax::after{content:attr(data-ac);font-size:9px;opacity:.6;margin-left:4px;font-weight:500}
+
+/* ============ Fleet shop: locked/next tiers ============ */
+.spItem.locked{opacity:.55}
+.spItem.locked .spName{color:#8ba3c0}
+
+/* ============ Objective HUD: extra hint for lessons on small aircraft ============ */
+.obj.hint{color:#5a6d87;font-style:italic;font-weight:400;font-size:10px;padding-left:22px}
 </style>
 </head>
 <body>
@@ -5354,163 +5363,343 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
 /* ================================================================== */
 /* ===== CAREER / MISSIONS / LESSONS (v2) ============================ */
 /* ================================================================== */
+/* ================================================================== */
+/* ===== CAREER v3 · FLEET PROGRESSION + MODELS ===================== */
+/* ================================================================== */
 (function initCareer(){
-  const SAVE='bf737_career_v2';
+  const SAVE='bf737_career_v3';
+
   const DEF={
     money:5000, xp:0, level:1,
-    upgrades:{fleet:1, engines:0, comfort:0, safety:0},
+    upgrades:{fleet:0, engines:0, comfort:0, safety:0},
     lessonsCompleted:{},
-    stats:{flights:0, crashes:0, bestLandingFpm:9999, totalEarned:0, perfectLandings:0, faultsHandled:0, lessonsDone:0}
+    stats:{flights:0,crashes:0,bestLandingFpm:9999,totalEarned:0,perfectLandings:0,faultsHandled:0,lessonsDone:0}
   };
-  let C = (()=>{
-    try{const s=JSON.parse(localStorage.getItem(SAVE)||'null');
-      if(s&&typeof s==='object'){
-        return Object.assign({},DEF,s,{
-          stats:Object.assign({},DEF.stats,s.stats||{}),
-          upgrades:Object.assign({},DEF.upgrades,s.upgrades||{}),
-          lessonsCompleted:Object.assign({},s.lessonsCompleted||{})
-        });
-      }
-    }catch(e){}
-    return JSON.parse(JSON.stringify(DEF));
-  })();
+  let C=(()=>{try{const s=JSON.parse(localStorage.getItem(SAVE)||'null');
+    if(s&&typeof s==='object') return Object.assign({},DEF,s,{
+      stats:Object.assign({},DEF.stats,s.stats||{}),
+      upgrades:Object.assign({},DEF.upgrades,s.upgrades||{}),
+      lessonsCompleted:Object.assign({},s.lessonsCompleted||{})});
+  }catch(e){} return JSON.parse(JSON.stringify(DEF));})();
   const save=()=>{try{localStorage.setItem(SAVE,JSON.stringify(C));}catch(e){}};
 
-  /* ---------- Fleet + Upgrades (unchanged) ---------- */
+  /* ---------- FLEET PROGRESSION ---------- */
   const FLEET=[
-    {name:'B737-700', pax:130, speed:1.00, cost:0,     mult:1.0},
-    {name:'B737-800', pax:180, speed:1.05, cost:0,     mult:1.2},
-    {name:'B737 MAX', pax:200, speed:1.10, cost:25000, mult:1.55},
-    {name:'B787-9',   pax:290, speed:1.20, cost:90000, mult:2.20},
+    { id:'cessna', name:'Cessna 172',      tag:'GA trainer',      pax:3,   fare:120, cruise:120, cost:0,      model:'cessna',
+      physics:{mass:1100, wingArea:16,   thrust:2400,   CLmax:1.7}, fixedGear:true,  hasCockpit:false },
+    { id:'atr',    name:'ATR 72',          tag:'Regional turboprop', pax:70,  fare:80,  cruise:270, cost:3000,   model:'atr',
+      physics:{mass:22000,wingArea:61,   thrust:55000,  CLmax:1.8}, fixedGear:false, hasCockpit:false },
+    { id:'e190',   name:'Embraer E190',    tag:'Regional jet',    pax:100, fare:60,  cruise:450, cost:12000,  model:'e190',
+      physics:{mass:50000,wingArea:92,   thrust:130000, CLmax:1.8}, fixedGear:false, hasCockpit:false },
+    { id:'b737',   name:'Boeing 737-800',  tag:'Narrowbody',      pax:180, fare:45,  cruise:470, cost:40000,  model:'737',
+      physics:{mass:65000,wingArea:124.6,thrust:245000, CLmax:1.85},fixedGear:false, hasCockpit:true  },
+    { id:'b787',   name:'Boeing 787-9',    tag:'Widebody',        pax:290, fare:55,  cruise:490, cost:100000, model:'787',
+      physics:{mass:250000,wingArea:377, thrust:640000, CLmax:1.9}, fixedGear:false, hasCockpit:false }
   ];
   const UPGRADES={
-    engines:{name:'Engine Efficiency', max:5, baseCost:4000, per:0.05, effect:'+5% payout per level'},
-    comfort:{name:'Passenger Comfort', max:5, baseCost:3000, per:0.10, effect:'+10% tips per level'},
-    safety: {name:'Safety Systems',    max:5, baseCost:5000, per:0.08, effect:'−8% crash penalty · +8% payout'},
+    engines:{name:'Engine Efficiency',max:5,baseCost:4000,per:0.05,effect:'+5% payout per level'},
+    comfort:{name:'Passenger Comfort',max:5,baseCost:3000,per:0.10,effect:'+10% tips per level'},
+    safety: {name:'Safety Systems',   max:5,baseCost:5000,per:0.08,effect:'−8% crash penalty · +8% payout'},
   };
   const xpForLevel=l=>l*1000;
-  const fleet=()=>FLEET[C.upgrades.fleet]||FLEET[1];
-  function addXP(amount){
-    C.xp+=amount; let levels=0;
-    while(C.xp>=xpForLevel(C.level)){ C.xp-=xpForLevel(C.level); C.level++; levels++; }
-    return levels;
-  }
+  const fleet=()=>FLEET[C.upgrades.fleet]||FLEET[0];
+  function addXP(a){C.xp+=a;let lv=0;while(C.xp>=xpForLevel(C.level)){C.xp-=xpForLevel(C.level);C.level++;lv++;}return lv;}
 
-  /* ---------- Helpers (bridge to sim) ---------- */
-  function getPitch(){
-    const m=BABYLON.Matrix.Identity(); plane.quat.toRotationMatrix(m);
-    const f=BABYLON.Vector3.TransformNormal(new BABYLON.Vector3(0,0,1),m);
-    return Math.asin(Math.max(-1,Math.min(1,f.y)))*180/Math.PI;
+  /* ---------- HELPERS ---------- */
+  function computeAGL(){
+    try{
+      const gh=sampleSurface(plane.pos.x,plane.pos.z);
+      return Math.max(0,(plane.pos.y-gh)*3.28084);
+    }catch(e){return 0;}
   }
   function setSelect(id,v){
-    const el=document.getElementById(id);
-    if(!el) return;
-    if(el.value!==v){ el.value=v; try{el.dispatchEvent(new Event('change'));}catch(e){} }
+    const el=document.getElementById(id);if(!el)return;
+    if(el.value!==v){el.value=v;try{el.dispatchEvent(new Event('change'));}catch(e){}}
   }
   function findLocValueByCode(code){
-    const sel=document.getElementById('locSelect');
-    if(!sel) return null;
-    for(const opt of sel.options){ if(opt.value.endsWith(','+code)) return opt.value; }
+    const sel=document.getElementById('locSelect');if(!sel)return null;
+    for(const opt of sel.options) if(opt.value.endsWith(','+code)) return opt.value;
     return null;
   }
   function pickRandomLoc(){
     const sel=document.getElementById('locSelect');
-    if(!sel) return {code:'LSZH', value:'47.4647,8.5492,432,LSZH'};
+    if(!sel) return {code:'LSZH',value:'47.4647,8.5492,432,LSZH'};
     const opts=[...sel.options].filter(o=>o.value!=='CUSTOM');
     const pick=opts[Math.floor(Math.random()*opts.length)];
-    const code=pick.value.split(',').pop();
-    return {code, value:pick.value};
+    return {code:pick.value.split(',').pop(),value:pick.value};
   }
 
-  /* ---------- LESSONS (5 sequential) ---------- */
-  const LESSONS=[
-    {
-      id:'L1', type:'lesson',
-      title:'Takeoff Basics',
-      desc:'Throttle up, accelerate past 135 kts, rotate, gear up, climb to 3,000 ft.',
-      startState:'takeoff', wx:'clear', pax:0,
-      pay:800, xp:100,
-      objectives:[
-        { id:'thr',    label:'Advance throttle above 60%',      check:()=>plane.throttle>0.6 },
-        { id:'roll',   label:'Accelerate past 100 kts',         check:()=>plane.speed*1.94384>100 },
-        { id:'rotate', label:'Lift off above 135 kts',          check:()=>!plane.onGround && plane.speed*1.94384>135 },
-        { id:'gear',   label:'Retract landing gear',            check:()=>plane.gearPos<0.1 },
-        { id:'climb',  label:'Climb above 3,000 ft AGL',        check:()=>computeAGL()>3000 }
-      ]
-    },
-    {
-      id:'L2', type:'lesson',
-      title:'Autopilot',
-      desc:'Engage autopilot (P) and hold a stable altitude for 5 seconds.',
-      startState:'cruise', wx:'clear', pax:0,
-      pay:1200, xp:150,
-      objectives:[
-        { id:'ap',    label:'Engage autopilot (P)',             check:()=>AP.master },
-        { id:'stbl',  label:'Hold stable descent/climb (5 s)',  check:(f)=>{
-          const vs=Math.abs(plane.vel.y*196.85);
-          if(AP.master && vs<600) f._holdT=(f._holdT||0)+0.016; else f._holdT=0;
-          return f._holdT>5;
-        }}
-      ]
-    },
-    {
-      id:'L3', type:'lesson',
-      title:'Approach & Landing',
-      desc:'On final. Lower gear, flaps 30, reduce throttle, touch down under 550 fpm.',
-      startState:'final', wx:'clear', pax:0,
-      pay:1500, xp:200,
-      objectives:[
-        { id:'gear',  label:'Lower landing gear (G)',           check:()=>plane.gearPos>0.9 },
-        { id:'flaps', label:'Extend flaps to 30',               check:()=>plane.flaps>=4 },
-        { id:'thr',   label:'Throttle below 50%',               check:()=>plane.throttle<0.5 },
-        { id:'touch', label:'Touch down on the runway',         check:(f)=>{
-          if(!plane.onGround) f.everAirborne=true;
-          return f.everAirborne && plane.onGround && plane.gearPos>0.9;
-        }},
-        { id:'soft',  label:'Soft touchdown (< 550 fpm)',       check:(f)=>f.touchdownFpm && f.touchdownFpm<550 }
-      ]
-    },
-    {
-      id:'L4', type:'lesson',
-      title:'Emergency Response',
-      desc:'Engine 2 catches fire on approach. Land the aircraft safely.',
-      startState:'final', wx:'clear', pax:0,
-      pay:2000, xp:250,
-      tick:(f)=>{
-        if(!f._fireInjected && f.elapsed>3){
-          f._fireInjected=true;
-          try{ faults.inject('ENG_FIRE_R'); }catch(e){}
-          showMsg('⚠ ENGINE 2 FIRE · LAND IMMEDIATELY', 4000);
-        }
-      },
-      objectives:[
-        { id:'ack',   label:'Acknowledge fire warning',         check:(f)=>!!f._fireInjected },
-        { id:'land',  label:'Land the aircraft safely',         check:(f)=>{
-          if(!plane.onGround) f.everAirborne=true;
-          return f.everAirborne && plane.onGround && plane.gearPos>0.9;
-        }}
-      ]
-    },
-    {
-      id:'L5', type:'lesson',
-      title:'Full Flight',
-      desc:'Complete mission: takeoff, climb, cruise, descend, land.',
-      startState:'takeoff', wx:'cloudy', pax:0,
-      pay:2500, xp:300,
-      objectives:[
-        { id:'rotate', label:'Take off',                        check:()=>!plane.onGround && plane.speed*1.94384>135 },
-        { id:'gear',   label:'Retract landing gear',            check:()=>plane.gearPos<0.1 },
-        { id:'climb',  label:'Climb above 10,000 ft AGL',       check:()=>computeAGL()>10000 },
-        { id:'desc',   label:'Descend below 3,000 ft AGL',      check:()=>computeAGL()<3000 && plane.vel.y<-2 },
-        { id:'land',   label:'Land safely on the runway',       check:(f)=>{
-          if(!plane.onGround) f.everAirborne=true;
-          return f.everAirborne && plane.onGround && plane.gearPos>0.9;
-        }}
-      ]
+  /* ---------- AIRCRAFT MODELS (procedural) ---------- */
+  const modelRoots={};
+  let activeModelId='cessna';
+  const MAT={};
+
+  function initMats(){
+    const mk=(n,c,m,r,a)=>{
+      const mat=new BABYLON.PBRMaterial('ac_'+n,scene);
+      mat.albedoColor=new BABYLON.Color3(c[0],c[1],c[2]);
+      mat.metallic=m;mat.roughness=r;
+      if(a!==undefined){mat.alpha=a;mat.transparencyMode=2;}
+      return mat;
+    };
+    MAT.white = mk('white',[.95,.96,.98],.25,.35);
+    MAT.dark  = mk('dark', [.08,.08,.10],.4,.5);
+    MAT.red   = mk('red',  [.85,.15,.12],.3,.4);
+    MAT.blue  = mk('blue', [.10,.30,.70],.35,.35);
+    MAT.cyan  = mk('cyan', [.10,.60,.75],.3,.4);
+    MAT.glass = mk('glass',[.15,.25,.35],.7,.1,.55);
+    MAT.gear  = mk('gear', [.15,.15,.18],.5,.4);
+  }
+
+  function cyl(g,name,dTop,dBot,h,mat,pos,rot){
+    const m=BABYLON.MeshBuilder.CreateCylinder(name,{height:h,diameterTop:dTop,diameterBottom:dBot,tessellation:14},scene);
+    if(rot)m.rotation.set(rot[0]||0,rot[1]||0,rot[2]||0);
+    if(pos)m.position.set(pos[0],pos[1],pos[2]);
+    m.material=mat;m.parent=g;m.isPickable=false;return m;
+  }
+  function box(g,name,w,h,d,mat,pos,rot){
+    const m=BABYLON.MeshBuilder.CreateBox(name,{width:w,height:h,depth:d},scene);
+    if(rot)m.rotation.set(rot[0]||0,rot[1]||0,rot[2]||0);
+    if(pos)m.position.set(pos[0],pos[1],pos[2]);
+    m.material=mat;m.parent=g;m.isPickable=false;return m;
+  }
+  function sph(g,name,d,mat,pos){
+    const m=BABYLON.MeshBuilder.CreateSphere(name,{diameter:d,segments:10},scene);
+    m.position.set(pos[0],pos[1],pos[2]);
+    m.material=mat;m.parent=g;m.isPickable=false;return m;
+  }
+
+  function buildCessnaModel(){
+    const g=new BABYLON.TransformNode('ac_cessna',scene);g.parent=aircraftRoot;
+    /* fuselage */
+    cyl(g,'c172_fus',0.4,1.35,8.5,MAT.white,[0,0,-0.3],[Math.PI/2,0,0]);
+    sph(g,'c172_nose',1.3,MAT.white,[0,0,4.0]);
+    /* spinner + prop */
+    cyl(g,'c172_spin',0.08,0.45,0.55,MAT.dark,[0,0,4.5],[Math.PI/2,0,0]);
+    const prop=BABYLON.MeshBuilder.CreateDisc('c172_prop',{radius:1.0,tessellation:20},scene);
+    prop.position.set(0,0,4.55);prop.material=MAT.dark;prop.parent=g;
+    g._prop=prop;
+    /* high wing */
+    box(g,'c172_wing',11,0.18,1.7,MAT.white,[0,1.05,0.3]);
+    /* struts */
+    cyl(g,'c172_strutL',0.06,0.06,1.05,MAT.dark,[-2.5,0.5,0.3],[0,0,0.35]);
+    cyl(g,'c172_strutR',0.06,0.06,1.05,MAT.dark,[ 2.5,0.5,0.3],[0,0,-0.35]);
+    /* tail */
+    box(g,'c172_fin',0.12,1.5,1.5,MAT.red,[0,1.0,-3.9]);
+    box(g,'c172_stab',3.9,0.12,0.9,MAT.white,[0,0.35,-3.9]);
+    /* windows */
+    box(g,'c172_win',1.35,0.55,0.15,MAT.glass,[0,0.35,2.6]);
+    /* fixed gear */
+    const gear=new BABYLON.TransformNode('c172_gear',scene);gear.parent=g;
+    for(const [x,z] of [[0,3.2],[-1.3,0.2],[1.3,0.2]]){
+      cyl(gear,'c172_strut',0.06,0.06,0.7,MAT.dark,[x,-0.55,z]);
+      cyl(gear,'c172_wheel',0.44,0.44,0.14,MAT.dark,[x,-0.9,z],[0,0,Math.PI/2]);
     }
+    g.metadata={gearGroup:gear,fixed:true};
+    return g;
+  }
+
+  function buildATRModel(){
+    const g=new BABYLON.TransformNode('ac_atr',scene);g.parent=aircraftRoot;
+    /* fuselage — 27m, fatter */
+    cyl(g,'atr_fus',0.8,2.1,27,MAT.white,[0,0,-1],[Math.PI/2,0,0]);
+    sph(g,'atr_nose',2.0,MAT.white,[0,0,13.2]);
+    sph(g,'atr_tail',1.0,MAT.white,[0,0,-14.5]);
+    /* high wing */
+    box(g,'atr_wing',27,0.4,2.8,MAT.white,[0,1.8,0.5]);
+    /* wing tips */
+    box(g,'atr_tipL',0.3,1.6,2.2,MAT.red,[-13.2,1.4,0.3]);
+    box(g,'atr_tipR',0.3,1.6,2.2,MAT.red,[ 13.2,1.4,0.3]);
+    /* twin turboprops */
+    const props=[];
+    for(const sgn of [1,-1]){
+      const nx=sgn*6.5;
+      cyl(g,'atr_nac'+sgn,0.9,1.0,5.5,MAT.white,[nx,0.5,1.5],[Math.PI/2,0,0]);
+      cyl(g,'atr_spin'+sgn,0.1,0.5,0.6,MAT.dark,[nx,0.5,4.2],[Math.PI/2,0,0]);
+      const p=BABYLON.MeshBuilder.CreateDisc('atr_prop'+sgn,{radius:1.9,tessellation:20},scene);
+      p.position.set(nx,0.5,4.3);p.material=MAT.dark;p.parent=g;props.push(p);
+    }
+    g._props=props;
+    /* T-tail-ish */
+    box(g,'atr_fin',0.25,3.6,2.5,MAT.red,[0,2.4,-13.5]);
+    box(g,'atr_stab',7.5,0.2,1.4,MAT.white,[0,4.2,-13.2]);
+    /* windows */
+    box(g,'atr_win',1.8,0.7,0.3,MAT.glass,[0,0.8,12.0]);
+    /* retractable gear groups */
+    const gear=new BABYLON.TransformNode('atr_gear',scene);gear.parent=g;
+    for(const [x,z] of [[0,11.5],[-2.6,-1],[2.6,-1]]){
+      cyl(gear,'atr_strut',0.08,0.08,1.6,MAT.gear,[x,-1.3,z]);
+      cyl(gear,'atr_wheel',0.7,0.7,0.24,MAT.dark,[x,-2.0,z],[0,0,Math.PI/2]);
+    }
+    g.metadata={gearGroup:gear,fixed:false};
+    return g;
+  }
+
+  function buildE190Model(){
+    const g=new BABYLON.TransformNode('ac_e190',scene);g.parent=aircraftRoot;
+    /* fuselage — 36m */
+    cyl(g,'e190_fus',0.9,1.7,36,MAT.white,[0,0,0],[Math.PI/2,0,0]);
+    sph(g,'e190_nose',1.6,MAT.white,[0,0,17.5]);
+    sph(g,'e190_tailCone',0.6,MAT.white,[0,0.6,-19]);
+    /* low wing */
+    box(g,'e190_wing',28,0.42,4,MAT.white,[0,-0.4,-0.8]);
+    /* winglets */
+    box(g,'e190_tipL',0.28,1.7,1.8,MAT.blue,[-13.8,0.3,-1.6],[0,0,-0.3]);
+    box(g,'e190_tipR',0.28,1.7,1.8,MAT.blue,[ 13.8,0.3,-1.6],[0,0,0.3]);
+    /* underwing jets */
+    for(const sgn of [1,-1]){
+      cyl(g,'e190_nac'+sgn,1.2,1.3,4.5,MAT.white,[sgn*5,-1.5,1.2],[Math.PI/2,0,0]);
+      sph(g,'e190_intake'+sgn,1.3,MAT.dark,[sgn*5,-1.5,3.4]);
+      /* exhaust */
+      cyl(g,'e190_exh'+sgn,0.9,0.8,0.6,MAT.dark,[sgn*5,-1.5,-1.4],[Math.PI/2,0,0]);
+    }
+    /* T-tail */
+    box(g,'e190_fin',0.3,6,3.5,MAT.blue,[0,3.5,-17.0]);
+    box(g,'e190_stab',9,0.22,2,MAT.white,[0,6.4,-17.2]);
+    /* windows */
+    box(g,'e190_win',1.2,0.9,0.3,MAT.glass,[0,0.7,15.5]);
+    /* gear */
+    const gear=new BABYLON.TransformNode('e190_gear',scene);gear.parent=g;
+    for(const [x,z] of [[0,15],[-2.2,-2],[2.2,-2]]){
+      cyl(gear,'e190_strut',0.08,0.08,1.9,MAT.gear,[x,-1.5,z]);
+      cyl(gear,'e190_wheel',0.75,0.75,0.26,MAT.dark,[x,-2.3,z],[0,0,Math.PI/2]);
+    }
+    g.metadata={gearGroup:gear,fixed:false};
+    return g;
+  }
+
+  function setActiveAircraft(modelId){
+    activeModelId=modelId;
+    /* hide every model */
+    try{ exteriorRoot.setEnabled(false); }catch(e){}
+    try{ interiorRoot.setEnabled(false); }catch(e){}
+    Object.values(modelRoots).forEach(m=>{if(m)try{m.setEnabled(false);}catch(e){}});
+
+    /* show requested */
+    if(modelId==='737'){
+      try{ exteriorRoot.setEnabled(true); exteriorRoot.scaling.set(1,1,1); }catch(e){}
+    } else if(modelId==='787'){
+      try{ exteriorRoot.setEnabled(true); exteriorRoot.scaling.set(1.35,1.15,1.35); }catch(e){}
+    } else if(modelRoots[modelId]){
+      try{ modelRoots[modelId].setEnabled(true); }catch(e){}
+    }
+
+    /* physics */
+    const fd=fleet();
+    if(fd&&fd.physics){
+      ACFG.mass=fd.physics.mass;
+      ACFG.wingArea=fd.physics.wingArea;
+      ACFG.maxThrust=fd.physics.thrust;
+      ACFG.CLmax=fd.physics.CLmax||1.85;
+    }
+
+    /* cockpit auto-disable */
+    if(camMode===1&&fd&&!fd.hasCockpit){
+      try{ setCamMode(0); }catch(e){}
+    }
+  }
+
+  /* gear visibility per aircraft */
+  scene.registerBeforeRender(()=>{
+    const fd=fleet();
+    if(!fd)return;
+    const showGear=!fd.fixedGear?plane.gearPos>0.4:true;
+    for(const id of ['atr','e190','cessna']){
+      const g=modelRoots[id];
+      if(!g||!g.metadata||!g.metadata.gearGroup)continue;
+      if(id===activeModelId){
+        const gg=g.metadata.gearGroup;
+        gg.setEnabled(id==='cessna'?true:showGear);
+      }
+    }
+    /* spin props */
+    if(activeModelId==='cessna'&&modelRoots.cessna&&modelRoots.cessna._prop){
+      modelRoots.cessna._prop.rotation.z+=engine.getDeltaTime()*0.005*(ENG.L.n1>5?8:0);
+    }
+    if(activeModelId==='atr'&&modelRoots.atr&&modelRoots.atr._props){
+      modelRoots.atr._props.forEach(p=>p.rotation.z+=engine.getDeltaTime()*0.008*(ENG.L.n1>5?6:0));
+    }
+    /* fixed gear — force gearDown */
+    if(fd.fixedGear&&!plane.gearDown){
+      plane.gearDown=true;
+    }
+  });
+
+  /* filter objectives based on fleet */
+  function filterObjectives(objs){
+    const fd=fleet();
+    return objs.filter(o=>!(fd.fixedGear&&o.id==='gear'));
+  }
+
+  /* ---------- LESSONS ---------- */
+  const LESSONS=[
+    {id:'L1',type:'lesson',title:'Takeoff Basics',
+     desc:'Throttle up, accelerate past 135 kts, rotate, and climb.',
+     startState:'takeoff',wx:'clear',pax:0,pay:600,xp:80,
+     objectives:[
+       {id:'thr',label:'Advance throttle above 60%',check:()=>plane.throttle>0.6},
+       {id:'roll',label:'Accelerate past 100 kts',check:()=>plane.speed*1.94384>100},
+       {id:'rotate',label:'Lift off above 135 kts',check:()=>!plane.onGround&&plane.speed*1.94384>135},
+       {id:'gear',label:'Retract landing gear',check:()=>plane.gearPos<0.1},
+       {id:'climb',label:'Climb above 3,000 ft AGL',check:()=>computeAGL()>3000}
+     ]},
+    {id:'L2',type:'lesson',title:'Autopilot',
+     desc:'Engage autopilot (P) and hold a stable altitude for 5 seconds.',
+     startState:'cruise',wx:'clear',pax:0,pay:900,xp:120,
+     objectives:[
+       {id:'ap',label:'Engage autopilot (P)',check:()=>AP.master},
+       {id:'stbl',label:'Hold stable climb/descent (5s)',check:(f)=>{
+         const vs=Math.abs(plane.vel.y*196.85);
+         if(AP.master&&vs<600)f._holdT=(f._holdT||0)+0.016;else f._holdT=0;
+         return f._holdT>5;
+       }}
+     ]},
+    {id:'L3',type:'lesson',title:'Approach & Landing',
+     desc:'On final. Lower gear, flaps 30, reduce throttle, touch down under 550 fpm.',
+     startState:'final',wx:'clear',pax:0,pay:1100,xp:150,
+     objectives:[
+       {id:'gear',label:'Lower landing gear (G)',check:()=>plane.gearPos>0.9},
+       {id:'flaps',label:'Extend flaps to 30',check:()=>plane.flaps>=4},
+       {id:'thr',label:'Throttle below 50%',check:()=>plane.throttle<0.5},
+       {id:'touch',label:'Touch down on the runway',check:(f)=>{
+         if(!plane.onGround)f.everAirborne=true;
+         return f.everAirborne&&plane.onGround&&plane.gearPos>0.9;
+       }},
+       {id:'soft',label:'Soft touchdown (< 550 fpm)',check:(f)=>f.touchdownFpm&&f.touchdownFpm<550}
+     ]},
+    {id:'L4',type:'lesson',title:'Emergency Response',
+     desc:'Engine 2 catches fire on approach. Land the aircraft safely.',
+     startState:'final',wx:'clear',pax:0,pay:1600,xp:200,
+     tick:(f)=>{
+       if(!f._fireInjected&&f.elapsed>3){
+         f._fireInjected=true;
+         try{faults.inject('ENG_FIRE_R');}catch(e){}
+         showMsg('⚠ ENGINE 2 FIRE · LAND IMMEDIATELY',4000);
+       }
+     },
+     objectives:[
+       {id:'ack',label:'Acknowledge fire warning',check:(f)=>!!f._fireInjected},
+       {id:'land',label:'Land the aircraft safely',check:(f)=>{
+         if(!plane.onGround)f.everAirborne=true;
+         return f.everAirborne&&plane.onGround&&plane.gearPos>0.9;
+       }}
+     ]},
+    {id:'L5',type:'lesson',title:'Full Flight',
+     desc:'Complete mission: takeoff, climb, cruise, descend, land.',
+     startState:'takeoff',wx:'cloudy',pax:0,pay:2200,xp:280,
+     objectives:[
+       {id:'rotate',label:'Take off',check:()=>!plane.onGround&&plane.speed*1.94384>135},
+       {id:'gear',label:'Retract landing gear',check:()=>plane.gearPos<0.1},
+       {id:'climb',label:'Climb above 10,000 ft AGL',check:()=>computeAGL()>10000},
+       {id:'desc',label:'Descend below 3,000 ft AGL',check:()=>computeAGL()<3000&&plane.vel.y<-2},
+       {id:'land',label:'Land safely on the runway',check:(f)=>{
+         if(!plane.onGround)f.everAirborne=true;
+         return f.everAirborne&&plane.onGround&&plane.gearPos>0.9;
+       }}
+     ]}
   ];
   function canAccessLesson(i){
-    if(i===0) return true;
+    if(i===0)return true;
     for(let k=0;k<i;k++) if(!C.lessonsCompleted[LESSONS[k].id]) return false;
     return true;
   }
@@ -5520,126 +5709,120 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
   const WX_LIST=Object.keys(WX_BONUS);
   const pickWx=()=>WX_LIST[Math.floor(Math.random()*WX_LIST.length)];
   const diffFor=b=>b>1.4?'HARD':b>1.15?'MED':'EASY';
-  const rndPax=()=>100+Math.floor(Math.random()*110);
+  const altCeiling=()=>({cessna:6000,atr:20000,e190:32000,b737:35000,b787:41000}[fleet().id])||30000;
+  const rndPax=()=>{
+    const cap=fleet().pax;
+    if(cap<=6) return 1+Math.floor(Math.random()*cap);
+    const min=Math.max(1,Math.floor(cap*0.5));
+    return min+Math.floor(Math.random()*(cap-min+1));
+  };
+  const payFor=(pax,wx)=>Math.round(pax*fleet().fare*WX_BONUS[wx]);
 
-  function makeFull(id){
-    const wx=pickWx(), loc=pickRandomLoc(), pax=rndPax();
-    const cruiseAlt=[15000,18000,22000,25000,28000][Math.floor(Math.random()*5)];
-    return {
-      id, type:'full',
-      title:'Full Flight · '+loc.code,
-      desc:'Take off, climb to '+cruiseAlt.toLocaleString()+' ft, cruise, descend and land at '+loc.code+'.',
-      destCode:loc.code, destValue:loc.value, wx,
-      startState:'takeoff', pax,
-      pay:Math.round(pax*26*WX_BONUS[wx]*(0.9+Math.random()*0.3)),
-      xp:Math.round(pax*0.6),
-      difficulty:diffFor(WX_BONUS[wx]),
-      objectives:[
-        { id:'rotate',  label:'Lift off above 135 kts',        check:()=>!plane.onGround && plane.speed*1.94384>135 },
-        { id:'gear',    label:'Retract landing gear',          check:()=>plane.gearPos<0.1 },
-        { id:'climb',   label:'Climb to '+cruiseAlt.toLocaleString()+' ft', check:()=>plane.pos.y*3.28084>=cruiseAlt },
-        { id:'descend', label:'Descend below 10,000 ft',       check:()=>plane.pos.y*3.28084<10000 && plane.vel.y<-2 },
-        { id:'land',    label:'Land safely on the runway',     check:(f)=>{
-          if(!plane.onGround) f.everAirborne=true;
-          return f.everAirborne && plane.onGround && plane.gearPos>0.9;
-        }}
-      ]
-    };
-  }
   function makeTakeoff(id){
-    const wx=pickWx(), loc=pickRandomLoc(), pax=rndPax();
-    const targetAlt=[5000,7000,9000][Math.floor(Math.random()*3)];
+    const wx=pickWx(),loc=pickRandomLoc(),pax=rndPax();
+    const targetAlt=[Math.round(altCeiling()*0.5),Math.round(altCeiling()*0.7)][Math.floor(Math.random()*2)];
     return {
-      id, type:'takeoff',
+      id,type:'takeoff',
       title:'Takeoff · '+loc.code,
       desc:'Lift off from '+loc.code+' and climb to '+targetAlt.toLocaleString()+' ft AGL. Short mission.',
-      destCode:loc.code, destValue:loc.value, wx,
-      startState:'takeoff', pax,
-      pay:Math.round(pax*15*WX_BONUS[wx]*(0.9+Math.random()*0.3)),
-      xp:Math.round(pax*0.35),
+      destCode:loc.code,destValue:loc.value,wx,startState:'takeoff',pax,
+      pay:Math.round(payFor(pax,wx)*0.7),
+      xp:Math.round(pax*0.3),
       difficulty:diffFor(WX_BONUS[wx]),
-      objectives:[
-        { id:'rotate', label:'Lift off above 135 kts',        check:()=>!plane.onGround && plane.speed*1.94384>135 },
-        { id:'gear',   label:'Retract landing gear',          check:()=>plane.gearPos<0.1 },
-        { id:'climb',  label:'Climb to '+targetAlt.toLocaleString()+' ft AGL', check:()=>computeAGL()>=targetAlt }
-      ]
+      objectives:filterObjectives([
+        {id:'rotate',label:'Lift off above 135 kts',check:()=>!plane.onGround&&plane.speed*1.94384>135},
+        {id:'gear',label:'Retract landing gear',check:()=>plane.gearPos<0.1},
+        {id:'climb',label:'Climb to '+targetAlt.toLocaleString()+' ft AGL',check:()=>computeAGL()>=targetAlt}
+      ])
     };
   }
   function makeLanding(id){
-    const wx=pickWx(), loc=pickRandomLoc(), pax=rndPax();
+    const wx=pickWx(),loc=pickRandomLoc(),pax=rndPax();
     return {
-      id, type:'landing',
+      id,type:'landing',
       title:'Landing · '+loc.code,
       desc:'On final approach to '+loc.code+'. Land under 550 fpm.',
-      destCode:loc.code, destValue:loc.value, wx,
-      startState:'final', pax,
-      pay:Math.round(pax*18*WX_BONUS[wx]*(0.9+Math.random()*0.3)),
+      destCode:loc.code,destValue:loc.value,wx,startState:'final',pax,
+      pay:payFor(pax,wx),
       xp:Math.round(pax*0.4),
       difficulty:diffFor(WX_BONUS[wx]),
-      objectives:[
-        { id:'gear',   label:'Lower landing gear',           check:()=>plane.gearPos>0.9 },
-        { id:'flaps',  label:'Flaps 30',                     check:()=>plane.flaps>=4 },
-        { id:'touch',  label:'Touch down on the runway',     check:(f)=>{
-          if(!plane.onGround) f.everAirborne=true;
-          return f.everAirborne && plane.onGround && plane.gearPos>0.9;
+      objectives:filterObjectives([
+        {id:'gear',label:'Lower landing gear',check:()=>plane.gearPos>0.9},
+        {id:'flaps',label:'Flaps 30',check:()=>plane.flaps>=4},
+        {id:'touch',label:'Touch down on the runway',check:(f)=>{
+          if(!plane.onGround)f.everAirborne=true;
+          return f.everAirborne&&plane.onGround&&plane.gearPos>0.9;
         }},
-        { id:'stop',   label:'Come to a full stop (< 10 kts)', check:()=>plane.onGround && plane.speed*1.94384<10 }
-      ]
+        {id:'stop',label:'Come to a full stop (< 10 kts)',check:()=>plane.onGround&&plane.speed*1.94384<10}
+      ])
     };
   }
   function makeCircuit(id){
-    const wx=pickWx(), loc=pickRandomLoc(), pax=rndPax();
-    const targetAlt=[3000,4000,5000][Math.floor(Math.random()*3)];
+    const wx=pickWx(),loc=pickRandomLoc(),pax=rndPax();
+    const targetAlt=Math.round(altCeiling()*0.25);
     return {
-      id, type:'circuit',
+      id,type:'circuit',
       title:'Circuit · '+loc.code,
       desc:'Touch-and-go pattern. Take off, climb to '+targetAlt.toLocaleString()+' ft, land back.',
-      destCode:loc.code, destValue:loc.value, wx,
-      startState:'takeoff', pax,
-      pay:Math.round(pax*21*WX_BONUS[wx]*(0.9+Math.random()*0.3)),
-      xp:Math.round(pax*0.5),
+      destCode:loc.code,destValue:loc.value,wx,startState:'takeoff',pax,
+      pay:Math.round(payFor(pax,wx)*0.9),
+      xp:Math.round(pax*0.45),
       difficulty:diffFor(WX_BONUS[wx]),
-      objectives:[
-        { id:'rotate', label:'Take off',                     check:()=>!plane.onGround && plane.speed*1.94384>135 },
-        { id:'climb',  label:'Climb to '+targetAlt.toLocaleString()+' ft AGL', check:()=>computeAGL()>=targetAlt },
-        { id:'desc',   label:'Descend below 1,500 ft AGL',   check:()=>computeAGL()<1500 && plane.vel.y<-1 },
-        { id:'land',   label:'Land back on the runway',      check:(f)=>{
-          if(!plane.onGround) f.everAirborne=true;
-          return f.everAirborne && plane.onGround && plane.gearPos>0.9;
+      objectives:filterObjectives([
+        {id:'rotate',label:'Take off',check:()=>!plane.onGround&&plane.speed*1.94384>135},
+        {id:'climb',label:'Climb to '+targetAlt.toLocaleString()+' ft AGL',check:()=>computeAGL()>=targetAlt},
+        {id:'desc',label:'Descend below 1,500 ft AGL',check:()=>computeAGL()<1500&&plane.vel.y<-1},
+        {id:'land',label:'Land back on the runway',check:(f)=>{
+          if(!plane.onGround)f.everAirborne=true;
+          return f.everAirborne&&plane.onGround&&plane.gearPos>0.9;
         }}
-      ]
+      ])
+    };
+  }
+  function makeFull(id){
+    const wx=pickWx(),loc=pickRandomLoc(),pax=rndPax();
+    const cruiseAlt=Math.round(altCeiling()*0.85);
+    return {
+      id,type:'full',
+      title:'Full Flight · '+loc.code,
+      desc:'Take off, climb to '+cruiseAlt.toLocaleString()+' ft, cruise, descend and land at '+loc.code+'.',
+      destCode:loc.code,destValue:loc.value,wx,startState:'takeoff',pax,
+      pay:Math.round(payFor(pax,wx)*1.3),
+      xp:Math.round(pax*0.65),
+      difficulty:diffFor(WX_BONUS[wx]),
+      objectives:filterObjectives([
+        {id:'rotate',label:'Lift off above 135 kts',check:()=>!plane.onGround&&plane.speed*1.94384>135},
+        {id:'gear',label:'Retract landing gear',check:()=>plane.gearPos<0.1},
+        {id:'climb',label:'Climb to '+cruiseAlt.toLocaleString()+' ft',check:()=>plane.pos.y*3.28084>=cruiseAlt},
+        {id:'descend',label:'Descend below 10,000 ft',check:()=>plane.pos.y*3.28084<10000&&plane.vel.y<-2},
+        {id:'land',label:'Land safely on the runway',check:(f)=>{
+          if(!plane.onGround)f.everAirborne=true;
+          return f.everAirborne&&plane.onGround&&plane.gearPos>0.9;
+        }}
+      ])
     };
   }
   function makeFree(id){
     return {
-      id, type:'free',
-      title:'Free Flight',
+      id,type:'free',title:'Free Flight',
       desc:'No objectives. Practice flying. Small payout for a safe landing.',
-      wx:'clear', pax:0,
-      startState:'cruise',
-      pay:300, xp:25,
+      wx:'clear',pax:0,startState:'cruise',
+      pay:Math.max(200,fleet().fare*3),xp:25,
       difficulty:'EASY',
       objectives:[
-        { id:'land', label:'Land safely on the runway',      check:(f)=>{
-          if(!plane.onGround) f.everAirborne=true;
-          return f.everAirborne && plane.onGround && plane.gearPos>0.9;
+        {id:'land',label:'Land safely on the runway',check:(f)=>{
+          if(!plane.onGround)f.everAirborne=true;
+          return f.everAirborne&&plane.onGround&&plane.gearPos>0.9;
         }}
       ]
     };
   }
   function genContractList(){
-    const gens=[makeFull, makeTakeoff, makeLanding, makeCircuit];
-    const list=[];
-    // One takeoff/landing guaranteed (easy), one full (hard), one random
-    list.push(makeTakeoff('c0'));
-    list.push(makeFull('c1'));
-    const extra=gens[Math.floor(Math.random()*gens.length)];
-    list.push(extra('c2'));
-    return list;
+    return [makeTakeoff('c0'),makeFull('c1'),(Math.random()<0.5?makeCircuit:makeLanding)('c2')];
   }
 
   /* ---------- HUD STRIP ---------- */
-  const hud=document.createElement('div'); hud.id='careerHud';
+  const hud=document.createElement('div');hud.id='careerHud';
   hud.innerHTML=`
     <div class="chStat"><span class="chIco">💰</span><span id="chMoney">$0</span></div>
     <div class="chStat"><span class="chIco">⭐</span><span id="chLvl">Lv 1</span><span id="chXp" style="opacity:.55;font-size:10px">0 XP</span></div>
@@ -5647,21 +5830,22 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
     <button class="chBtn" id="chContr">📋 MISSIONS</button>
     <button class="chBtn" id="chShop">🛒 HANGAR</button>`;
   document.body.appendChild(hud);
-
   function renderHUD(){
     document.getElementById('chMoney').textContent='$'+C.money.toLocaleString();
     document.getElementById('chLvl').textContent='Lv '+C.level;
     document.getElementById('chXp').textContent=C.xp+'/'+xpForLevel(C.level)+' XP';
     const pax=currentFlight?currentFlight.passengers:(pendingContract?pendingContract.pax:fleet().pax);
-    document.getElementById('chPax').textContent=pax+' pax';
+    const paxEl=document.getElementById('chPax');
+    paxEl.textContent=pax+' pax';
+    paxEl.setAttribute('data-ac',fleet().name);
   }
   function pulse(id){const el=document.getElementById(id);if(!el)return;el.classList.remove('pulse');void el.offsetWidth;el.classList.add('pulse');}
 
   /* ---------- DISPATCH PANEL ---------- */
-  const contrEl=document.createElement('div'); contrEl.id='contrPanel';
+  const contrEl=document.createElement('div');contrEl.id='contrPanel';
   contrEl.innerHTML=`
     <div class="cpHead"><span>📋 DISPATCH</span><button id="cpX">✕</button></div>
-    <div class="cpSub">Choose a lesson or contract. Lessons unlock in order. Contracts refresh after each flight.</div>
+    <div class="cpSub">Choose a lesson or contract. Lessons unlock in order. Contracts scale to your current aircraft: <b id="cpFleetName">${fleet().name}</b></div>
     <div class="cpSection">
       <div class="cpSectionHead">📚 Training Lessons</div>
       <div id="cpLessonList"></div>
@@ -5673,8 +5857,8 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
     </div>`;
   document.body.appendChild(contrEl);
   let contractList=genContractList();
-
   function renderContracts(){
+    document.getElementById('cpFleetName').textContent=fleet().name;
     const lessonList=document.getElementById('cpLessonList');
     lessonList.innerHTML=LESSONS.map((L,i)=>{
       const done=!!C.lessonsCompleted[L.id];
@@ -5682,56 +5866,41 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
       const sel=pendingContract&&pendingContract.id===L.id;
       const cls='ctr lesson'+(done?' done':'')+(!unlocked?' locked':'')+(sel?' sel':'');
       const btnLabel=done?'REPLAY ($'+Math.round(L.pay*0.25)+')':unlocked?'$'+L.pay:'LOCKED';
-      const num=i+1;
       return `<div class="${cls}" data-cid="${L.id}" ${!unlocked?'data-locked="1"':''}>
-        <div>
-          <div class="ctr-title">${num}. ${L.title}<span class="lessonTag">LESSON</span></div>
-          <div class="ctr-desc">${L.desc}</div>
-        </div>
+        <div><div class="ctr-title">${i+1}. ${L.title}<span class="lessonTag">LESSON</span></div>
+        <div class="ctr-desc">${L.desc}</div></div>
         <div class="ctr-reward">${btnLabel}<small>+${done?Math.round(L.xp*0.25):L.xp} XP</small></div>
       </div>`;
     }).join('');
-
     document.getElementById('cpList').innerHTML=contractList.map(c=>{
       const sel=pendingContract&&pendingContract.id===c.id;
       return `<div class="ctr ${sel?'sel':''}" data-cid="${c.id}">
-        <div>
-          <div class="ctr-title">${c.title} · <span class="diff-${c.difficulty}">${c.difficulty}</span></div>
-          <div class="ctr-desc">${c.desc} · ${c.pax} passengers · weather <b>${c.wx}</b>.</div>
-        </div>
+        <div><div class="ctr-title">${c.title} · <span class="diff-${c.difficulty}">${c.difficulty}</span></div>
+        <div class="ctr-desc">${c.desc} · ${c.pax} pax · weather <b>${c.wx}</b></div></div>
         <div class="ctr-reward">$${c.pay.toLocaleString()}<small>+${c.xp} XP</small></div>
       </div>`;
     }).join('');
-
-    // click handlers
     document.querySelectorAll('#cpLessonList .ctr, #cpList .ctr').forEach(n=>{
       n.addEventListener('click',()=>{
-        if(n.dataset.locked) return;
+        if(n.dataset.locked)return;
         const cid=n.dataset.cid;
-        const c=[...LESSONS, ...contractList].find(x=>x.id===cid);
-        if(!c) return;
-        if(pendingContract&&pendingContract.id===cid){
-          pendingContract=null;
-        } else {
+        const c=[...LESSONS,...contractList].find(x=>x.id===cid);
+        if(!c)return;
+        if(pendingContract&&pendingContract.id===cid){pendingContract=null;}
+        else{
           pendingContract=c;
-          // Pre-set dropdowns so start state matches the mission
-          const ws=document.getElementById('wxSelect');
-          if(ws && c.wx){ setSelect('wxSelect', c.wx); }
-          const ss=document.getElementById('startSel');
-          if(ss && c.startState){ setSelect('startSel', c.startState); }
-          if(c.destCode){
-            const v=findLocValueByCode(c.destCode);
-            if(v) setSelect('locSelect', v);
-          }
-          showMsg('📋 '+c.title+' · $'+c.pay, 2500);
+          if(c.wx)setSelect('wxSelect',c.wx);
+          if(c.startState)setSelect('startSel',c.startState);
+          if(c.destCode){const v=findLocValueByCode(c.destCode);if(v)setSelect('locSelect',v);}
+          showMsg('📋 '+c.title+' · $'+c.pay,2500);
         }
-        renderContracts(); renderHUD();
+        renderContracts();renderHUD();
       });
     });
   }
 
   /* ---------- SHOP ---------- */
-  const shopEl=document.createElement('div'); shopEl.id='shopPanel';
+  const shopEl=document.createElement('div');shopEl.id='shopPanel';
   shopEl.innerHTML=`<div class="cpHead"><span>🛒 HANGAR</span><button id="spX">✕</button></div>
     <div id="spTabs">
       <button class="spTab on" data-tab="fleet">FLEET</button>
@@ -5746,28 +5915,32 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
     document.querySelectorAll('.spTab').forEach(t=>t.classList.toggle('on',t.dataset.tab===shopTab));
     if(shopTab==='fleet'){
       body.innerHTML=FLEET.map((f,i)=>{
-        const ownedAll=i<=C.upgrades.fleet;
-        const cur=C.upgrades.fleet===i;
-        const canBuy=!ownedAll&&C.money>=f.cost&&i===C.upgrades.fleet+1;
+        const cur=i===C.upgrades.fleet;
+        const owned=i<C.upgrades.fleet;
+        const next=i===C.upgrades.fleet+1;
+        const canBuy=next&&C.money>=f.cost;
         const btn=cur?'<button class="spBuy cur">IN USE</button>'
-          :ownedAll?'<button class="spBuy own">OWNED</button>'
-          :`<button class="spBuy" ${canBuy?'':'disabled'} data-buy-fleet="${i}">$${f.cost.toLocaleString()}</button>`;
-        return `<div class="spItem ${cur?'current':(ownedAll?'owned':'')}">
+          :owned?'<button class="spBuy own">OWNED</button>'
+          :next?`<button class="spBuy" ${canBuy?'':'disabled'} data-buy-fleet="${i}">$${f.cost.toLocaleString()}</button>`
+          :`<button class="spBuy" disabled>LOCKED</button>`;
+        return `<div class="spItem ${cur?'current':(owned?'owned':(next?'':'locked'))}">
           <div><div class="spName">${f.name}</div>
-          <div class="spDesc">${f.pax} pax · ${Math.round(f.speed*100)}% speed · ${Math.round(f.mult*100)}% payout${i===C.upgrades.fleet+1?' · <b style="color:#22d3ee">NEXT TIER</b>':''}</div></div>
+          <div class="spDesc">${f.tag} · ${f.pax} pax · cruise ${f.cruise} kts · $${f.fare}/pax${next?' · <b style="color:#22d3ee">NEXT TIER</b>':''}</div></div>
           ${btn}</div>`;
       }).join('');
       body.querySelectorAll('[data-buy-fleet]').forEach(b=>b.addEventListener('click',()=>{
-        const i=+b.dataset.buyFleet, f=FLEET[i];
+        const i=+b.dataset.buyFleet,f=FLEET[i];
         if(C.money>=f.cost&&i===C.upgrades.fleet+1){
           C.money-=f.cost; C.upgrades.fleet=i; save();
-          renderShop(); renderHUD(); pulse('chMoney');
-          showMsg('✈ NEW FLEET · '+f.name, 2500);
+          setActiveAircraft(f.model);
+          contractList=genContractList();
+          renderShop(); renderHUD(); renderContracts(); pulse('chMoney');
+          showMsg('✈ NEW AIRCRAFT · '+f.name,3000);
         }
       }));
     } else if(shopTab==='upg'){
       body.innerHTML=Object.entries(UPGRADES).map(([k,u])=>{
-        const lvl=C.upgrades[k]||0, maxed=lvl>=u.max;
+        const lvl=C.upgrades[k]||0,maxed=lvl>=u.max;
         const cost=Math.round(u.baseCost*Math.pow(1.8,lvl));
         const canBuy=!maxed&&C.money>=cost;
         return `<div class="spItem ${maxed?'owned':''}">
@@ -5780,12 +5953,13 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
         if(C.money>=cost&&lvl<u.max){
           C.money-=cost; C.upgrades[k]=lvl+1; save();
           renderShop(); renderHUD(); pulse('chMoney');
-          showMsg('⚙ '+u.name+' → Lv '+(lvl+1), 2000);
+          showMsg('⚙ '+u.name+' → Lv '+(lvl+1),2000);
         }
       }));
     } else {
       const total=Object.keys(C.lessonsCompleted).filter(k=>C.lessonsCompleted[k]).length;
       body.innerHTML=`
+        <div class="spItem"><div><div class="spName">Current Aircraft</div></div><div style="font-size:14px;color:#22d3ee;font-weight:700">${fleet().name}</div></div>
         <div class="spItem"><div><div class="spName">Total Flights</div></div><div style="font-size:20px;color:#4ade80;font-weight:800">${C.stats.flights}</div></div>
         <div class="spItem"><div><div class="spName">Lessons Completed</div></div><div style="font-size:20px;color:#a855f7;font-weight:800">${total}/${LESSONS.length}</div></div>
         <div class="spItem"><div><div class="spName">Crashes</div></div><div style="font-size:20px;color:#ef4444;font-weight:800">${C.stats.crashes}</div></div>
@@ -5797,35 +5971,34 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
   }
 
   /* ---------- OBJECTIVES HUD ---------- */
-  const objPanel=document.createElement('div'); objPanel.id='objHud';
+  const objPanel=document.createElement('div');objPanel.id='objHud';
   document.body.appendChild(objPanel);
   let lastObjState='';
   function renderObjHud(){
-    if(!currentFlight){ objPanel.style.display='none'; lastObjState=''; return; }
+    if(!currentFlight){objPanel.style.display='none';lastObjState='';return;}
     const ov=document.getElementById('overlay');
-    if(!ov||!ov.classList.contains('hidden')){ objPanel.style.display='none'; lastObjState=''; return; }
-    const state=currentFlight.objectives.map(o=>o.met?'1':'0').join('');
-    if(state===lastObjState&&objPanel.style.display==='block') return;
+    if(!ov||!ov.classList.contains('hidden')){objPanel.style.display='none';lastObjState='';return;}
+    const state=currentFlight.objectives.map(o=>o.met?'1':'0').join('')+'|'+currentFlight.title;
+    if(state===lastObjState&&objPanel.style.display==='block')return;
     lastObjState=state;
     const completed=currentFlight.objectives.filter(o=>o.met).length;
     const total=currentFlight.objectives.length;
     const isLesson=currentFlight.type==='lesson';
-    const head=isLesson?'📚 LESSON':'📋 OBJECTIVES';
+    const head=(isLesson?'📚 LESSON':'📋 ')+currentFlight.title;
     const cls=isLesson?' lesson':'';
     objPanel.innerHTML=`
-      <div class="objHead"><span>${head}</span><span class="objProg">${completed}/${total}</span></div>
+      <div class="objHead"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px">${head}</span><span class="objProg">${completed}/${total}</span></div>
       <div class="objList">${currentFlight.objectives.map(o=>
         `<div class="obj${o.met?' met':''}${cls}"><span class="objCheck">${o.met?'✓':'○'}</span><span>${o.label}</span></div>`
       ).join('')}</div>`;
     objPanel.style.display='block';
   }
 
-  /* ---------- SUMMARY MODAL ---------- */
-  const sModal=document.createElement('div'); sModal.id='summaryModal';
+  /* ---------- SUMMARY ---------- */
+  const sModal=document.createElement('div');sModal.id='summaryModal';
   document.body.appendChild(sModal);
-
   function showSummary(data){
-    const {isCrash,grade,title,rows,reward,xp,levelUp,extraBadge}=data;
+    const{isCrash,grade,title,rows,reward,xp,levelUp,extraBadge}=data;
     sModal.innerHTML=`<div class="sumCard">
       <div class="sumTitle">${isCrash?'MISSION FAILED':'MISSION COMPLETE'}</div>
       <div class="sumGrade ${grade}">${grade}</div>
@@ -5839,12 +6012,9 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
     sModal.classList.add('show');
     document.getElementById('sumClose').addEventListener('click',()=>{
       sModal.classList.remove('show');
-      // For crashes, respawn and reopen overlay; for success, reopen overlay to pick new mission
-      if(isCrash){
-        try{ respawn(); }catch(e){}
-      }
+      if(isCrash){try{respawn();}catch(e){}}
       const ov=document.getElementById('overlay');
-      if(ov) ov.classList.remove('hidden');
+      if(ov)ov.classList.remove('hidden');
     });
   }
 
@@ -5853,67 +6023,49 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
   let currentFlight=null;
   let careerBlockAutoStart=false;
 
-  /* ---------- FLIGHT LIFECYCLE ---------- */
   function buildFlight(c){
     return {
-      type:c.type,
-      contract:c,
-      title:c.title,
+      type:c.type,contract:c,title:c.title,
       passengers:c.pax||0,
-      startedAt:performance.now(),
-      elapsed:0,
+      startedAt:performance.now(),elapsed:0,
       faultsSeen:new Set(),
       everAirborne:false,
       touchdownFpm:null,
       objectives:c.objectives.map(o=>({id:o.id,label:o.label,check:o.check,met:false}))
     };
   }
-
   function startFlightIfNeeded(){
-    if(currentFlight) return;
-    if(careerBlockAutoStart) return;
-    if(plane.hold || plane.crashed) return;
+    if(currentFlight)return;
+    if(careerBlockAutoStart)return;
+    if(plane.hold||plane.crashed)return;
     const ov=document.getElementById('overlay');
-    if(!ov || !ov.classList.contains('hidden')) return;
-
+    if(!ov||!ov.classList.contains('hidden'))return;
     const c=pendingContract;
     pendingContract=null;
-    if(c){
-      currentFlight=buildFlight(c);
-    } else {
-      // Free flight fallback
-      currentFlight=buildFlight(makeFree('free'));
-    }
-    renderObjHud();
-    renderHUD();
+    currentFlight=buildFlight(c||makeFree('free'));
+    renderObjHud();renderHUD();
   }
-
   function completeSuccess(){
-    if(!currentFlight) return;
+    if(!currentFlight)return;
     const c=currentFlight.contract;
-    const f=fleet();
     const comfortMult=1+(C.upgrades.comfort||0)*UPGRADES.comfort.per;
     const safetyMult=1+(C.upgrades.safety||0)*UPGRADES.safety.per;
     const engineMult=1+(C.upgrades.engines||0)*UPGRADES.engines.per;
-
     const fpm=currentFlight.touchdownFpm||9999;
     let q;
     if(currentFlight.type==='takeoff'||!(currentFlight.objectives.some(o=>o.id==='land'||o.id==='touch'))){
       q={grade:'A',mult:1.2,label:'Takeoff Complete'};
-    } else if(fpm<110) q={grade:'S',mult:2.0,label:fpm+' fpm · GREASER'};
-    else if(fpm<220) q={grade:'A',mult:1.5,label:fpm+' fpm · SMOOTH'};
-    else if(fpm<550) q={grade:'B',mult:1.0,label:fpm+' fpm · FIRM'};
+    } else if(fpm<110)q={grade:'S',mult:2.0,label:fpm+' fpm · GREASER'};
+    else if(fpm<220)q={grade:'A',mult:1.5,label:fpm+' fpm · SMOOTH'};
+    else if(fpm<550)q={grade:'B',mult:1.0,label:fpm+' fpm · FIRM'};
     else q={grade:'C',mult:0.6,label:fpm+' fpm · HARD'};
-
     const faultBonus=currentFlight.faultsSeen.size>0?1+Math.min(1.5,currentFlight.faultsSeen.size*0.25):1;
     const wxName=(currentWeather&&currentWeather.name?currentWeather.name.toLowerCase():'clear');
     const wxBonus={clear:1,cloudy:1.05,rain:1.15,storm:1.4,fog:1.3,snow:1.2,crosswind:1.25,turbulent:1.35}[wxName]||1;
-
     let reward,xp,extraBadge='';
     const rows=[];
-
     if(currentFlight.type==='lesson'){
-      const base=c.pay||800;
+      const base=c.pay||600;
       const replay=C.lessonsCompleted[c.id]?0.25:1.0;
       reward=Math.round(base*replay);
       xp=Math.round((c.xp||50)*replay);
@@ -5925,151 +6077,118 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
       if(wasNew){
         const idx=LESSONS.findIndex(l=>l.id===c.id);
         if(idx<LESSONS.length-1){
-          extraBadge=`<div style="margin:14px 0 6px;padding:10px 14px;background:#4c1d95;border:2px solid #a855f7;border-radius:8px;color:#e9d5ff;font-size:12px;font-weight:700">
-            🔓 UNLOCKED · ${LESSONS[idx+1].title}</div>`;
+          extraBadge=`<div style="margin:14px 0 6px;padding:10px 14px;background:#4c1d95;border:2px solid #a855f7;border-radius:8px;color:#e9d5ff;font-size:12px;font-weight:700">🔓 UNLOCKED · ${LESSONS[idx+1].title}</div>`;
         } else {
-          extraBadge=`<div style="margin:14px 0 6px;padding:10px 14px;background:#14532d;border:2px solid #22c55e;border-radius:8px;color:#bbf7d0;font-size:12px;font-weight:700">
-            🎓 ALL LESSONS COMPLETE!</div>`;
+          extraBadge=`<div style="margin:14px 0 6px;padding:10px 14px;background:#14532d;border:2px solid #22c55e;border-radius:8px;color:#bbf7d0;font-size:12px;font-weight:700">🎓 ALL LESSONS COMPLETE!</div>`;
         }
       }
     } else if(currentFlight.type==='free'){
-      reward=Math.round(300*q.mult*comfortMult);
+      reward=Math.round(c.pay*q.mult*comfortMult);
       xp=25;
       rows.push({l:'Landing Rate',v:q.label});
     } else {
       const base=c.pay||1000;
       reward=Math.round(base*q.mult*comfortMult*engineMult*faultBonus*wxBonus*safetyMult);
       xp=Math.round((c.xp||100)*q.mult*faultBonus);
+      rows.push({l:'Aircraft',v:fleet().name});
       rows.push({l:'Landing',v:q.label});
       rows.push({l:'Passengers',v:currentFlight.passengers});
-      if(faultBonus>1) rows.push({l:'Fault Bonus',v:'×'+faultBonus.toFixed(2),c:'#22d3ee'});
-      if(wxBonus>1) rows.push({l:'Weather Bonus',v:'×'+wxBonus.toFixed(2),c:'#22d3ee'});
+      if(faultBonus>1)rows.push({l:'Fault Bonus',v:'×'+faultBonus.toFixed(2),c:'#22d3ee'});
+      if(wxBonus>1)rows.push({l:'Weather Bonus',v:'×'+wxBonus.toFixed(2),c:'#22d3ee'});
     }
-
-    C.money+=reward;
-    C.stats.totalEarned+=reward;
-    C.stats.flights++;
-    if(fpm<C.stats.bestLandingFpm) C.stats.bestLandingFpm=fpm;
-    if(q.grade==='S') C.stats.perfectLandings++;
+    C.money+=reward;C.stats.totalEarned+=reward;C.stats.flights++;
+    if(fpm<C.stats.bestLandingFpm)C.stats.bestLandingFpm=fpm;
+    if(q.grade==='S')C.stats.perfectLandings++;
     C.stats.faultsHandled+=currentFlight.faultsSeen.size;
     const levelUp=addXP(xp);
     save();
-
-    currentFlight=null;
-    careerBlockAutoStart=true;
-    renderObjHud();
-    renderHUD();
-    pulse('chMoney');
-
-    showSummary({
-      isCrash:false, grade:q.grade,
-      title:(c?c.title:'Mission')+' — COMPLETE',
-      rows, reward, xp, levelUp, extraBadge
-    });
+    currentFlight=null;careerBlockAutoStart=true;
+    renderObjHud();renderHUD();pulse('chMoney');
+    showSummary({isCrash:false,grade:q.grade,title:(c?c.title:'Mission')+' — COMPLETE',rows,reward,xp,levelUp,extraBadge});
     contractList=genContractList();
   }
-
   function completeCrash(){
-    if(!currentFlight) return;
+    if(!currentFlight)return;
     const disc=1-(C.upgrades.safety||0)*0.08;
     const penalty=Math.round(2000*disc);
     C.money=Math.max(0,C.money-penalty);
-    C.stats.crashes++;
-    C.stats.flights++;
+    C.stats.crashes++;C.stats.flights++;
     save();
     const reason=document.getElementById('crashReason')?.textContent||'IMPACT';
     const title=currentFlight.contract?currentFlight.contract.title:'Mission';
-    currentFlight=null;
-    careerBlockAutoStart=true;
-    renderObjHud();
-    renderHUD();
-    // Replace the sim's crash overlay with our summary
-    const co=document.getElementById('crashOverlay');
-    if(co) co.classList.remove('show');
-    showSummary({
-      isCrash:true, grade:'F',
-      title,
-      rows:[{l:'Reason',v:reason,c:'#fca5a5'}],
-      reward:-penalty, xp:0, levelUp:0
-    });
+    currentFlight=null;careerBlockAutoStart=true;
+    renderObjHud();renderHUD();
+    const co=document.getElementById('crashOverlay');if(co)co.classList.remove('show');
+    showSummary({isCrash:true,grade:'F',title,rows:[{l:'Reason',v:reason,c:'#fca5a5'}],reward:-penalty,xp:0,levelUp:0});
     contractList=genContractList();
   }
 
   /* ---------- WIRING ---------- */
   document.getElementById('chContr').addEventListener('click',()=>{
-    if(contrEl.classList.contains('show')){ contrEl.classList.remove('show'); return; }
-    renderContracts(); contrEl.classList.add('show'); shopEl.classList.remove('show');
+    if(contrEl.classList.contains('show')){contrEl.classList.remove('show');return;}
+    renderContracts();contrEl.classList.add('show');shopEl.classList.remove('show');
   });
   document.getElementById('chShop').addEventListener('click',()=>{
-    if(shopEl.classList.contains('show')){ shopEl.classList.remove('show'); return; }
-    renderShop(); shopEl.classList.add('show'); contrEl.classList.remove('show');
+    if(shopEl.classList.contains('show')){shopEl.classList.remove('show');return;}
+    renderShop();shopEl.classList.add('show');contrEl.classList.remove('show');
   });
   document.getElementById('cpX').addEventListener('click',()=>contrEl.classList.remove('show'));
   document.getElementById('spX').addEventListener('click',()=>shopEl.classList.remove('show'));
   document.getElementById('cpRefresh').addEventListener('click',()=>{
-    contractList=genContractList();
-    renderContracts();
-    showMsg('↻ CONTRACTS REFRESHED', 1800);
+    contractList=genContractList();renderContracts();
+    showMsg('↻ CONTRACTS REFRESHED',1800);
   });
   document.querySelectorAll('.spTab').forEach(t=>t.addEventListener('click',()=>{shopTab=t.dataset.tab;renderShop();}));
-
-  // Reset block when Start Flight is clicked
   const startBtnEl=document.getElementById('startBtn');
-  if(startBtnEl){
-    startBtnEl.addEventListener('click',()=>{ careerBlockAutoStart=false; });
-  }
-
-  // Sim's respawn also clears our state
+  if(startBtnEl)startBtnEl.addEventListener('click',()=>{careerBlockAutoStart=false;});
   const respawnBtnEl=document.getElementById('respawnBtn');
-  if(respawnBtnEl){
-    respawnBtnEl.addEventListener('click',()=>{ currentFlight=null; careerBlockAutoStart=true; renderObjHud(); });
-  }
+  if(respawnBtnEl)respawnBtnEl.addEventListener('click',()=>{currentFlight=null;careerBlockAutoStart=true;renderObjHud();});
 
   /* ---------- TICK ---------- */
   scene.registerBeforeRender(()=>{
-    if(!currentFlight){
-      startFlightIfNeeded();
-      return;
-    }
-    if(plane.crashed){ completeCrash(); return; }
-
+    if(!currentFlight){startFlightIfNeeded();return;}
+    if(plane.crashed){completeCrash();return;}
     currentFlight.elapsed=(performance.now()-currentFlight.startedAt)/1000;
-
-    // Capture touchdown rate
-    if(plane.justTouched && !currentFlight.touchdownFpm){
+    if(plane.justTouched&&!currentFlight.touchdownFpm){
       currentFlight.touchdownFpm=Math.round(Math.max(0,(plane.gearCompress||0)*4*196.85));
     }
-
-    // Accumulate seen faults
-    for(const fid of faults.list()) currentFlight.faultsSeen.add(fid);
-
-    // Custom per-flight tick
+    for(const fid of faults.list())currentFlight.faultsSeen.add(fid);
     if(currentFlight.contract&&typeof currentFlight.contract.tick==='function'){
-      try{ currentFlight.contract.tick(currentFlight); }catch(e){}
+      try{currentFlight.contract.tick(currentFlight);}catch(e){}
     }
-
-    // Check objectives
-    let allMet=true;
-    let newlyMet=null;
+    let allMet=true,newlyMet=null;
     for(const obj of currentFlight.objectives){
-      if(obj.met) continue;
-      let r=false;
-      try{ r=!!obj.check(currentFlight); }catch(e){}
-      if(r && !obj.met) newlyMet=obj;
+      if(obj.met)continue;
+      let r=false;try{r=!!obj.check(currentFlight);}catch(e){}
+      if(r&&!obj.met)newlyMet=obj;
       obj.met=r;
-      if(!r) allMet=false;
+      if(!r)allMet=false;
     }
-    if(newlyMet) showMsg('✓ '+newlyMet.label, 1400);
-
-    if(allMet){ completeSuccess(); return; }
-
+    if(newlyMet)showMsg('✓ '+newlyMet.label,1400);
+    if(allMet){completeSuccess();return;}
     renderObjHud();
   });
 
   /* ---------- BOOT ---------- */
+  initMats();
+  modelRoots.cessna=buildCessnaModel();
+  modelRoots.atr=buildATRModel();
+  modelRoots.e190=buildE190Model();
+  modelRoots.cessna.setEnabled(false);
+  modelRoots.atr.setEnabled(false);
+  modelRoots.e190.setEnabled(false);
+
+  /* wrap setCamMode to block cockpit for non-737 */
+  const _origSetCamMode=setCamMode;
+  setCamMode=function(m){
+    if(m===1&&!fleet().hasCockpit){m=0;try{showMsg('COCKPIT · 737 ONLY',2000);}catch(e){}}
+    _origSetCamMode(m);
+  };
+
+  setActiveAircraft(fleet().model);
   renderHUD();
   renderContracts();
-  console.log('[CAREER v2] ready · money=$'+C.money+' · lessons='+C.stats.lessonsDone+'/'+LESSONS.length);
+  console.log('[CAREER v3] ready · '+fleet().name+' · $'+C.money+' · lessons='+C.stats.lessonsDone+'/'+LESSONS.length);
 })();
 } /* end main */
 </script>
