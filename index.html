@@ -5392,18 +5392,18 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
   const save=()=>{try{localStorage.setItem(SAVE,JSON.stringify(C));}catch(e){}};
 
   /* ---------- FLEET PROGRESSION ---------- */
-  const FLEET=[
-    { id:'cessna', name:'Cessna 172',      tag:'GA trainer',      pax:3,   fare:120, cruise:120, cost:0,      model:'cessna',
-      physics:{mass:1100, wingArea:16,   thrust:2400,   CLmax:1.7}, fixedGear:true,  hasCockpit:false },
-    { id:'atr',    name:'ATR 72',          tag:'Regional turboprop', pax:70,  fare:80,  cruise:270, cost:3000,   model:'atr',
-      physics:{mass:22000,wingArea:61,   thrust:55000,  CLmax:1.8}, fixedGear:false, hasCockpit:false },
-    { id:'e190',   name:'Embraer E190',    tag:'Regional jet',    pax:100, fare:60,  cruise:450, cost:12000,  model:'e190',
-      physics:{mass:50000,wingArea:92,   thrust:130000, CLmax:1.8}, fixedGear:false, hasCockpit:false },
-    { id:'b737',   name:'Boeing 737-800',  tag:'Narrowbody',      pax:180, fare:45,  cruise:470, cost:40000,  model:'737',
-      physics:{mass:65000,wingArea:124.6,thrust:245000, CLmax:1.85},fixedGear:false, hasCockpit:true  },
-    { id:'b787',   name:'Boeing 787-9',    tag:'Widebody',        pax:290, fare:55,  cruise:490, cost:100000, model:'787',
-      physics:{mass:250000,wingArea:377, thrust:640000, CLmax:1.9}, fixedGear:false, hasCockpit:false }
-  ];
+const FLEET=[
+  { id:'cessna', name:'Cessna 172',     tag:'GA trainer',        pax:3,   fare:120, cruise:120, cost:0,      model:'cessna', camScale:0.55,
+    physics:{mass:4000,  wingArea:16,   thrust:12000, CLmax:1.7, gearHeight:4.25}, fixedGear:true,  hasCockpit:false },
+  { id:'atr',    name:'ATR 72',         tag:'Regional turboprop',pax:70,  fare:80,  cruise:270, cost:3000,   model:'atr', camScale:0.8,
+    physics:{mass:22000, wingArea:61,   thrust:55000, CLmax:1.8, gearHeight:2.35}, fixedGear:false, hasCockpit:false },
+  { id:'e190',   name:'Embraer E190',   tag:'Regional jet',      pax:100, fare:60,  cruise:450, cost:12000,  model:'e190', camScale:1.0,
+    physics:{mass:50000, wingArea:92,   thrust:130000,CLmax:1.8, gearHeight:2.7 }, fixedGear:false, hasCockpit:false },
+  { id:'b737',   name:'Boeing 737-800', tag:'Narrowbody',        pax:180, fare:45,  cruise:470, cost:40000,  model:'737', camScale:1.0,
+    physics:{mass:65000, wingArea:124.6,thrust:245000,CLmax:1.85,gearHeight:4.05}, fixedGear:false, hasCockpit:true  },
+  { id:'b787',   name:'Boeing 787-9',   tag:'Widebody',          pax:290, fare:55,  cruise:490, cost:100000, model:'787', camScale:1.2,
+    physics:{mass:250000,wingArea:377,  thrust:640000,CLmax:1.9, gearHeight:5.47}, fixedGear:false, hasCockpit:false }
+];
   const UPGRADES={
     engines:{name:'Engine Efficiency',max:5,baseCost:4000,per:0.05,effect:'+5% payout per level'},
     comfort:{name:'Passenger Comfort',max:5,baseCost:3000,per:0.10,effect:'+10% tips per level'},
@@ -5477,125 +5477,194 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
     m.material=mat;m.parent=g;m.isPickable=false;return m;
   }
 
- function buildCessnaModel(){
+function buildCessnaModel(){
   const g=new BABYLON.TransformNode('ac_cessna',scene);g.parent=aircraftRoot;
-  const S=2.5; // visual scale so it reads at the 737-tuned chase distance
+  const S=1.5; // Slightly scaled so it's visible but proportional
   g.scaling.set(S,S,S);
 
-  /* Fuselage — cylindrical middle, tapered tail, chunky nose cowl */
-  cyl(g,'c172_fus',0.65,1.4,7.5,MAT.white,[0,0,-0.5],[Math.PI/2,0,0]);
-  cyl(g,'c172_tail',0.25,0.65,2.5,MAT.white,[0,0.35,-4.5],[Math.PI/2,0,0]);
-  sph(g,'c172_nose',1.3,MAT.white,[0,0,3.6]);
+  // Smooth fuselage
+  tubeSmooth('c172_fus', [
+    {z: 4.1, r: 0.05, w: 1, h: 1, yo: 0, flat: 0.1},
+    {z: 3.6, r: 0.45, w: 1, h: 1, yo: 0, flat: 0.1},
+    {z: 2.8, r: 0.55, w: 1, h: 1.05, yo: 0, flat: 0.1},
+    {z: 1.0, r: 0.6, w: 1, h: 1.1, yo: 0, flat: 0.1},
+    {z: -1.0, r: 0.55, w: 1, h: 1.0, yo: 0.1, flat: 0.1},
+    {z: -3.0, r: 0.3, w: 1, h: 1.0, yo: 0.3, flat: 0.1},
+    {z: -4.0, r: 0.1, w: 1, h: 1.0, yo: 0.4, flat: 0.1},
+    {z: -4.2, r: 0.02, w: 1, h: 1.0, yo: 0.45, flat: 0.1}
+  ], MAT.white, g);
 
-  /* Spinner + prop (disc, faces +Z by default) */
-  cyl(g,'c172_spin',0.08,0.5,0.6,MAT.dark,[0,0,4.4],[Math.PI/2,0,0]);
-  const prop=BABYLON.MeshBuilder.CreateDisc('c172_prop',{radius:1.1,tessellation:20},scene);
-  prop.position.set(0,0,4.7);
-  prop.material=MAT.dark;
-  prop.parent=g;
-  prop.isPickable=false;
+  // Airfoil wings (the defining Cessna high wing)
+  const wStations = [
+    {s: 0.6, c: 1.5, t: .12, zLE: 1.2, y: 0.65},
+    {s: 2.0, c: 1.5, t: .12, zLE: 1.2, y: 0.75},
+    {s: 4.0, c: 1.5, t: .12, zLE: 1.2, y: 0.75},
+    {s: 5.5, c: 1.2, t: .12, zLE: 1.2, y: 0.75}
+  ];
+  horiz('c172_wR', wStations, MAT.white, g);
+  horiz('c172_wL', wStations.map(st => ({...st, s: -st.s})), MAT.white, g);
+
+  // Wing struts
+  cyl(g,'c172_sL',0.05,0.05,0.8,MAT.dark,[-1.4,0.3,0.8],[0,0,0.4]);
+  cyl(g,'c172_sR',0.05,0.05,0.8,MAT.dark,[ 1.4,0.3,0.8],[0,0,-0.4]);
+
+  // Tail fin & horizontal stabilizer
+  const fStations = [
+    {s: 0.4, c: 1.2, t: .12, zLE: -3.5},
+    {s: 1.4, c: 1.0, t: .12, zLE: -3.8},
+    {s: 1.6, c: 0.5, t: .12, zLE: -4.2}
+  ];
+  vert('c172_fin', fStations, MAT.white, g);
+
+  const hStations = [
+    {s: 0.1, c: 0.9, t: .10, zLE: -4.0, y: 0.3},
+    {s: 1.7, c: 0.6, t: .10, zLE: -4.2, y: 0.3}
+  ];
+  horiz('c172_hR', hStations, MAT.white, g);
+  horiz('c172_hL', hStations.map(st => ({...st, s: -st.s})), MAT.white, g);
+
+  // Spinner + Prop
+  cyl(g,'c172_spin',0.05,0.3,0.4,MAT.dark,[0,0,3.3],[Math.PI/2,0,0]);
+  const prop=BABYLON.MeshBuilder.CreateDisc('c172_prop',{radius:1.0,tessellation:20},scene);
+  prop.position.set(0,0,3.4); prop.material=MAT.dark; prop.parent=g; prop.isPickable=false;
   g._prop=prop;
 
-  /* HIGH WING — the defining Cessna feature */
-  box(g,'c172_wing',11,0.25,1.9,MAT.white,[0,1.15,0.2]);
-  box(g,'c172_tipL',0.6,0.25,1.9,MAT.red,[-5.5,1.15,0.2]);
-  box(g,'c172_tipR',0.6,0.25,1.9,MAT.red,[ 5.5,1.15,0.2]);
+  // Windows
+  box(g,'c172_ws',0.9,0.45,0.1,MAT.glass,[0,0.3,1.4]);
+  box(g,'c172_swL',0.05,0.35,1.2,MAT.glass,[-0.55,0.2,0.0]);
+  box(g,'c172_swR',0.05,0.35,1.2,MAT.glass,[ 0.55,0.2,0.0]);
 
-  /* Wing struts (essential — high wings look wrong without them) */
-  cyl(g,'c172_strutL',0.09,0.09,1.15,MAT.dark,[-2.6,0.55,0.2],[0,0,0.35]);
-  cyl(g,'c172_strutR',0.09,0.09,1.15,MAT.dark,[ 2.6,0.55,0.2],[0,0,-0.35]);
-
-  /* Windows */
-  box(g,'c172_wsMain',1.4,0.7,0.15,MAT.glass,[0,0.4,2.7]);
-  box(g,'c172_wsRear',1.2,0.55,0.15,MAT.glass,[0,0.4,1.2]);
-
-  /* Tail — vertical fin + rudder + horizontal stab */
-  box(g,'c172_fin',0.18,1.7,1.5,MAT.white,[0,1.1,-5.5]);
-  box(g,'c172_rudder',0.15,1.5,0.5,MAT.red,[0,1.1,-6.2]);
-  box(g,'c172_stab',3.9,0.18,0.95,MAT.white,[0,0.4,-5.5]);
-
-  /* Fixed tricycle gear */
+  // Fixed gear
   const gear=new BABYLON.TransformNode('c172_gear',scene);gear.parent=g;
-  cyl(gear,'c172_nStrut',0.1,0.1,0.9,MAT.dark,[0,-0.7,3.0]);
-  cyl(gear,'c172_nWheel',0.5,0.5,0.18,MAT.dark,[0,-1.15,3.0],[0,0,Math.PI/2]);
-  for(const s of [-1,1]){
-    cyl(gear,'c172_mStrut'+s,0.1,0.1,0.85,MAT.dark,[s*1.3,-0.7,0.0]);
-    cyl(gear,'c172_mWheel'+s,0.55,0.55,0.2,MAT.dark,[s*1.3,-1.15,0.0],[0,0,Math.PI/2]);
+  cyl(gear,'c172_ngS',0.04,0.04,0.5,MAT.dark,[0,-0.5,2.8]);
+  cyl(gear,'c172_ngW',0.35,0.35,0.1,MAT.dark,[0,-0.75,2.8],[0,0,Math.PI/2]);
+  for(const side of [-1,1]){
+    cyl(gear,'c172_mgS'+side,0.05,0.05,0.8,MAT.dark,[side*0.7,-0.4,0.5],[0,0,side*0.4]);
+    cyl(gear,'c172_mgW'+side,0.4,0.4,0.14,MAT.dark,[side*1.0,-0.8,0.5],[0,0,Math.PI/2]);
   }
-
   g.metadata={gearGroup:gear,fixed:true};
   return g;
 }
 
-  function buildATRModel(){
-    const g=new BABYLON.TransformNode('ac_atr',scene);g.parent=aircraftRoot;
-    /* fuselage — 27m, fatter */
-    cyl(g,'atr_fus',0.8,2.1,27,MAT.white,[0,0,-1],[Math.PI/2,0,0]);
-    sph(g,'atr_nose',2.0,MAT.white,[0,0,13.2]);
-    sph(g,'atr_tail',1.0,MAT.white,[0,0,-14.5]);
-    /* high wing */
-    box(g,'atr_wing',27,0.4,2.8,MAT.white,[0,1.8,0.5]);
-    /* wing tips */
-    box(g,'atr_tipL',0.3,1.6,2.2,MAT.red,[-13.2,1.4,0.3]);
-    box(g,'atr_tipR',0.3,1.6,2.2,MAT.red,[ 13.2,1.4,0.3]);
-    /* twin turboprops */
-    const props=[];
-    for(const sgn of [1,-1]){
-      const nx=sgn*6.5;
-      cyl(g,'atr_nac'+sgn,0.9,1.0,5.5,MAT.white,[nx,0.5,1.5],[Math.PI/2,0,0]);
-      cyl(g,'atr_spin'+sgn,0.1,0.5,0.6,MAT.dark,[nx,0.5,4.2],[Math.PI/2,0,0]);
-      const p=BABYLON.MeshBuilder.CreateDisc('atr_prop'+sgn,{radius:1.9,tessellation:20},scene);
-      p.position.set(nx,0.5,4.3);p.material=MAT.dark;p.parent=g;props.push(p);
-    }
-    g._props=props;
-    /* T-tail-ish */
-    box(g,'atr_fin',0.25,3.6,2.5,MAT.red,[0,2.4,-13.5]);
-    box(g,'atr_stab',7.5,0.2,1.4,MAT.white,[0,4.2,-13.2]);
-    /* windows */
-    box(g,'atr_win',1.8,0.7,0.3,MAT.glass,[0,0.8,12.0]);
-    /* retractable gear groups */
-    const gear=new BABYLON.TransformNode('atr_gear',scene);gear.parent=g;
-    for(const [x,z] of [[0,11.5],[-2.6,-1],[2.6,-1]]){
-      cyl(gear,'atr_strut',0.08,0.08,1.6,MAT.gear,[x,-1.3,z]);
-      cyl(gear,'atr_wheel',0.7,0.7,0.24,MAT.dark,[x,-2.0,z],[0,0,Math.PI/2]);
-    }
-    g.metadata={gearGroup:gear,fixed:false};
-    return g;
+function buildATRModel(){
+  const g=new BABYLON.TransformNode('ac_atr',scene);g.parent=aircraftRoot;
+
+  tubeSmooth('atr_fus', [
+    {z: 13.5, r: 0.1, w: 1, h: 1, yo: 0, flat: 0.1},
+    {z: 12.0, r: 0.8, w: 1, h: 1, yo: 0, flat: 0.15},
+    {z: 10.0, r: 1.3, w: 1, h: 1, yo: 0, flat: 0.15},
+    {z: 5.0, r: 1.4, w: 1, h: 1, yo: 0, flat: 0.15},
+    {z: 0.0, r: 1.4, w: 1, h: 1, yo: 0, flat: 0.15},
+    {z: -5.0, r: 1.3, w: 1, h: 1, yo: 0, flat: 0.15},
+    {z: -10.0, r: 0.9, w: 1, h: 1, yo: 0.3, flat: 0.15},
+    {z: -13.0, r: 0.2, w: 1, h: 1, yo: 0.8, flat: 0.15}
+  ], MAT.white, g);
+
+  const wStations = [
+    {s: 1.5, c: 3.5, t: 0.15, zLE: 2.0, y: 1.5},
+    {s: 7.0, c: 3.0, t: 0.14, zLE: 1.5, y: 1.7},
+    {s: 13.5, c: 1.5, t: 0.12, zLE: 0.5, y: 1.9}
+  ];
+  horiz('atr_wR', wStations, MAT.white, g);
+  horiz('atr_wL', wStations.map(st => ({...st, s: -st.s})), MAT.white, g);
+
+  const fStations = [
+    {s: 1.5, c: 3.0, t: 0.15, zLE: -11.0},
+    {s: 3.5, c: 2.0, t: 0.12, zLE: -11.5},
+    {s: 4.0, c: 1.0, t: 0.1, zLE: -12.5}
+  ];
+  vert('atr_fin', fStations, MAT.white, g);
+
+  const hStations = [
+    {s: 0.2, c: 2.0, t: 0.12, zLE: -12.0, y: 3.8},
+    {s: 3.5, c: 1.5, t: 0.1, zLE: -12.5, y: 3.8}
+  ];
+  horiz('atr_hR', hStations, MAT.white, g);
+  horiz('atr_hL', hStations.map(st => ({...st, s: -st.s})), MAT.white, g);
+
+  g._props = [];
+  for (const side of [1, -1]) {
+    tubeSmooth('atr_nac'+side, [
+      {z: 4.0, r: 0.1, w: 1, h: 1, yo: 0, flat: 0.1},
+      {z: 3.5, r: 0.6, w: 1, h: 1, yo: 0, flat: 0.1},
+      {z: 0.0, r: 0.6, w: 1, h: 1, yo: 0, flat: 0.1},
+      {z: -2.5, r: 0.3, w: 1, h: 1, yo: 0, flat: 0.1}
+    ], MAT.white, g).position.set(side*6.5, 1.5, 0);
+
+    const prop = BABYLON.MeshBuilder.CreateDisc('atr_prop'+side, {radius: 1.9, tessellation: 20}, scene);
+    prop.position.set(side*6.5, 1.5, 4.2);
+    prop.material = MAT.dark; prop.parent = g; prop.isPickable = false;
+    g._props.push(prop);
   }
 
-  function buildE190Model(){
-    const g=new BABYLON.TransformNode('ac_e190',scene);g.parent=aircraftRoot;
-    /* fuselage — 36m */
-    cyl(g,'e190_fus',0.9,1.7,36,MAT.white,[0,0,0],[Math.PI/2,0,0]);
-    sph(g,'e190_nose',1.6,MAT.white,[0,0,17.5]);
-    sph(g,'e190_tailCone',0.6,MAT.white,[0,0.6,-19]);
-    /* low wing */
-    box(g,'e190_wing',28,0.42,4,MAT.white,[0,-0.4,-0.8]);
-    /* winglets */
-    box(g,'e190_tipL',0.28,1.7,1.8,MAT.blue,[-13.8,0.3,-1.6],[0,0,-0.3]);
-    box(g,'e190_tipR',0.28,1.7,1.8,MAT.blue,[ 13.8,0.3,-1.6],[0,0,0.3]);
-    /* underwing jets */
-    for(const sgn of [1,-1]){
-      cyl(g,'e190_nac'+sgn,1.2,1.3,4.5,MAT.white,[sgn*5,-1.5,1.2],[Math.PI/2,0,0]);
-      sph(g,'e190_intake'+sgn,1.3,MAT.dark,[sgn*5,-1.5,3.4]);
-      /* exhaust */
-      cyl(g,'e190_exh'+sgn,0.9,0.8,0.6,MAT.dark,[sgn*5,-1.5,-1.4],[Math.PI/2,0,0]);
-    }
-    /* T-tail */
-    box(g,'e190_fin',0.3,6,3.5,MAT.blue,[0,3.5,-17.0]);
-    box(g,'e190_stab',9,0.22,2,MAT.white,[0,6.4,-17.2]);
-    /* windows */
-    box(g,'e190_win',1.2,0.9,0.3,MAT.glass,[0,0.7,15.5]);
-    /* gear */
-    const gear=new BABYLON.TransformNode('e190_gear',scene);gear.parent=g;
-    for(const [x,z] of [[0,15],[-2.2,-2],[2.2,-2]]){
-      cyl(gear,'e190_strut',0.08,0.08,1.9,MAT.gear,[x,-1.5,z]);
-      cyl(gear,'e190_wheel',0.75,0.75,0.26,MAT.dark,[x,-2.3,z],[0,0,Math.PI/2]);
-    }
-    g.metadata={gearGroup:gear,fixed:false};
-    return g;
+  box(g,'atr_ws',1.8,0.7,0.2,MAT.glass,[0,0.8,11.8]);
+
+  const gear=new BABYLON.TransformNode('atr_gear',scene);gear.parent=g;
+  for(const [x,z] of [[0,11.5],[-2.6,-1],[2.6,-1]]){
+    cyl(gear,'atr_strut',0.08,0.08,1.6,MAT.gear,[x,-1.3,z]);
+    cyl(gear,'atr_wheel',0.7,0.7,0.24,MAT.dark,[x,-2.0,z],[0,0,Math.PI/2]);
   }
 
+  g.metadata={gearGroup:gear,fixed:false};
+  return g;
+}
+
+function buildE190Model(){
+  const g=new BABYLON.TransformNode('ac_e190',scene);g.parent=aircraftRoot;
+
+  tubeSmooth('e190_fus', [
+    {z: 18.0, r: 0.1, w: 1, h: 1, yo: 0, flat: 0.1},
+    {z: 16.5, r: 0.8, w: 1, h: 1, yo: 0, flat: 0.15},
+    {z: 14.0, r: 1.1, w: 1, h: 1, yo: 0, flat: 0.15},
+    {z: 5.0, r: 1.2, w: 1, h: 1, yo: 0, flat: 0.15},
+    {z: -5.0, r: 1.2, w: 1, h: 1, yo: 0, flat: 0.15},
+    {z: -12.0, r: 0.9, w: 1, h: 1, yo: 0.3, flat: 0.15},
+    {z: -16.0, r: 0.3, w: 1, h: 1, yo: 0.8, flat: 0.15},
+    {z: -17.5, r: 0.1, w: 1, h: 1, yo: 1.0, flat: 0.15}
+  ], MAT.white, g);
+
+  const wStations = [
+    {s: 1.5, c: 4.5, t: 0.14, zLE: 2.0, y: -0.5},
+    {s: 7.0, c: 3.5, t: 0.12, zLE: 1.0, y: -0.2},
+    {s: 14.0, c: 1.5, t: 0.1, zLE: -1.0, y: 0.2}
+  ];
+  horiz('e190_wR', wStations, MAT.white, g);
+  horiz('e190_wL', wStations.map(st => ({...st, s: -st.s})), MAT.white, g);
+
+  const fStations = [
+    {s: 1.5, c: 4.5, t: 0.15, zLE: -14.0},
+    {s: 4.5, c: 3.0, t: 0.12, zLE: -15.0},
+    {s: 6.0, c: 1.5, t: 0.1, zLE: -16.5}
+  ];
+  vert('e190_fin', fStations, MAT.white, g);
+
+  const hStations = [
+    {s: 0.2, c: 2.5, t: 0.12, zLE: -15.5, y: 5.8},
+    {s: 4.5, c: 1.5, t: 0.1, zLE: -16.5, y: 5.8}
+  ];
+  horiz('e190_hR', hStations, MAT.white, g);
+  horiz('e190_hL', hStations.map(st => ({...st, s: -st.s})), MAT.white, g);
+
+  for (const side of [1, -1]) {
+    tubeSmooth('e190_eng'+side, [
+      {z: 2.5, r: 0.1, w: 1, h: 1, yo: 0, flat: 0.1},
+      {z: 1.5, r: 0.8, w: 1, h: 1, yo: 0, flat: 0.1},
+      {z: -1.0, r: 0.9, w: 1, h: 1, yo: 0, flat: 0.1},
+      {z: -2.0, r: 0.6, w: 1, h: 1, yo: 0, flat: 0.1}
+    ], MAT.white, g).position.set(side*5, -1.8, 0.5);
+  }
+
+  box(g,'e190_ws',1.2,0.8,0.2,MAT.glass,[0,0.7,15.5]);
+
+  const gear=new BABYLON.TransformNode('e190_gear',scene);gear.parent=g;
+  for(const [x,z] of [[0,15],[-2.2,-2],[2.2,-2]]){
+    cyl(gear,'e190_strut',0.08,0.08,1.9,MAT.gear,[x,-1.5,z]);
+    cyl(gear,'e190_wheel',0.75,0.75,0.26,MAT.dark,[x,-2.3,z],[0,0,Math.PI/2]);
+  }
+
+  g.metadata={gearGroup:gear,fixed:false};
+  return g;
+}
   function setActiveAircraft(modelId){
     activeModelId=modelId;
     /* hide every model */
