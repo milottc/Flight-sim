@@ -5667,59 +5667,97 @@ function buildE190Model(){
 }
   function setActiveAircraft(modelId){
     activeModelId=modelId;
-    /* hide every model */
-    try{ exteriorRoot.setEnabled(false); }catch(e){}
-    try{ interiorRoot.setEnabled(false); }catch(e){}
-    Object.values(modelRoots).forEach(m=>{if(m)try{m.setEnabled(false);}catch(e){}});
 
-    /* show requested */
+    // Hard hide everything
+    try{ exteriorRoot.setEnabled(false); exteriorRoot.visibility = 0; }catch(e){}
+    try{ interiorRoot.setEnabled(false); interiorRoot.visibility = 0; }catch(e){}
+    Object.values(modelRoots).forEach(m=>{
+      if(m)try{ m.setEnabled(false); m.visibility = 0; }catch(e){}
+    });
+
+    // Show requested
     if(modelId==='737'){
-      try{ exteriorRoot.setEnabled(true); exteriorRoot.scaling.set(1,1,1); }catch(e){}
+      try{ exteriorRoot.setEnabled(true); exteriorRoot.visibility = 1; exteriorRoot.scaling.set(1,1,1); }catch(e){}
     } else if(modelId==='787'){
-      try{ exteriorRoot.setEnabled(true); exteriorRoot.scaling.set(1.35,1.15,1.35); }catch(e){}
+      try{ exteriorRoot.setEnabled(true); exteriorRoot.visibility = 1; exteriorRoot.scaling.set(1.35,1.15,1.35); }catch(e){}
     } else if(modelRoots[modelId]){
-      try{ modelRoots[modelId].setEnabled(true); }catch(e){}
+      try{ modelRoots[modelId].setEnabled(true); modelRoots[modelId].visibility = 1; }catch(e){}
     }
 
-    /* physics */
+    // Apply physics + gear height
     const fd=fleet();
     if(fd&&fd.physics){
       ACFG.mass=fd.physics.mass;
       ACFG.wingArea=fd.physics.wingArea;
       ACFG.maxThrust=fd.physics.thrust;
       ACFG.CLmax=fd.physics.CLmax||1.85;
+      if(fd.physics.gearHeight!=null) ACFG.gearHeight=fd.physics.gearHeight;
     }
 
-    /* cockpit auto-disable */
     if(camMode===1&&fd&&!fd.hasCockpit){
       try{ setCamMode(0); }catch(e){}
     }
   }
 
   /* gear visibility per aircraft */
+  /* ---------- TICK ---------- */
   scene.registerBeforeRender(()=>{
-    const fd=fleet();
-    if(!fd)return;
-    const showGear=!fd.fixedGear?plane.gearPos>0.4:true;
-    for(const id of ['atr','e190','cessna']){
-      const g=modelRoots[id];
-      if(!g||!g.metadata||!g.metadata.gearGroup)continue;
-      if(id===activeModelId){
-        const gg=g.metadata.gearGroup;
-        gg.setEnabled(id==='cessna'?true:showGear);
+    // --- ABSOLUTE MODEL VISIBILITY LOCK ---
+    // The base game has hardcoded setEnabled(true) in setCamMode(). We override it here.
+    if (typeof activeModelId !== 'undefined') {
+      const isB737 = (activeModelId === '737');
+      const isB787 = (activeModelId === '787');
+      const shouldShow737 = isB737 || isB787;
+
+      if (exteriorRoot) {
+        if (!shouldShow737) {
+          // Force disable parent AND all children
+          exteriorRoot.setEnabled(false);
+          exteriorRoot.getChildMeshes().forEach(m => m.setEnabled(false));
+        } else {
+          exteriorRoot.setEnabled(true);
+          exteriorRoot.getChildMeshes().forEach(m => m.setEnabled(true));
+        }
+      }
+
+      // Force Cessna/ATR/E190 to show if flying them
+      if (!shouldShow737 && modelRoots[activeModelId]) {
+        const root = modelRoots[activeModelId];
+        root.setEnabled(true);
+        root.getChildMeshes().forEach(m => m.setEnabled(true));
       }
     }
-    /* spin props */
-    if(activeModelId==='cessna'&&modelRoots.cessna&&modelRoots.cessna._prop){
-      modelRoots.cessna._prop.rotation.z+=engine.getDeltaTime()*0.005*(ENG.L.n1>5?8:0);
+
+    // Fix Cessna fixed gear (stops GEAR TRANSIT chip)
+    if (fleet().fixedGear) {
+      plane.gearPos = 1.0;
+      plane.gearTarget = 1.0;
+      plane.gearDown = true;
     }
-    if(activeModelId==='atr'&&modelRoots.atr&&modelRoots.atr._props){
-      modelRoots.atr._props.forEach(p=>p.rotation.z+=engine.getDeltaTime()*0.008*(ENG.L.n1>5?6:0));
+    // --- END LOCK ---
+
+    if(!currentFlight){startFlightIfNeeded();return;}
+    if(plane.crashed){completeCrash();return;}
+    
+    currentFlight.elapsed=(performance.now()-currentFlight.startedAt)/1000;
+    if(plane.justTouched&&!currentFlight.touchdownFpm){
+      currentFlight.touchdownFpm=Math.round(Math.max(0,(plane.gearCompress||0)*4*196.85));
     }
-    /* fixed gear — force gearDown */
-    if(fd.fixedGear&&!plane.gearDown){
-      plane.gearDown=true;
+    for(const fid of faults.list())currentFlight.faultsSeen.add(fid);
+    if(currentFlight.contract&&typeof currentFlight.contract.tick==='function'){
+      try{currentFlight.contract.tick(currentFlight);}catch(e){}
     }
+    let allMet=true,newlyMet=null;
+    for(const obj of currentFlight.objectives){
+      if(obj.met)continue;
+      let r=false;try{r=!!obj.check(currentFlight);}catch(e){}
+      if(r&&!obj.met)newlyMet=obj;
+      obj.met=r;
+      if(!r)allMet=false;
+    }
+    if(newlyMet)showMsg('✓ '+newlyMet.label,1400);
+    if(allMet){completeSuccess();return;}
+    renderObjHud();
   });
 
   /* filter objectives based on fleet */
@@ -6324,6 +6362,26 @@ function buildE190Model(){
   setActiveAircraft(fleet().model);
   renderHUD();
   renderContracts();
+    const _origSetCamMode=setCamMode;
+  setCamMode=function(m){
+    if(m===1 && !fleet().hasCockpit){
+      m=2;
+      try{ showMsg('NO COCKPIT · '+fleet().name, 1800); }catch(e){}
+    }
+    _origSetCamMode(m);
+
+    if(activeModelId==='737'){
+      try{ exteriorRoot.setEnabled(true); exteriorRoot.scaling.set(1,1,1); }catch(e){}
+    } else if(activeModelId==='787'){
+      try{ exteriorRoot.setEnabled(true); exteriorRoot.scaling.set(1.35,1.15,1.35); interiorRoot.setEnabled(false); }catch(e){}
+    } else {
+      try{
+        exteriorRoot.setEnabled(false);
+        interiorRoot.setEnabled(false);
+        if(modelRoots[activeModelId]) modelRoots[activeModelId].setEnabled(true);
+      }catch(e){}
+    }
+  };
   console.log('[CAREER v3] ready · '+fleet().name+' · $'+C.money+' · lessons='+C.stats.lessonsDone+'/'+LESSONS.length);
   window.addEventListener('keydown', e => {
   if(e.code === 'KeyX' && !e.repeat){
