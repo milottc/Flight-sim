@@ -153,6 +153,13 @@ body.mobile #faultPanel{top:auto;bottom:200px;right:6px}
 #fmsBtn{position:fixed;left:12px;top:8px;z-index:9996;display:block;pointer-events:auto}
 body.mobile #fmsBtn{top:auto;bottom:228px;left:6px}
 body.mobile #fms{top:6px;left:2vw}
+#atcBtn{position:fixed;left:150px;top:8px;z-index:9996;padding:6px 9px;border-radius:5px;background:rgba(15,30,45,.95);border:1px solid rgba(120,200,255,.35);color:#9fe0ff;font:600 11px Consolas,monospace;cursor:pointer}
+#atc{position:fixed;left:150px;top:46px;z-index:9997;width:min(380px,96vw);display:none;padding:10px;border-radius:10px;background:rgba(6,16,26,.95);border:1px solid rgba(120,200,255,.5);font:11px Consolas,monospace;color:#cfeaff}
+#atc.show{display:block}#atc .fh{display:flex;justify-content:space-between;color:#9fe0ff;letter-spacing:2px;font-weight:700;margin-bottom:6px}
+#atcLog{height:190px;overflow:auto;background:#000;border:1px solid rgba(120,200,255,.3);border-radius:5px;padding:6px;margin-bottom:6px}
+#atcLog div{margin-bottom:4px}#atcLog .p{color:#ffd27a}#atcLog .a{color:#7fffb0}
+#atc .bt{display:grid;grid-template-columns:1fr 1fr;gap:5px}#atc button{padding:6px;border-radius:5px;background:rgba(15,30,45,.95);border:1px solid rgba(120,200,255,.35);color:#9fe0ff;font:600 11px Consolas,monospace;cursor:pointer}
+body.mobile #atcBtn{top:auto;bottom:228px;left:130px}body.mobile #atc{top:6px;left:2vw}
 </style>
 </head>
 <body>
@@ -258,6 +265,14 @@ body.mobile #fms{top:6px;left:2vw}
     <button class="faultBtn" data-inject="ENG_SENSOR">ENG 1 SENSOR FAIL</button>
     <button class="faultBtn" data-inject="RADALT_FAIL">RADIO ALT FAIL</button>
     <button class="faultBtn" data-inject="COCKPIT_SMOKE">COCKPIT SMOKE</button>
+    <button class="faultBtn" data-inject="MICROBURST">MICROBURST</button>
+    <button class="faultBtn" data-inject="LIGHTNING">LIGHTNING STRIKE</button>
+    <button class="faultBtn" data-inject="ASH">VOLCANIC ASH</button>
+    <button class="faultBtn" data-inject="FUEL_IMBAL">FUEL IMBALANCE</button>
+    <button class="faultBtn" data-inject="DUAL_ENG">DUAL ENGINE FAILURE</button>
+    <button class="faultBtn" data-inject="THR_STUCK">THROTTLE STUCK</button>
+    <button class="faultBtn" data-inject="DECOMP">RAPID DECOMPRESSION</button>
+    <button class="faultBtn" data-inject="CHAOS">CHAOS MODE (RANDOM)</button>
     <button class="faultBtn" data-inject="COLLISION">COLLISION COURSE (TCAS)</button>
     <div class="fgSep"></div>
     <button class="faultBtn clear" data-clear="all">CLEAR ALL FAULTS</button>
@@ -363,7 +378,7 @@ body.mobile #fms{top:6px;left:2vw}
     <div class="tb" data-tap="KeyG">GEAR</div><div class="tb" data-tap="KeyF">FLAPS</div><div class="tb" data-tap="KeyB">SPLR</div>
     <div class="tb" data-hold="Space">BRAKE</div><div class="tb" data-tap="KeyN">REV</div>
     <div class="tb" data-tap="KeyC">CAM</div><div class="tb" data-tap="KeyP">AP</div><div class="tb" data-tap="KeyT">A/THR</div>
-    <div class="tb" data-tap="KeyI">ENG</div><div class="tb" data-tap="KeyR">RESET</div>
+    <div class="tb" data-tap="KeyM">ABRK</div><div class="tb" data-tap="KeyL">LDG LT</div><div class="tb" data-tap="KeyI">ENG</div><div class="tb" data-tap="KeyR">RESET</div>
   </div>
   <div id="thr"><div id="thrF"></div><div id="thrL">THR</div></div>
 </div>
@@ -1028,7 +1043,7 @@ function updateFireAndSmoke(dt){
 }
 /* ========== END PARTICLE SYSTEMS ========== */
 
-function createRunway(code){
+function createRunway_BASE_(code){
   if(runwayMesh){runwayMesh.dispose();runwayMesh=null;}
   const oldSh=scene.getMeshByName('rwShoulder'); if(oldSh)oldSh.dispose();
   const rw=RUNWAYS[code];
@@ -1525,6 +1540,7 @@ const FAULTS={
   ENG_SENSOR:{sev:1,label:'ENG 1 SENSOR FAIL',reset:'LATCHED'},
   RADALT_FAIL:{sev:1,label:'RADIO ALT FAIL',reset:'LATCHED'},
   COCKPIT_SMOKE:{sev:3,label:'SMOKE IN COCKPIT',reset:'LATCHED'},
+  MICROBURST:{sev:3,label:'MICROBURST · WIND SHEAR',reset:'LATCHED'},LIGHTNING:{sev:2,label:'LIGHTNING STRIKE',reset:'LATCHED'},ASH:{sev:2,label:'VOLCANIC ASH',reset:'LATCHED'},FUEL_IMBAL:{sev:2,label:'FUEL IMBALANCE',reset:'LATCHED'},DUAL_ENG:{sev:3,label:'DUAL ENGINE FAILURE',reset:'LATCHED'},THR_STUCK:{sev:2,label:'THROTTLE STUCK',reset:'LATCHED'},DECOMP:{sev:3,label:'RAPID DECOMPRESSION',reset:'LATCHED'},CHAOS:{sev:1,label:'CHAOS MODE',reset:'LATCHED'},
   COLLISION:{sev:3,label:'TRAFFIC COLLISION COURSE',reset:'LATCHED'}
 };
 
@@ -2028,6 +2044,16 @@ function updateAutopilotOLD(dt){
 }
 
 const tmpM=BABYLON.Matrix.Identity();
+const _nm=BABYLON.Matrix.Identity();
+function nudgeRot(axis,amt,errFn){
+  if(amt<=1e-6)return;const q0=plane.quat.clone();let best=null,be=1e9;
+  for(const sg of [1,-1]){const r=BABYLON.Quaternion.RotationAxis(axis,amt*sg);
+    for(const c of [q0.multiply(r),r.multiply(q0)]){c.normalize();plane.quat=c;const e=Math.abs(errFn());if(e<be){be=e;best=c;}}}
+  plane.quat=best;
+}
+const _bankErr=()=>{plane.quat.toRotationMatrix(_nm);return BABYLON.Vector3.TransformNormal(new BABYLON.Vector3(1,0,0),_nm).y;};
+let _pitchTgt=0;
+const _pitchErr=()=>{plane.quat.toRotationMatrix(_nm);return BABYLON.Vector3.TransformNormal(new BABYLON.Vector3(0,0,1),_nm).y-Math.sin(_pitchTgt);};
 function physicsStep(dt){
   if(plane.crashed||plane.hold)return;
   if(dt>.05)dt=.05;
@@ -2082,6 +2108,7 @@ function physicsStep(dt){
   if(aAbs>stallA){const over=(aAbs-stallA);CL*=BABYLON.Scalar.Clamp(1-over*1.3,.35,1);}
   CL=BABYLON.Scalar.Clamp(CL,-1.8,ACFG.CLmax+fl.cl);
   CL*=(1-.08*iceK);
+  CL*=1+.10*geStrength;
   if(plane.spoilerDeploy>0)CL*=(1-plane.spoilerDeploy*.65);
   plane.stall=aAbs>stallA&&Va>15;
 
@@ -2166,12 +2193,25 @@ function physicsStep(dt){
     const bank=Math.atan2(rW.y,Math.sqrt(Math.max(0,1-rW.y*rW.y)));
     plane.angVel.z+=-bank*.9*dt*BABYLON.Scalar.Clamp(Va/100,0,1);
   }
-  if(!plane.onGround&&!AP.master&&plane.gearPos>.5&&(plane.pos.y-ghPreview)<35&&Math.abs(input.roll)<.05){
+  if(!plane.onGround&&!AP.master&&plane.gearPos>.5&&(plane.pos.y-ghPreview)<60&&Math.abs(input.roll)<.35){
     const rW=BABYLON.Vector3.TransformNormal(new BABYLON.Vector3(1,0,0),tmpM);
     const bank=Math.atan2(rW.y,Math.sqrt(Math.max(0,1-rW.y*rW.y)));
-    plane.angVel.z+=-bank*2.6*dt*BABYLON.Scalar.Clamp(Va/100,0,1);
+    plane.angVel.z+=(-bank*6.0-plane.angVel.z*2.5)*dt*BABYLON.Scalar.Clamp(Va/80,0,1);
   }
 
+  const hsAir=Math.hypot(plane.vel.x,plane.vel.z);
+  /* LANDING ASSIST: auto-flare, wing levelling and decrab in the last metres */
+  if(!plane.onGround&&plane.assist&&!AP.master&&plane.gearPos>.8&&Va>40&&!faults.has('ELEV_JAM')){
+    const a2=plane.pos.y-ghPreview-ACFG.gearHeight;
+    if(a2<16&&a2>0&&plane.vel.y<0.3){
+      const f=Math.min(1,(16-a2)/16),tgt=-(.35+a2*.2);
+      plane.vel.y+=(tgt-plane.vel.y)*Math.min(1,(1.2+2.2*f)*dt)*(Math.abs(input.pitch)>.5?.3:1);
+      if(Math.abs(input.pitch)<.4){_pitchTgt=.035+.045*f;plane.quat.toRotationMatrix(_nm);const fy=BABYLON.Vector3.TransformNormal(new BABYLON.Vector3(0,0,1),_nm).y;
+        nudgeRot(new BABYLON.Vector3(1,0,0),Math.min(Math.abs(Math.asin(BABYLON.Scalar.Clamp(fy,-1,1))-_pitchTgt),.10*dt*(.5+f)),_pitchErr);}
+      if(Math.abs(input.roll)<.5){const be=_bankErr();nudgeRot(new BABYLON.Vector3(0,0,1),Math.min(Math.abs(Math.asin(BABYLON.Scalar.Clamp(be,-1,1))),1.6*dt*(.5+f)),_bankErr);}
+      if(Math.abs(input.yaw)<.1&&hsAir>20){const sl=BABYLON.Scalar.Clamp(beta,-.2,.2);plane.angVel.y+=-sl*1.2*dt*f;}
+    }
+  }
   const gh=sampleSurface(plane.pos.x,plane.pos.z);
   const gearReallyDown = plane.gearPos > 0.9;
   const gearHeight = gearReallyDown ? ACFG.gearHeight : 0.6;
@@ -2198,7 +2238,7 @@ function physicsStep(dt){
     /* Only crash on REALLY hard no-gear impact (>6 m/s ~ 1180 fpm) */
     const hardNoGear = noGear && sink > 6.0;
     const reallyHard = sink > 24.0;
-    const badBank = Math.abs(bankDeg)>45;
+    const badBank = Math.abs(bankDeg)>70;
     const badPitch = pitchDeg<-25 || pitchDeg>35;
     const badRates = rollRate>6.0 || pitchRate>5.5;
 
@@ -2219,22 +2259,24 @@ function physicsStep(dt){
       if(noGear){
         if(fpm<1180) showMsg('⚠ BELLY LANDING · '+fpm+' fpm · SCRAPING',2500);
       } else {
-        if(fpm<220) showMsg('SMOOTH TOUCHDOWN · '+fpm+' fpm',1800);
-        else if(fpm<550) showMsg('TOUCHDOWN · '+fpm+' fpm',1500);
+        if(fpm<220){let off='';if(runwayLenM>0){const h2=runwayHdgDeg*Math.PI/180;off=' · '+Math.round(Math.abs(plane.pos.x*Math.cos(h2)+plane.pos.z*Math.sin(h2)))+' m off CL';}
+          showMsg((fpm<110?'🧈 GREASER · ':'SMOOTH TOUCHDOWN · ')+fpm+' fpm'+off,2600);}
+        else if(fpm<550) showMsg('TOUCHDOWN · '+fpm+' fpm',1800);
         else showMsg('FIRM LANDING · '+fpm+' fpm',1800);
       }
       if(plane.gearDown && hs>3 && plane.spoilerDeploy<0.5){plane.spoilerDeploy=1;updateChips();}
-      plane.gearCompress = Math.min(1.4, sink / 4);
-      plane.gearSpringVel = -sink * 0.85;
-      if(sink > 0.6 && sink < 14){plane.vel.y = sink * Math.min(.72,.3+sink*.12);plane.angVel.x -= Math.min(.28,sink*.05);}
-      else if(sink < 0.6) plane.vel.y = 0;
+      plane.gearCompress = Math.min(1.2, sink / 4);
+      plane.gearSpringVel = -sink * 0.5;
+      if(sink > 1.1 && sink < 14){plane.vel.y = sink * Math.min(.5,.14+(sink-1.1)*.1);plane.angVel.x -= Math.min(.22,(sink-1.1)*.06);}
+      else if(sink <= 1.1) plane.vel.y = 0;
+      plane.angVel.z=0;
     }
 
     /* Belly-landing flag drives spark particles */
     plane.bellyLanding = noGear && hs > 3;
 
     const springK = 90;
-    const damping = 5.5;
+    const damping = 11;
     const suspAccel = -springK * plane.gearCompress - damping * plane.gearSpringVel;
     plane.gearSpringVel += suspAccel * dt;
     plane.gearCompress += plane.gearSpringVel * dt;
@@ -2255,7 +2297,7 @@ function physicsStep(dt){
 
       if(hs>0.02){
         let decel=0.55;
-        if(plane.brakeHold) decel+=4.2;
+        if(plane.brakeHold) decel+=4.2; else if(plane._ab&&!faults.has('BRAKE_FAIL')&&hs>8) decel+=2.6;
         if(plane.spoilerVisual>0.5) decel+=1.4;
         if(plane.reverserOn) decel+=1.2;
         if(noGear) decel+=3.5;   /* Extra friction from scraping */
@@ -2279,7 +2321,7 @@ function physicsStep(dt){
       if(hs<56 && Math.abs(input.pitch)<0.05){
         plane.angVel.x+=(-pitchRad*2.6 - plane.angVel.x*3.5)*dt;
       }
-      plane.angVel.z=-bankRad*8.0;
+      plane.angVel.z=Math.abs(input.roll)>.4?plane.angVel.z*.3:0;nudgeRot(new BABYLON.Vector3(0,0,1),Math.abs(bankRad)*Math.min(1,40*dt),_bankErr);
 
       const damp=Math.max(0,1-6*dt);
       plane.angVel.x*=damp;plane.angVel.z*=damp;
@@ -3127,7 +3169,7 @@ function rebuildGeom(cx,cz){
   for(let j=0;j<N;j++){const wz=cz-E/2+j*step;
     for(let i=0;i<N;i++){const wx=cx-E/2+i*step;let hv=Math.max(sampleTerrain(wx,wz),-80);
       if(runwayLenM>0){const hr=runwayHdgDeg*Math.PI/180,al=Math.abs(wx*Math.sin(hr)-wz*Math.cos(hr)),ac=Math.abs(wx*Math.cos(hr)+wz*Math.sin(hr));
-        const ea=Math.max(0,al-(runwayLenM/2+120)),ec=Math.max(0,ac-(runwayWidM/2+110)),e=Math.hypot(ea,ec);
+        const ea=Math.max(0,al-(runwayLenM/2+120)),ec=Math.max(0,ac-(runwayWidM/2+260)),e=Math.hypot(ea,ec);
         if(e<500){const w=Math.max(0,Math.min(1,1-Math.max(0,e-60)/440)),tgt=runwayY-1.2;hv=hv*(1-w)+tgt*w;}}
       heights[j*N+i]=hv;}}
   for(let j=0;j<N;j++)for(let i=0;i<N;i++){
@@ -3763,6 +3805,258 @@ const MAPV={mpp:70,follow:true,cx:0,cz:0,tap:true};
   },300);
 })();
 
+
+let apNodes=[];
+function createRunway(code){
+  createRunway_BASE_(code);
+  apNodes.forEach(n=>{try{n.dispose();}catch(e){}});apNodes=[];
+  const rw=RUNWAYS[code];if(!rw)return;
+  const h=rw.hdg*Math.PI/180,rot=Math.atan2(Math.sin(h),Math.cos(h)*-1);
+  const root=new BABYLON.TransformNode('apRoot',scene);root.position.set(0,runwayY,0);root.rotation.y=Math.atan2(Math.sin(h),-Math.cos(h));apNodes.push(root);
+  const L=rw.len,W=rw.wid,mat=(c,e,sp)=>{const m=new BABYLON.StandardMaterial('apm'+Math.random(),scene);m.diffuseColor=new BABYLON.Color3(c[0],c[1],c[2]);if(e)m.emissiveColor=new BABYLON.Color3(e[0],e[1],e[2]);m.specularColor=sp?new BABYLON.Color3(.3,.3,.3):BABYLON.Color3.Black();return m;};
+  const box=(w,hh,d,x,y,z,m,par)=>{const b=BABYLON.MeshBuilder.CreateBox('apb',{width:w,height:hh,depth:d},scene);b.position.set(x,y+hh/2,z);b.material=m;b.parent=par||root;b.isPickable=false;return b;};
+  const asph=mat([.14,.145,.15]),conc=mat([.55,.55,.53]),wall=mat([.82,.83,.85],null,1),glass=mat([.1,.25,.35],[.03,.08,.12],1),roofM=mat([.3,.32,.35]),hang=mat([.6,.62,.65],null,1);
+  /* taxiway parallel + connectors + apron */
+  const tx=W/2+85;
+  box(24,.12,L*.9,tx,-.05,0,asph);
+  for(const z of [-L*.4,-L*.15,L*.15,L*.4])box(24,.12,tx-W/2,W/2+(tx-W/2)/2,-.05,z,asph);
+  const ap=box(170,.12,300,tx+120,-.05,-L*.12,conc);
+  const yl=mat([.95,.8,.1],[.4,.32,0]);box(.5,.14,L*.9,tx,-.03,0,yl);
+  /* terminal, tower, hangars, jet bridges */
+  const tz=-L*.12,tX=tx+245;
+  box(60,16,230,tX,0,tz,wall);box(62,2,232,tX,16,tz,roofM);box(.6,9,222,tX-30.3,3,tz,glass);box(.6,9,222,tX-30.3,3,tz,glass);
+  for(let i=-4;i<=4;i++){box(4,3.5,60,tX-62,4.5,tz+i*24,hang);}
+  window.apGeo={L,W,tx,root};
+  const tw=box(14,50,14,tX+10,0,tz-170,wall);box(20,10,20,tX+10,50,tz-170,glass);box(22,1.6,22,tX+10,60,tz-170,roofM);
+  const beacon=BABYLON.MeshBuilder.CreateSphere('apbc',{diameter:2},scene);beacon.parent=root;beacon.position.set(tX+10,64,tz-170);beacon.material=mat([1,1,1],[1,.9,.5]);
+  for(let i=0;i<3;i++)box(70,14,60,tx+130+(i*0),0,L*.18+i*75,hang).position.x=tx+330;
+  /* parked airliners on apron */
+  try{for(let i=0;i<4;i++){const a=makeAirliner(new BABYLON.Color3(.1+.2*i,.35,.8-.15*i));a.marker.dispose();a.root.parent=root;a.root.scaling.setAll(1.3);a.root.position.set(tx+135,2.4,tz-100+i*65);a.root.rotation.y=Math.PI/2+(i%2?.1:-.1);a.root.getChildMeshes().forEach(m=>m.isPickable=false);apNodes.push(a.root);}}catch(e){}
+  /* edge lights, threshold, centerline, approach lights, PAPI */
+  const lm=(c)=>mat(c,c);
+  const mk=(m,d)=>{const b=BABYLON.MeshBuilder.CreateSphere('apl',{diameter:d,segments:4},scene);b.material=m;b.parent=root;b.isPickable=false;return b;};
+  const place=(base,pts)=>{base.thinInstanceSetBuffer('matrix',new Float32Array(pts.flatMap(([x,y,z])=>[1,0,0,0,0,1,0,0,0,0,1,0,x,y,z,1])),16,true);base.alwaysSelectAsActiveMesh=true;};
+  window.apPapi=[];
+  const wl=[],yl2=[],rl=[],gl=[],tl=[],al=[],cl=[];
+  for(let z=-L/2;z<=L/2;z+=55){wl.push([-W/2-3,.5,z],[W/2+3,.5,z]);}
+  for(let z=-L/2;z<=L/2;z+=30)cl.push([0,.14,z]);
+  for(let x=-W/2;x<=W/2;x+=4){rl.push([x,.3,L/2+1]);gl.push([x,.3,-L/2-1]);}
+  for(let z=-L*.45;z<=L*.45;z+=60){tl.push([tx-14,.4,z],[tx+14,.4,z]);}
+  for(const side of [1,-1])for(let d=30;d<=900;d+=30){al.push([0,.8,side*(L/2+d)]);if(d%150===0)for(let k=-5;k<=5;k++)al.push([k*4,.8,side*(L/2+d)]);}
+  place(mk(lm([1,1,.9]),.9),wl);place(mk(lm([1,1,.9]),.5),cl);place(mk(lm([.9,.1,.1]),1.1),rl);place(mk(lm([.1,.9,.3]),1.1),gl);
+  place(mk(lm([.1,.3,1]),.8),tl);place(mk(lm([1,.95,.8]),1.3),al);
+  /* PAPI both ends */
+  for(const e of [1,-1])for(let i=0;i<4;i++){const pm=mat([1,.2,.2],[.9,.15,.1]);if(i>1){pm.emissiveColor=new BABYLON.Color3(.9,.9,.9);pm.diffuseColor=new BABYLON.Color3(1,1,1);}{const pb=box(5,1.8,5,-e*(W/2+22+i*10),0,e*(-L/2+300),pm);(window.apPapi=window.apPapi||[]).push({e,i,pm,pb});}}
+  /* runway end markers & vegetation-free pad */
+  box(W+30,.1,60,0,-.12,L/2+40,asph);box(W+30,.1,60,0,-.12,-L/2-40,asph);
+}
+
+/* ===== LANDING LIGHTS + GRAPHICS BOOST ===== */
+let landingOn=true;const llights=[];
+(function(){
+  for(const sx of [-1,1]){
+    const sp=new BABYLON.SpotLight('ll'+sx,new BABYLON.Vector3(sx*5.5,-1.3,5),new BABYLON.Vector3(sx*.03,-.16,1),.9,1.6,scene);
+    sp.parent=aircraftRoot;sp.intensity=9;sp.range=1400;sp.diffuse=new BABYLON.Color3(1,.97,.88);sp.specular=new BABYLON.Color3(1,.97,.88);llights.push(sp);
+    const g=BABYLON.MeshBuilder.CreateSphere('llg',{diameter:.7},scene);const gm=new BABYLON.StandardMaterial('llgm',scene);gm.emissiveColor=new BABYLON.Color3(1,1,.9);gm.disableLighting=true;g.material=gm;g.parent=aircraftRoot;g.position.set(sx*5.5,-1.3,5.2);g.isPickable=false;sp._glare=g;
+    const bm=new BABYLON.StandardMaterial('llbm',scene);bm.emissiveColor=new BABYLON.Color3(1,.97,.85);bm.disableLighting=true;bm.alpha=.06;bm.backFaceCulling=false;
+    const cone=BABYLON.MeshBuilder.CreateCylinder('llcone',{height:260,diameterTop:90,diameterBottom:.6,tessellation:20,cap:BABYLON.Mesh.NO_CAP},scene);cone.material=bm;cone.parent=aircraftRoot;cone.rotation.x=Math.PI/2+.16;cone.position.set(sx*5.5,-1.3-20,5+128);cone.isPickable=false;cone.applyFog=false;sp._cone=cone;
+  }
+  const setLL=on=>{landingOn=on;llights.forEach(l=>{l.setEnabled(on);l._glare.setEnabled(on);l._cone.setEnabled(on&&nightMode!==false);});};
+  scene.materials.forEach(m=>m.maxSimultaneousLights=8);scene.onNewMaterialAddedObservable.add(m=>m.maxSimultaneousLights=8);
+  scene.textures.forEach(t=>{try{t.anisotropicFilteringLevel=16;}catch(e){}});scene.onNewTextureAddedObservable.add(t=>{try{t.anisotropicFilteringLevel=16;}catch(e){}});
+  window.addEventListener('keydown',e=>{if(e.code==='KeyL'&&!/INPUT|SELECT/.test((e.target||{}).tagName||'')){setLL(!landingOn);showMsg('LANDING LIGHTS '+(landingOn?'ON':'OFF'));}});
+  scene.registerBeforeRender(()=>{const agl=plane.pos.y-sampleSurface(plane.pos.x,plane.pos.z);const night=(typeof nightMode!=='undefined')?nightMode:false;
+    llights.forEach(l=>{l._cone.setEnabled(landingOn&&night);l.intensity=night?9:3;});});
+  try{const dp=scene.postProcessRenderPipelineManager.supportedPipelines[0];if(dp){dp.samples=isTouchDev?1:4;dp.sharpen.edgeAmount=.45;dp.bloomWeight=.35;dp.imageProcessing.contrast=1.18;}}catch(e){}
+  if(!isTouchDev){try{engine.setHardwareScalingLevel(1/Math.min(window.devicePixelRatio||1,1.75));}catch(e){}}
+  try{const mb=new BABYLON.MotionBlurPostProcess&&null;}catch(e){}
+})();
+
+/* ===== ATC + AIRPORT TRAFFIC ===== */
+const taxiers=[];
+{const _cr=createRunway;createRunway=function(code){_cr(code);taxiers.length=0;const g=window.apGeo;if(!g||!RUNWAYS[code])return;
+  const cols=[[.85,.1,.1],[.1,.4,.85],[.9,.6,.1]];
+  for(let i=0;i<3;i++){const a=makeAirliner(new BABYLON.Color3(...cols[i]));a.marker.dispose();a.root.parent=g.root;a.root.scaling.setAll(1.3);
+    a.root.getChildMeshes().forEach(m=>m.isPickable=false);const dir=i%2?-1:1;
+    taxiers.push({r:a.root,z:(i-1)*g.L*.28,dir,x:g.tx,L:g.L,wait:0});a.root.position.set(g.tx,2.4,(i-1)*g.L*.28);a.root.rotation.y=dir>0?0:Math.PI;apNodes.push(a.root);}
+};}
+scene.registerBeforeRender(()=>{const dt=Math.min(.05,engine.getDeltaTime()/1000);
+  for(const t of taxiers){if(t.wait>0){t.wait-=dt;continue;}t.z+=t.dir*13*dt;
+    if(Math.abs(t.z)>t.L*.42){t.z=Math.sign(t.z)*t.L*.42;t.dir*=-1;t.wait=8+Math.random()*10;t.r.rotation.y=t.dir>0?0:Math.PI;}
+    t.r.position.z=t.z;}});
+const atc=(function(){
+  const st={phase:'ramp',voice:true,sq:String(2000+((Math.random()*5000)|0)),cs:'Babylon 737 Heavy',freq:'',ready:false};
+  const box=document.createElement('div');box.id='atc';
+  box.innerHTML='<div class="fh"><span>ATC · CLEARANCES</span><span><button id="atcV">🔊</button> <button id="atcX">✕</button></span></div><div id="atcLog"></div><div class="bt" id="atcB"></div>';
+  document.body.appendChild(box);const ab=document.createElement('button');ab.id='atcBtn';ab.textContent='📻 ATC (K)';document.body.appendChild(ab);
+  const log=document.getElementById('atcLog');
+  const say=(who,txt)=>{const d=document.createElement('div');d.className=who==='p'?'p':'a';d.textContent=(who==='p'?'▶ '+st.cs+': ':'◀ ')+txt;log.appendChild(d);log.scrollTop=log.scrollHeight;
+    if(who==='a'&&st.voice&&window.speechSynthesis){try{const u=new SpeechSynthesisUtterance(txt.replace(/Babylon/,'Babylon'));u.rate=1.1;speechSynthesis.cancel();speechSynthesis.speak(u);}catch(e){}}};
+  const code=()=>(currentLocation.code||'UNKN');
+  const rwy=()=>{let h=Math.round(runwayHdgDeg/10)%36;if(h===0)h=36;return String(h).padStart(2,'0');};
+  const wind=()=>{const w=currentWeather||{wind:5};return String(((Math.round(runwayHdgDeg/10)*10+((w.wind*7)%40)-20+360)%360)||360).padStart(3,'0')+' at '+Math.max(2,Math.round(w.wind*1.94));};
+  const agl=()=>(plane.pos.y-sampleSurface(plane.pos.x,plane.pos.z))*3.28084;
+  const along=()=>{const h=runwayHdgDeg*Math.PI/180;return plane.pos.x*Math.sin(h)-plane.pos.z*Math.cos(h);};
+  const across=()=>{const h=runwayHdgDeg*Math.PI/180;return plane.pos.x*Math.cos(h)+plane.pos.z*Math.sin(h);};
+  const onRwy=()=>runwayLenM>0&&Math.abs(across())<runwayWidM&&Math.abs(along())<runwayLenM/2+50;
+  const C=(n,txt,fn)=>({n,txt,fn});
+  const acts={
+    ifr:()=>{say('p','Request IFR clearance, information Alpha.');setTimeout(()=>{if(!plane.onGround){say('a','Unable, you are airborne.');return;}say('a',st.cs+', '+code()+' Delivery, cleared to destination as filed, runway '+rwy()+', climb and maintain 5000, squawk '+st.sq+'. Read back correct.');st.phase='cleared';},900);},
+    push:()=>{say('p','Request pushback and start-up, stand 1.');setTimeout(()=>{if(st.phase==='ramp'){say('a',st.cs+', '+code()+' Ground, pushback approved, start-up at your discretion. Call ready to taxi.');st.phase='pushed';}else say('a','Negative, '+st.cs+', clearance required first or already moving.');},900);},
+    taxi:()=>{say('p','Ready to taxi.');setTimeout(()=>{if(!plane.onGround){say('a','Negative, you are airborne.');return;}say('a',st.cs+', taxi to runway '+rwy()+' via the parallel taxiway, hold short runway '+rwy()+'. Wind '+wind()+'.');st.phase='taxi';},900);},
+    tkoff:()=>{say('p','Ready for departure, runway '+rwy()+'.');setTimeout(()=>{if(!plane.onGround){say('a','Negative, you are airborne.');return;}
+      if(Math.abs(across())>runwayWidM*1.5||Math.abs(along())>runwayLenM/2+300){say('a',st.cs+', '+code()+' Tower, hold position, you are not at the holding point. Taxi to runway '+rwy()+'.');return;}
+      say('a',st.cs+', '+code()+' Tower, wind '+wind()+' knots, runway '+rwy()+', cleared for takeoff.');st.phase='takeoff';},900);},
+    land:()=>{say('p','Inbound, request landing, runway '+rwy()+'.');setTimeout(()=>{if(plane.onGround){say('a','Negative, you are on the ground.');return;}
+      const d=-along()/1852;if(d<-1||d>30){say('a',st.cs+', '+code()+' Approach, radar contact. Fly heading '+((Math.round(runwayHdgDeg)+0)%360)+' and expect vectors for runway '+rwy()+'. Descend and maintain 3000.');st.phase='appr';}
+      else{say('a',st.cs+', '+code()+' Tower, wind '+wind()+' knots, runway '+rwy()+', cleared to land.');st.phase='land';}},900);},
+    vec:()=>{say('p','Request vectors to final.');setTimeout(()=>{const a=along(),c=across();if(plane.onGround){say('a','Negative, you are on the ground.');return;}
+      if(a>-runwayLenM/2){say('a',st.cs+', turn left heading '+((Math.round(runwayHdgDeg)+180)%360)+', climb and maintain 3000, vectors for runway '+rwy()+'.');}
+      else{const d=Math.abs(a+runwayLenM/2)/1852;say('a',st.cs+', '+d.toFixed(0)+' miles from the threshold, '+(c>200?'turn left':c<-200?'turn right':'continue')+' heading '+Math.round(runwayHdgDeg+Math.max(-30,Math.min(30,-c/150)))+', descend and maintain '+Math.max(2000,Math.round(d*320/100)*100)+', cleared ILS runway '+rwy()+' approach.');}},900);},
+    go:()=>{say('p','Going around.');setTimeout(()=>say('a',st.cs+', roger, climb straight ahead to 3000, contact Approach.'),700);st.phase='appr';},
+    emg:()=>{say('p','MAYDAY MAYDAY MAYDAY, '+st.cs+', declaring an emergency.');setTimeout(()=>say('a',st.cs+', roger MAYDAY, '+code()+' Approach, all traffic cleared, runway '+rwy()+' is yours, emergency services alerted. Say souls on board and fuel.'),900);}
+  };
+  const btns=[C('ifr','Clearance delivery',acts.ifr),C('push','Pushback / startup',acts.push),C('taxi','Taxi',acts.taxi),C('tk','Takeoff',acts.tkoff),C('v','Vectors / approach',acts.vec),C('l','Landing',acts.land),C('g','Go around',acts.go),C('e','MAYDAY',acts.emg)];
+  const bb=document.getElementById('atcB');btns.forEach(b=>{const e=document.createElement('button');e.textContent=b.txt;e.addEventListener('click',b.fn);bb.appendChild(e);});
+  const tog=()=>{box.classList.toggle('show');};
+  ab.addEventListener('click',tog);document.getElementById('atcX').addEventListener('click',tog);
+  document.getElementById('atcV').addEventListener('click',e=>{st.voice=!st.voice;e.target.textContent=st.voice?'🔊':'🔇';if(!st.voice&&window.speechSynthesis)speechSynthesis.cancel();});
+  window.addEventListener('keydown',e=>{if(e.code==='KeyK'&&!/INPUT|SELECT/.test((e.target||{}).tagName||''))tog();});
+  box.addEventListener('keydown',e=>e.stopPropagation());
+  /* automatic callouts */
+  let lastAir=false,handed=false,lastPhase='';
+  setInterval(()=>{
+    const air=!plane.onGround&&!plane.crashed;
+    if(air&&!lastAir&&st.phase==='takeoff'){setTimeout(()=>say('a',st.cs+', airborne, contact Departure, good day.'),1500);st.phase='climb';}
+    if(!air&&lastAir&&(st.phase==='land'||st.phase==='appr')){setTimeout(()=>say('a',st.cs+', welcome to '+code()+', vacate runway when able, contact Ground.'),2500);st.phase='ramp';}
+    if(air&&st.phase==='cleared'){st.phase='climb';}
+    if(air&&agl()>1500&&!handed&&st.phase==='climb'){handed=true;say('a',st.cs+', radar contact, climb at pilot\'s discretion.');}
+    if(!air)handed=false;
+    if(st.phase==='land'&&air&&agl()<400&&agl()>50&&!st._tw){st._tw=1;say('a',st.cs+', wind '+wind()+', runway '+rwy()+' cleared to land.');}
+    if(!air)st._tw=0;
+    lastAir=air;
+  },1000);
+  say('a','Welcome. Use the buttons below to talk to ATC. Press K to open or close.');
+  return st;
+})();
+
+/* ===== EXTRA FAULTS, GPWS CALLOUTS, DYNAMIC PAPI ===== */
+const XF={t:{},fog0:null,thr:0,chaosT:20,lastCall:9999,said:{},lastAgl:0};
+const SFX_MAP=[[/approaching minimums/,'APRMIN'],[/minimums/,'MINIM'],[/twenty five hundred/,'2500'],[/one thousand/,'1000'],[/five hundred/,'500'],[/four hundred/,'400'],[/three hundred/,'300'],[/two hundred/,'200'],[/one hundred/,'100'],[/^fifty/,'50'],[/^forty/,'40'],[/^thirty/,'30'],[/^twenty$/,'20'],[/^ten$/,'10'],[/terrain pull/,'TERPUL'],[/too low terrain/,'LOWTRN'],[/terrain/,'TERAIN'],[/sink rate/,'SNKRAT'],[/pull up/,'PULLUP'],[/too low gear/,'LOWGEA'],[/too low flaps/,'LOWFLP'],[/bank angle/,'BNKANG'],[/don't sink/,'DONSNK'],[/overspeed/,'OVRSPD'],[/windshear|wind shear/,'WINSHR'],[/altitude alert/,'ALTAL1'],[/altitude deviation/,'ALTAL2'],[/altitude entering|altitude capture/,'ALTENT'],[/autopilot disconnect/,'APDISC'],[/hello/,'HELLO'],[/startup/,'STRTUP']];
+const SFX_BASES=['','https://milottc.github.io/Flight-sim/'];let _sfxCur=null;window._minsT=0;
+function playSfx(name,onFail){let i=0;const tryNext=()=>{if(i>=SFX_BASES.length){onFail&&onFail();return;}const a=new Audio(SFX_BASES[i++]+name+'.wav');a.volume=1;a.onerror=tryNext;
+    a.play().then(()=>{if(_sfxCur&&_sfxCur!==a){try{_sfxCur.pause();}catch(e){}}_sfxCur=a;}).catch(()=>{if(a.error)tryNext();else onFail&&onFail();});};tryNext();}
+const speak=(t,rate)=>{const l=t.toLowerCase();for(const [re,f] of SFX_MAP){if(re.test(l)){if(/^\d+$/.test(f)&&performance.now()/1000-window._minsT<1.3)return;if(f==='MINIM')window._minsT=performance.now()/1000;if(atc.voice)playSfx(f,()=>{try{if(window.speechSynthesis&&atc.voice){const u=new SpeechSynthesisUtterance(t);u.rate=rate||1.15;u.pitch=.8;speechSynthesis.speak(u);}}catch(e){}});return;}}
+  try{if(window.speechSynthesis&&atc.voice){const u=new SpeechSynthesisUtterance(t);u.rate=rate||1.15;u.pitch=.8;speechSynthesis.speak(u);}}catch(e){}};
+function xfUpdate(dt){
+  if(plane.crashed)return;
+  const air=!plane.onGround,f=n=>faults.has(n),now=performance.now()/1000;
+  /* microburst: heavy downdraft + shear, auto clears */
+  if(f('MICROBURST')){XF.t.mb=(XF.t.mb||0)+dt;const k=Math.sin(Math.min(1,XF.t.mb/20)*Math.PI);
+    if(air){plane.vel.y-=11*k*dt;plane.vel.x+=Math.sin(XF.t.mb*1.3)*6*k*dt;plane.vel.z+=Math.cos(XF.t.mb*1.1)*6*k*dt;plane.angVel.z+=Math.sin(XF.t.mb*3)*.35*k*dt*10;}
+    if(XF.t.mb>20){faults.clear('MICROBURST');XF.t.mb=0;showMsg('MICROBURST CLEARED',2500);}}
+  else XF.t.mb=0;
+  /* lightning: flashes, jolts, auto clears */
+  if(f('LIGHTNING')){XF.t.lg=(XF.t.lg||0)+dt;
+    if(Math.random()<dt*5){const w=document.getElementById('wxFlash');if(w){w.style.opacity='.8';setTimeout(()=>w.style.opacity='0',70);}plane.angVel.x+=(Math.random()-.5)*.25;plane.angVel.z+=(Math.random()-.5)*.35;camState.shake=Math.max(camState.shake,1.2);}
+    if(XF.t.lg>4){faults.clear('LIGHTNING');XF.t.lg=0;showMsg('LIGHTNING · SYSTEMS NOMINAL',2500);}}
+  else XF.t.lg=0;
+  /* ash: murk + random thrust dips */
+  if(f('ASH')){if(XF.fog0===null){XF.fog0={d:scene.fogDensity,c:scene.fogColor.clone()};}scene.fogDensity=Math.max(scene.fogDensity,.0011);scene.fogColor=new BABYLON.Color3(.25,.2,.17);
+    if(Math.random()<dt*.25){plane.throttle=Math.max(0,plane.throttle-.3);showMsg('⚠ ENGINE SURGE · ASH INGESTION',2500);camState.shake=Math.max(camState.shake,1);}}
+  else if(XF.fog0){scene.fogDensity=XF.fog0.d;scene.fogColor=XF.fog0.c;XF.fog0=null;}
+  /* fuel imbalance: constant roll drift */
+  if(f('FUEL_IMBAL')&&air)plane.angVel.z+=-.035*dt*Math.min(1,plane.speed/80)*10;
+  /* dual engine failure */
+  if(f('DUAL_ENG')){ENG.L.state='SHUTDOWN';ENG.R.state='SHUTDOWN';plane.throttle=0;}
+  /* throttle stuck */
+  if(f('THR_STUCK')){if(!XF.thrOn){XF.thrOn=1;XF.thr=plane.throttle;}plane.throttle=XF.thr;}else XF.thrOn=0;
+  /* rapid decompression */
+  if(f('DECOMP')){if(!XF.dc){XF.dc=1;showMsg('⚠ RAPID DECOMPRESSION · MASKS ON · EMERGENCY DESCENT',4000);speak('Rapid decompression. Emergency descent.');}
+    if(air&&plane.pos.y>3000*0.3048){plane.vel.y-=Math.min(8,Math.max(0,plane.vel.y+20))*dt*2;}
+    camState.shake=Math.max(camState.shake,.35);}
+  else XF.dc=0;
+  /* chaos */
+  if(f('CHAOS')){XF.chaosT-=dt;if(XF.chaosT<=0){XF.chaosT=25+Math.random()*35;
+    const pool=Object.keys(FAULTS).filter(k=>!/^(CHAOS|COLLISION|DUAL_ENG|ENG_FIRE_L|ENG_FIRE_R|STALL|OVERSPEED)$/.test(k)&&FAULTS[k].reset!=='AUTO'&&!faults.has(k));
+    const on=Object.keys(faults.latched).filter(k=>faults.latched[k]&&k!=='CHAOS');if(on.length>2)faults.clear(on[0]);
+    if(pool.length)faults.inject(pool[(Math.random()*pool.length)|0]);}}
+  /* GPWS / altitude callouts */
+  const gh=ACFG.gearHeight||2.5,agl=Math.max(0,(plane.pos.y-sampleSurface(plane.pos.x,plane.pos.z)-gh)*3.28084),vs=plane.vel.y*196.85,kts=plane.speed*1.94384;
+  if(air&&vs<-150&&!f('RADALT_FAIL')){
+    const steps=[[2500,'TWENTY FIVE HUNDRED'],[1000,'ONE THOUSAND'],[500,'FIVE HUNDRED'],[400,'FOUR HUNDRED'],[300,'THREE HUNDRED'],[200,'TWO HUNDRED'],[100,'ONE HUNDRED'],[50,'FIFTY'],[40,'FORTY'],[30,'THIRTY'],[20,'TWENTY'],[10,'TEN']];
+    for(const [h,t] of steps){if(XF.lastAgl>h&&agl<=h&&plane.gearPos>.8||(XF.lastAgl>h&&agl<=h&&h>=500)){
+      showMsg(t,900);speak(t.toLowerCase(),1.3);if(h===500&&plane.gearPos<.8)setTimeout(()=>speak('too low gear'),600);if(h===10&&vs<-100)setTimeout(()=>speak('retard'),350);break;}}
+    if(agl<2500&&agl>50&&-vs>2200+agl*.6&&now-XF.lastCall>2.5){XF.lastCall=now;showMsg('⚠ SINK RATE',1200);speak('sink rate. pull up',1.2);}
+    if(agl<1000&&agl>100&&plane.gearPos<.5&&kts<200&&now-XF.lastCall>6){XF.lastCall=now;showMsg('⚠ TOO LOW GEAR',1500);speak('too low gear');}
+    if(agl<1000&&agl>200&&plane.flaps<1&&kts<190&&plane.gearPos>.8&&now-XF.lastCall>8){XF.lastCall=now;showMsg('⚠ TOO LOW FLAPS',1500);speak('too low flaps');}
+  }
+  if(air&&agl<400&&agl>30&&plane.vel.y<-8&&now-XF.lastCall>2){XF.lastCall=now;showMsg('⚠ PULL UP',1000);speak('pull up. pull up.',1.3);}
+  if(air&&agl<400&&agl>30&&faults.has('ICING')===false&&plane.alpha>ACFG.stallAlpha*.92&&now-XF.lastCall>3){XF.lastCall=now;speak('stall. stall.');}
+  XF.lastAgl=agl;
+  if(!air)XF.lastAgl=0;
+  /* dynamic PAPI */
+  if(window.apPapi&&window.apGeo){const g=window.apGeo;const inv=g.root.getWorldMatrix().clone().invert();const lp=BABYLON.Vector3.TransformCoordinates(plane.pos,inv);
+    for(const q of window.apPapi){const bp=q.pb.position;const dz=(lp.z-bp.z)*q.e*-1;/* positive when on approach side */
+      const hd=Math.hypot(lp.x-bp.x,lp.z-bp.z);
+      if(dz<0||hd>16000){q.pm.emissiveColor.set(.5,.1,.1);q.pm.diffuseColor.set(.5,.1,.1);continue;}
+      const ang=Math.atan2(plane.pos.y-g.root.position.y,hd)*180/Math.PI,white=ang>2.5+q.i*.333;
+      const c=white?[1,1,1]:[1,.12,.08];q.pm.emissiveColor.set(c[0],c[1],c[2]);q.pm.diffuseColor.set(c[0],c[1],c[2]);}}
+}
+scene.registerBeforeRender(()=>{try{xfUpdate(Math.min(.05,engine.getDeltaTime()/1000));}catch(e){}});
+/* extra landing light: bright taxi/nose light + intensity by AGL */
+(function(){const nl=new BABYLON.SpotLight('noseL',new BABYLON.Vector3(0,-1.5,16),new BABYLON.Vector3(0,-.18,1),1.3,1.2,scene);nl.parent=aircraftRoot;nl.intensity=6;nl.range=500;nl.diffuse=new BABYLON.Color3(1,.95,.8);
+  scene.registerBeforeRender(()=>{nl.setEnabled(landingOn);const a=plane.pos.y-sampleSurface(plane.pos.x,plane.pos.z);llights.forEach(l=>{l.range=Math.min(2200,400+a*1.2);});});})();
+
+/* ===== MINIMUMS + EXTRA GPWS ===== */
+const MINS={on:true,dh:200,last:9999,appr:false,hit:false,bank:0,ter:0,os:false,apPrev:false,altAl:false};
+(function(){
+  const fms=document.getElementById('fms');
+  if(fms){const row=document.createElement('div');row.className='row';row.innerHTML='<span class="lbl">MINIMUMS (RA ft)</span><input id="minsIn" type="number" step="10" value="200"><button id="minsOn" class="on">ON</button>';
+    const lbl=[...fms.querySelectorAll('.lbl')].find(e=>e.textContent==='FLIGHT PLAN');if(lbl)fms.insertBefore(row,lbl);else fms.appendChild(row);
+    row.querySelector('#minsIn').addEventListener('change',e=>{const v=parseFloat(e.target.value);if(isFinite(v))MINS.dh=Math.max(0,v);});
+    row.querySelector('#minsOn').addEventListener('click',e=>{MINS.on=!MINS.on;e.target.classList.toggle('on',MINS.on);e.target.textContent=MINS.on?'ON':'OFF';});}
+  const mm=document.createElement('div');mm.id='minsHud';mm.style.cssText='position:fixed;left:50%;top:132px;transform:translateX(-50%);z-index:20;padding:4px 14px;border-radius:6px;font:700 15px Consolas,monospace;letter-spacing:3px;color:#ffd400;background:rgba(0,0,0,.55);border:1px solid #ffd400;display:none;pointer-events:none';document.body.appendChild(mm);
+  scene.registerBeforeRender(()=>{try{
+    const now=performance.now()/1000,air=!plane.onGround&&!plane.crashed;
+    const agl=Math.max(0,(plane.pos.y-sampleSurface(plane.pos.x,plane.pos.z)-(ACFG.gearHeight||2.5))*3.28084),vs=plane.vel.y*196.85,kts=plane.speed*1.94384;
+    /* minimums */
+    if(MINS.on&&air&&!faults.has('RADALT_FAIL')){
+      const dh=MINS.dh;
+      if(agl>dh+150)MINS.hit=false,MINS.appr=false;
+      if(vs<-100&&plane.gearPos>.5){
+        if(!MINS.appr&&MINS.last>dh+100&&agl<=dh+100&&agl>dh){MINS.appr=true;showMsg('APPROACHING MINIMUMS',2000);speak('approaching minimums');}
+        if(!MINS.hit&&MINS.last>dh&&agl<=dh){MINS.hit=true;showMsg('MINIMUMS',2500);speak('minimums');}
+      }
+      mm.style.display=(agl<dh+400&&plane.gearPos>.5)?'block':'none';mm.textContent='MIN '+dh+(MINS.hit?' · MINIMUMS':'');mm.style.color=MINS.hit?'#ff9a2e':'#ffd400';
+      MINS.last=agl;
+    } else {mm.style.display='none';MINS.last=9999;if(!air){MINS.hit=false;MINS.appr=false;}}
+    /* bank angle */
+    if(air&&agl>30&&agl<2500){plane.quat.toRotationMatrix(_nm);const bk=Math.abs(Math.asin(BABYLON.Scalar.Clamp(BABYLON.Vector3.TransformNormal(new BABYLON.Vector3(1,0,0),_nm).y,-1,1))*180/Math.PI);
+      if(bk>40&&now-MINS.bank>3){MINS.bank=now;showMsg('⚠ BANK ANGLE',1200);speak('bank angle');}}
+    /* overspeed */
+    if(air&&kts>345){if(!MINS.os){MINS.os=true;showMsg('⚠ OVERSPEED',1500);speak('overspeed');}}else if(kts<335)MINS.os=false;
+    /* windshear */
+    if(air&&faults.has('MICROBURST')&&now-(MINS.ws||0)>4){MINS.ws=now;showMsg('⚠ WINDSHEAR',1500);speak('windshear');}
+    /* terrain ahead */
+    if(air&&agl<2500&&agl>80&&plane.speed>50&&now-MINS.ter>3){
+      const t1=sampleTerrain(plane.pos.x+plane.vel.x*10,plane.pos.z+plane.vel.z*10),t2=sampleTerrain(plane.pos.x+plane.vel.x*5,plane.pos.z+plane.vel.z*5);
+      if(t2>plane.pos.y-60){MINS.ter=now;showMsg('⚠ TERRAIN · PULL UP',1800);speak('terrain pull up');}
+      else if(t1>plane.pos.y-60&&plane.gearPos<.5){MINS.ter=now;showMsg('⚠ TERRAIN',1500);speak('terrain');}}
+    /* don't sink after takeoff */
+    if(air&&agl<700&&agl>60&&vs<-200&&plane.gearPos<.3&&plane.flaps<=1&&kts>140&&now-(MINS.ds||0)>4){MINS.ds=now;showMsg("⚠ DON'T SINK",1200);speak("don't sink");}
+    /* altitude alert */
+    if(AP.master&&AP.altMode&&air){const d=Math.abs(AP.altTarget-plane.pos.y*3.28084);
+      if(d<1000&&d>250&&vs*(AP.altTarget-plane.pos.y*3.28084)>0&&!MINS.altAl){MINS.altAl=true;showMsg('ALTITUDE ALERT',1500);speak('altitude alert');}
+      if(d<60&&MINS.altAl){MINS.altAl=false;MINS.cap=true;speak('altitude entering');}
+      if(d>250&&MINS.cap){MINS.cap=false;showMsg('ALTITUDE DEVIATION',1500);speak('altitude deviation');}}
+    if(MINS.apPrev&&!AP.master){speak('autopilot disconnect');}
+    MINS.apPrev=AP.master;
+  }catch(e){}});
+  const sb=document.getElementById('startBtn');if(sb)sb.addEventListener('click',()=>{speak('startup');});
+})();
+
+window.addEventListener('keydown',e=>{if(e.code==='KeyM'&&!/INPUT|SELECT/.test((e.target||{}).tagName||'')){plane._ab=!plane._ab;showMsg('AUTOBRAKE '+(plane._ab?'ON (MED)':'OFF'));}});
 status('render loop');
 let lastTime=performance.now();
 let terrainCheckTimer=0,fpsAcc=0,hwScale=1/Math.min(window.devicePixelRatio||1,1.5);
@@ -3910,8 +4204,372 @@ startBtn.addEventListener('click',async()=>{
 });
 respawnBtn.addEventListener('click',respawn);
 setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classList.add('hidden');},20000);
+/* ================================================================== */
+/* ===== TYCOON / CAREER GAMIFICATION LAYER (self-contained) ======== */
+/* ================================================================== */
+(function initCareer(){
+  const SAVE='bf737_career_v1';
+  const DEF={
+    money:5000, xp:0, level:1,
+    upgrades:{fleet:1, engines:0, comfort:0, safety:0},
+    stats:{flights:0, crashes:0, bestLandingFpm:9999, totalEarned:0, perfectLandings:0, faultsHandled:0}
+  };
+  let C=(()=>{ try{const s=JSON.parse(localStorage.getItem(SAVE)||'null');
+    if(s&&typeof s==='object') return Object.assign({},DEF,s,{stats:Object.assign({},DEF.stats,s.stats||{}),upgrades:Object.assign({},DEF.upgrades,s.upgrades||{})});
+  }catch(e){} return JSON.parse(JSON.stringify(DEF)); })();
+  const save=()=>{try{localStorage.setItem(SAVE,JSON.stringify(C));}catch(e){}};
 
+  const FLEET=[
+    {name:'B737-700', pax:130, speed:1.00, cost:0,     mult:1.0},
+    {name:'B737-800', pax:180, speed:1.05, cost:0,     mult:1.2},
+    {name:'B737 MAX', pax:200, speed:1.10, cost:25000, mult:1.55},
+    {name:'B787-9',   pax:290, speed:1.20, cost:90000, mult:2.20},
+  ];
+  const UPGRADES={
+    engines:{name:'Engine Efficiency', max:5, baseCost:4000, per:0.05, effect:'+5% payout per level · greener fuel'},
+    comfort:{name:'Passenger Comfort', max:5, baseCost:3000, per:0.10, effect:'+10% tips per level · happy pax'},
+    safety: {name:'Safety Systems',    max:5, baseCost:5000, per:0.08, effect:'−8% crash penalty per level · +8% payout bonus'},
+  };
+  const xpForLevel=l=>l*1000;
+
+  /* ---------- state ---------- */
+  let pendingContract=null, currentFlight=null, lastOnGround=false;
+  let lastFlightPax=0, lastFlightDep='';
+
+  /* ---------- HUD strip ---------- */
+  const hud=document.createElement('div'); hud.id='careerHud';
+  hud.innerHTML=`
+    <div class="chStat"><span class="chIco">💰</span><span id="chMoney">$0</span></div>
+    <div class="chStat"><span class="chIco">⭐</span><span id="chLvl">Lv 1</span><span id="chXp" style="opacity:.55;font-size:10px">0 XP</span></div>
+    <div class="chStat"><span class="chIco">👥</span><span id="chPax">0 pax</span></div>
+    <button class="chBtn" id="chContr">📋 CONTRACTS</button>
+    <button class="chBtn" id="chShop">🛒 HANGAR</button>`;
+  document.body.appendChild(hud);
+
+  /* ---------- contracts panel ---------- */
+  const contrEl=document.createElement('div'); contrEl.id='contrPanel';
+  contrEl.innerHTML=`<div class="cpHead"><span>📋 DISPATCH · CONTRACT BOARD</span><button id="cpX">✕</button></div>
+    <div class="cpSub">Pick a contract — this sets the weather and the payout base. Landing quality multiplies the reward.</div>
+    <div id="cpList"></div>`;
+  document.body.appendChild(contrEl);
+
+  /* ---------- shop panel ---------- */
+  const shopEl=document.createElement('div'); shopEl.id='shopPanel';
+  shopEl.innerHTML=`<div class="cpHead"><span>🛒 HANGAR · UPGRADES</span><button id="spX">✕</button></div>
+    <div id="spTabs">
+      <button class="spTab on" data-tab="fleet">FLEET</button>
+      <button class="spTab" data-tab="upg">UPGRADES</button>
+      <button class="spTab" data-tab="stat">STATS</button>
+    </div>
+    <div id="spBody"></div>`;
+  document.body.appendChild(shopEl);
+
+  /* ---------- summary modal ---------- */
+  const sModal=document.createElement('div'); sModal.id='summaryModal';
+  document.body.appendChild(sModal);
+
+  /* ---------- style ---------- */
+  const css=document.createElement('style');
+  css.textContent=`
+  #careerHud{position:fixed;top:52px;left:50%;transform:translateX(-50%);z-index:9998;display:flex;gap:8px;align-items:center;padding:6px 10px;border-radius:10px;background:linear-gradient(180deg,rgba(10,40,70,.92),rgba(6,20,40,.95));border:1px solid rgba(80,200,255,.6);box-shadow:0 4px 20px rgba(0,0,0,.6);font:600 12px Consolas,monospace;color:#9fe0ff;letter-spacing:.5px;transition:opacity .3s}
+  body.cockpit #careerHud{opacity:.75}
+  .chStat{display:flex;gap:5px;align-items:center;padding:3px 10px;background:rgba(0,0,0,.35);border-radius:6px;border:1px solid rgba(80,200,255,.2);transition:all .2s}
+  .chStat.pulse{animation:hudPulse .6s ease-out}
+  @keyframes hudPulse{0%{transform:scale(1)}30%{transform:scale(1.12);box-shadow:0 0 20px #7dffa0}100%{transform:scale(1)}}
+  .chIco{font-size:13px}
+  #chMoney{color:#7dffa0;font-weight:700}
+  #chLvl{color:#ffd060}
+  .chBtn{padding:6px 11px;border-radius:6px;background:linear-gradient(180deg,#2a7dd0,#164a80);border:1px solid rgba(120,200,255,.7);color:#fff;font:600 11px Consolas,monospace;letter-spacing:.8px;cursor:pointer}
+  .chBtn:hover{background:linear-gradient(180deg,#38a0e8,#1a5fa0)}
+
+  #contrPanel,#shopPanel{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:99999;width:min(760px,94vw);max-height:88vh;overflow:auto;padding:18px 22px;border-radius:14px;background:rgba(8,20,34,.98);border:1px solid rgba(120,200,255,.5);box-shadow:0 20px 60px rgba(0,0,0,.85);font-family:Consolas,monospace;color:#eaf6ff;display:none}
+  #contrPanel.show,#shopPanel.show{display:block;animation:popIn .25s ease-out}
+  @keyframes popIn{from{transform:translate(-50%,-48%) scale(.95);opacity:0}to{transform:translate(-50%,-50%) scale(1);opacity:1}}
+  .cpHead{display:flex;justify-content:space-between;align-items:center;font-size:14px;letter-spacing:2px;color:#9fe0ff;padding-bottom:10px;border-bottom:1px solid rgba(120,200,255,.25);margin-bottom:14px}
+  .cpHead button{background:transparent;border:1px solid rgba(120,200,255,.4);color:#9fe0ff;width:30px;height:30px;border-radius:6px;cursor:pointer;font-size:14px}
+  .cpSub{font-size:11px;color:#7f9ab0;margin-bottom:12px;line-height:1.5}
+  .ctr{display:grid;grid-template-columns:1fr auto;gap:10px;padding:12px 14px;margin-bottom:8px;border-radius:10px;background:rgba(0,20,40,.5);border:1px solid rgba(120,200,255,.2);cursor:pointer;transition:all .15s}
+  .ctr:hover{border-color:#4fc3ff;background:rgba(10,40,70,.7);transform:translateX(3px)}
+  .ctr.sel{border-color:#7dffa0;background:rgba(20,80,40,.4);box-shadow:0 0 20px rgba(120,255,160,.15)}
+  .ctr-title{font-size:13px;color:#eaf6ff;letter-spacing:.5px;margin-bottom:4px}
+  .ctr-desc{font-size:10.5px;color:#7fa5c0;line-height:1.5}
+  .ctr-reward{text-align:right;font-size:15px;color:#7dffa0;font-weight:700;white-space:nowrap}
+  .ctr-reward small{display:block;color:#ffd060;font-size:10px;font-weight:500;margin-top:3px}
+  .diff-HARD{color:#ff8080}.diff-MED{color:#ffd060}.diff-EASY{color:#7dffa0}
+
+  #spTabs{display:flex;gap:6px;margin-bottom:14px}
+  .spTab{padding:8px 16px;border-radius:6px;background:rgba(0,20,40,.6);border:1px solid rgba(120,200,255,.25);color:#7fa5c0;font:600 11px Consolas,monospace;letter-spacing:1px;cursor:pointer}
+  .spTab.on{background:rgba(40,120,200,.5);color:#eaf6ff;border-color:#4fc3ff}
+  .spItem{display:grid;grid-template-columns:1fr auto;gap:12px;padding:12px 14px;margin-bottom:8px;border-radius:10px;background:rgba(0,20,40,.5);border:1px solid rgba(120,200,255,.2)}
+  .spItem.owned{border-color:#7dffa0;background:rgba(20,60,30,.35)}
+  .spItem.current{border-color:#ffd060;background:rgba(60,50,10,.35)}
+  .spName{font-size:13px;color:#eaf6ff;margin-bottom:3px}
+  .spDesc{font-size:10.5px;color:#7fa5c0;line-height:1.4}
+  .spBuy{padding:8px 14px;border-radius:6px;border:1px solid #4fc3ff;background:rgba(40,120,200,.5);color:#fff;font:600 11px Consolas,monospace;cursor:pointer;white-space:nowrap;align-self:center;transition:all .15s}
+  .spBuy:hover{background:rgba(60,160,240,.7)}
+  .spBuy:disabled{opacity:.4;cursor:not-allowed;background:rgba(60,60,60,.4);border-color:#666}
+  .spBuy.cur{background:rgba(60,50,10,.4);border-color:#ffd060;color:#ffd060;cursor:default}
+  .spBuy.own{background:rgba(20,60,30,.5);border-color:#7dffa0;color:#7dffa0;cursor:default}
+
+  #summaryModal{position:fixed;inset:0;z-index:100000;display:none;align-items:center;justify-content:center;background:rgba(0,5,15,.85);backdrop-filter:blur(6px)}
+  #summaryModal.show{display:flex}
+  .sumCard{width:min(520px,92vw);padding:30px 34px;border-radius:16px;background:linear-gradient(180deg,rgba(20,50,90,.98),rgba(10,25,50,.98));border:1px solid rgba(120,200,255,.5);box-shadow:0 30px 90px rgba(0,0,0,.9);text-align:center;color:#eaf6ff;font-family:Consolas,monospace;animation:sumIn .5s ease-out}
+  @keyframes sumIn{from{transform:scale(.85);opacity:0}to{transform:scale(1);opacity:1}}
+  .sumGrade{font-size:88px;font-weight:900;line-height:1;margin:8px 0;text-shadow:0 0 40px currentColor}
+  .sumGrade.S{color:#ffd700}.sumGrade.A{color:#7dffa0}.sumGrade.B{color:#4fc3ff}.sumGrade.C{color:#ffd060}.sumGrade.F{color:#ff6060}
+  .sumTitle{font-size:12px;letter-spacing:4px;color:#7fa5c0;text-transform:uppercase}
+  .sumSubtitle{font-size:22px;letter-spacing:2px;margin:4px 0 18px;color:#eaf6ff}
+  .sumRow{display:flex;justify-content:space-between;padding:7px 0;font-size:13px;border-bottom:1px solid rgba(120,200,255,.15)}
+  .sumRow.final{margin-top:10px;font-size:16px;font-weight:700;padding-top:14px;border-top:2px solid rgba(120,200,255,.3);border-bottom:none}
+  .sumRow .lbl{color:#7fa5c0}
+  .sumBtn{margin-top:20px;padding:12px 30px;border:none;border-radius:8px;background:linear-gradient(90deg,#0d6efd,#38b6ff);color:#fff;font:700 13px Consolas,monospace;letter-spacing:3px;cursor:pointer}
+  .sumBtn:hover{filter:brightness(1.15)}
+  .sumLevelUp{display:inline-block;padding:5px 14px;margin:10px 0 4px;border-radius:20px;background:linear-gradient(90deg,#ffd700,#ffb020);color:#3a2a00;font:700 11px Consolas,monospace;letter-spacing:1.5px;animation:lvlPulse 1s ease-in-out infinite alternate}
+  @keyframes lvlPulse{from{transform:scale(1);box-shadow:0 0 0 0 rgba(255,215,0,.7)}to{transform:scale(1.08);box-shadow:0 0 0 14px rgba(255,215,0,0)}}
+
+  body.mobile #careerHud{top:auto;bottom:200px;left:6px;transform:none;flex-wrap:wrap;max-width:calc(100vw - 12px);font-size:10px;padding:4px 6px}
+  body.mobile .chStat{padding:2px 6px}
+  body.mobile .chBtn{padding:4px 8px;font-size:10px}
+  `;
+  document.head.appendChild(css);
+
+  /* ---------- HUD render ---------- */
+  function renderHUD(){
+    document.getElementById('chMoney').textContent='$'+C.money.toLocaleString();
+    document.getElementById('chLvl').textContent='Lv '+C.level;
+    document.getElementById('chXp').textContent=C.xp+'/'+xpForLevel(C.level)+' XP';
+    const f=FLEET[C.upgrades.fleet]||FLEET[1];
+    const pax=currentFlight?currentFlight.passengers:(pendingContract?pendingContract.pax:f.pax);
+    document.getElementById('chPax').textContent=pax+' pax';
+  }
+  function pulse(id){const el=document.getElementById(id);if(!el)return;el.classList.remove('pulse');void el.offsetWidth;el.classList.add('pulse');}
+
+  /* ---------- contracts ---------- */
+  function genContracts(){
+    const dests=['LSZH','EGLL','KJFK','OMDB','RJTT','YSSY','KSFO','LFPG','EHAM','CYXE','CYQR'];
+    const wxs=['clear','cloudy','rain','storm','fog','snow','windy','turbulent'];
+    const wxBonus={clear:1,cloudy:1.05,rain:1.2,storm:1.55,fog:1.4,snow:1.3,windy:1.35,turbulent:1.45};
+    const list=[];
+    for(let i=0;i<4;i++){
+      const dest=dests[Math.floor(Math.random()*dests.length)];
+      const wx=wxs[Math.floor(Math.random()*wxs.length)];
+      const pax=100+Math.floor(Math.random()*110);
+      const pay=Math.round(pax*24*wxBonus[wx]*(0.85+Math.random()*0.35));
+      const xp=Math.round(pay/6);
+      const diff=wxBonus[wx]>1.4?'HARD':wxBonus[wx]>1.15?'MED':'EASY';
+      list.push({id:'c'+i, dest, wx, pax, pay, xp, difficulty:diff});
+    }
+    return list;
+  }
+  let contractList=genContracts();
+
+  function renderContracts(){
+    document.getElementById('cpList').innerHTML=contractList.map(c=>`
+      <div class="ctr ${pendingContract&&pendingContract.id===c.id?'sel':''}" data-cid="${c.id}">
+        <div>
+          <div class="ctr-title">${c.dest} · ${c.wx.toUpperCase()} · <span class="diff-${c.difficulty}">${c.difficulty}</span></div>
+          <div class="ctr-desc">${c.pax} passengers · Weather set to <b>${c.wx}</b> when you start. Payout scales with landing rate, comfort, engine efficiency and fault handling.</div>
+        </div>
+        <div class="ctr-reward">$${c.pay.toLocaleString()}<small>+${c.xp} XP</small></div>
+      </div>`).join('');
+    document.querySelectorAll('#cpList .ctr').forEach(n=>{
+      n.addEventListener('click',()=>{
+        const cid=n.dataset.cid, c=contractList.find(x=>x.id===cid);
+        if(pendingContract&&pendingContract.id===cid){ pendingContract=null; }
+        else {
+          pendingContract=c;
+          const ws=document.getElementById('wxSelect');
+          if(ws){ ws.value=c.wx; if(!currentFlight) ws.dispatchEvent(new Event('change')); }
+          showMsg('📋 CONTRACT SELECTED · '+c.wx.toUpperCase()+' · $'+c.pay, 2500);
+        }
+        renderContracts(); renderHUD();
+      });
+    });
+  }
+
+  /* ---------- shop ---------- */
+  let shopTab='fleet';
+  function renderShop(){
+    const body=document.getElementById('spBody');
+    document.querySelectorAll('.spTab').forEach(t=>t.classList.toggle('on',t.dataset.tab===shopTab));
+    if(shopTab==='fleet'){
+      body.innerHTML=FLEET.map((f,i)=>{
+        const owned=(i===0)||(C.upgrades.fleet>=i&&i<C.upgrades.fleet+1)||(i<C.upgrades.fleet);
+        const cur=C.upgrades.fleet===i;
+        const ownedAll=i<=C.upgrades.fleet;
+        const canBuy=!ownedAll&&C.money>=f.cost&&i===C.upgrades.fleet+1;
+        const btn=cur?'<button class="spBuy cur">IN USE</button>'
+          :ownedAll?'<button class="spBuy own">OWNED</button>'
+          :`<button class="spBuy" ${canBuy?'':'disabled'} data-buy-fleet="${i}">$${f.cost.toLocaleString()}</button>`;
+        return `<div class="spItem ${cur?'current':(ownedAll?'owned':'')}">
+          <div><div class="spName">${f.name}</div>
+          <div class="spDesc">${f.pax} passengers · ${Math.round(f.speed*100)}% speed · ${Math.round(f.mult*100)}% payout multiplier${i===C.upgrades.fleet+1?' · <b style="color:#4fc3ff">NEXT TIER</b>':''}</div></div>
+          ${btn}</div>`;
+      }).join('');
+      body.querySelectorAll('[data-buy-fleet]').forEach(b=>b.addEventListener('click',()=>{
+        const i=+b.dataset.buyFleet, f=FLEET[i];
+        if(C.money>=f.cost&&i===C.upgrades.fleet+1){
+          C.money-=f.cost; C.upgrades.fleet=i; save(); renderShop(); renderHUD(); pulse('chMoney');
+          showMsg('✈ NEW FLEET · '+f.name, 2500);
+        }
+      }));
+    } else if(shopTab==='upg'){
+      body.innerHTML=Object.entries(UPGRADES).map(([k,u])=>{
+        const lvl=C.upgrades[k]||0, maxed=lvl>=u.max;
+        const cost=Math.round(u.baseCost*Math.pow(1.8,lvl));
+        const canBuy=!maxed&&C.money>=cost;
+        return `<div class="spItem ${maxed?'owned':''}">
+          <div><div class="spName">${u.name} · Lv ${lvl}/${u.max}</div><div class="spDesc">${u.effect}</div></div>
+          ${maxed?'<button class="spBuy own">MAXED</button>':`<button class="spBuy" ${canBuy?'':'disabled'} data-buy-upg="${k}">$${cost.toLocaleString()}</button>`}
+        </div>`;
+      }).join('');
+      body.querySelectorAll('[data-buy-upg]').forEach(b=>b.addEventListener('click',()=>{
+        const k=b.dataset.buyUpg,u=UPGRADES[k],lvl=C.upgrades[k]||0,cost=Math.round(u.baseCost*Math.pow(1.8,lvl));
+        if(C.money>=cost&&lvl<u.max){
+          C.money-=cost; C.upgrades[k]=lvl+1; save(); renderShop(); renderHUD(); pulse('chMoney');
+          showMsg('⚙ '+u.name+' → Lv '+(lvl+1), 2000);
+        }
+      }));
+    } else {
+      body.innerHTML=`
+        <div class="spItem"><div><div class="spName">Total Flights</div></div><div style="font-size:20px;color:#7dffa0">${C.stats.flights}</div></div>
+        <div class="spItem"><div><div class="spName">Crashes</div></div><div style="font-size:20px;color:#ff6060">${C.stats.crashes}</div></div>
+        <div class="spItem"><div><div class="spName">Best Landing</div></div><div style="font-size:20px;color:#ffd060">${C.stats.bestLandingFpm<9999?C.stats.bestLandingFpm+' fpm':'—'}</div></div>
+        <div class="spItem"><div><div class="spName">Perfect Landings (S)</div></div><div style="font-size:20px;color:#ffd700">${C.stats.perfectLandings}</div></div>
+        <div class="spItem"><div><div class="spName">Faults Handled</div></div><div style="font-size:20px;color:#4fc3ff">${C.stats.faultsHandled}</div></div>
+        <div class="spItem"><div><div class="spName">Total Earned</div></div><div style="font-size:20px;color:#7dffa0">$${C.stats.totalEarned.toLocaleString()}</div></div>`;
+    }
+  }
+
+  /* ---------- wiring ---------- */
+  document.getElementById('chContr').addEventListener('click',()=>{
+    if(contrEl.classList.contains('show')){contrEl.classList.remove('show');return;}
+    contractList=genContracts(); renderContracts(); contrEl.classList.add('show'); shopEl.classList.remove('show');
+  });
+  document.getElementById('chShop').addEventListener('click',()=>{
+    if(shopEl.classList.contains('show')){shopEl.classList.remove('show');return;}
+    renderShop(); shopEl.classList.add('show'); contrEl.classList.remove('show');
+  });
+  document.getElementById('cpX').addEventListener('click',()=>contrEl.classList.remove('show'));
+  document.getElementById('spX').addEventListener('click',()=>shopEl.classList.remove('show'));
+  document.querySelectorAll('.spTab').forEach(t=>t.addEventListener('click',()=>{shopTab=t.dataset.tab;renderShop();}));
+  document.getElementById('respawnBtn').addEventListener('click',()=>{currentFlight=null;lastOnGround=false;});
+
+  /* ---------- flight lifecycle ---------- */
+  function addXP(amount){
+    C.xp+=amount; let levels=0;
+    while(C.xp>=xpForLevel(C.level)){ C.xp-=xpForLevel(C.level); C.level++; levels++; }
+    return levels;
+  }
+  function fleet(){return FLEET[C.upgrades.fleet]||FLEET[1];}
+
+  function startFlightIfNeeded(){
+    if(currentFlight||plane.hold||plane.crashed)return;
+    const ov=document.getElementById('overlay');
+    if(!ov||!ov.classList.contains('hidden'))return;
+    currentFlight={
+      tStart:performance.now(),
+      departure:currentLocation.code,
+      contract:pendingContract,
+      passengers:Math.min(fleet().pax, pendingContract?pendingContract.pax:fleet().pax),
+      faultsSeen:new Set()
+    };
+    pendingContract=null; renderHUD();
+  }
+
+  function completeLanding(){
+    if(!currentFlight)return;
+    const fpm=Math.round(Math.max(0,(plane.gearCompress||0)*4)*196.85);
+    let q;
+    if(fpm<110) q={mult:2.0, grade:'S', label:fpm+' fpm · GREASER'};
+    else if(fpm<220) q={mult:1.5, grade:'A', label:fpm+' fpm · SMOOTH'};
+    else if(fpm<550) q={mult:1.0, grade:'B', label:fpm+' fpm · FIRM'};
+    else q={mult:0.6, grade:'C', label:fpm+' fpm · HARD'};
+
+    const f=fleet();
+    const comfortMult=1+(C.upgrades.comfort||0)*UPGRADES.comfort.per;
+    const safetyMult=1+(C.upgrades.safety||0)*UPGRADES.safety.per;
+    const engineMult=1+(C.upgrades.engines||0)*UPGRADES.engines.per;
+    const farePerPax=currentFlight.contract?(currentFlight.contract.pay/currentFlight.contract.pax):200;
+    const faultBonus=currentFlight.faultsSeen.size>0?1+Math.min(1.5,currentFlight.faultsSeen.size*0.25):1;
+    const wxName=(currentWeather&&currentWeather.name?currentWeather.name.toLowerCase():'clear');
+    const wxBonus={clear:1,cloudy:1.05,rain:1.15,storm:1.4,fog:1.3,snow:1.2,crosswind:1.25,turbulent:1.35}[wxName]||1;
+
+    let base=currentFlight.passengers*farePerPax*f.mult*q.mult*comfortMult*engineMult*faultBonus*wxBonus*safetyMult;
+    const reward=Math.round(base);
+    const xp=Math.round((currentFlight.contract?currentFlight.contract.xp:100)*q.mult*faultBonus);
+
+    C.money+=reward; C.stats.totalEarned+=reward; C.stats.flights++;
+    if(fpm<C.stats.bestLandingFpm) C.stats.bestLandingFpm=fpm;
+    if(q.grade==='S') C.stats.perfectLandings++;
+    C.stats.faultsHandled+=currentFlight.faultsSeen.size;
+    const leveled=addXP(xp);
+    save();
+
+    lastFlightPax=currentFlight.passengers; lastFlightDep=currentFlight.departure;
+    const seenFaults=currentFlight.faultsSeen.size;
+    currentFlight=null;
+    renderHUD(); pulse('chMoney');
+    showSummary(q,{reward,xp,faultBonus,wxBonus,seenFaults,leveled},false);
+    contractList=genContracts();
+  }
+
+  function completeCrash(){
+    if(!currentFlight)return;
+    const disc=1-(C.upgrades.safety||0)*0.08;
+    const penalty=Math.round(2000*disc);
+    C.money=Math.max(0,C.money-penalty);
+    C.stats.crashes++; C.stats.flights++;
+    save();
+    lastFlightPax=currentFlight.passengers;
+    const seenFaults=currentFlight.faultsSeen.size;
+    currentFlight=null;
+    renderHUD();
+    const reason=document.getElementById('crashReason')?.textContent||'IMPACT';
+    showSummary({mult:0,grade:'F',label:reason},{reward:-penalty,xp:0,faultBonus:1,wxBonus:1,seenFaults,leveled:0},true);
+    contractList=genContracts();
+  }
+
+  function showSummary(q,r,isCrash){
+    const el=document.getElementById('summaryModal');
+    el.innerHTML=`<div class="sumCard">
+      <div class="sumTitle">${isCrash?'FLIGHT ENDED':'MISSION COMPLETE'}</div>
+      <div class="sumGrade ${q.grade}">${q.grade}</div>
+      <div class="sumSubtitle">${isCrash?'CRASHED':'LANDED SUCCESSFULLY'}</div>
+      ${isCrash?`<div class="sumRow"><span class="lbl">Reason</span><span>${q.label}</span></div>`
+        :`<div class="sumRow"><span class="lbl">Landing Rate</span><span>${q.label}</span></div>
+          <div class="sumRow"><span class="lbl">Passengers</span><span>${lastFlightPax}</span></div>`}
+      ${!isCrash&&r.faultBonus>1?`<div class="sumRow"><span class="lbl">Fault Handling Bonus</span><span style="color:#4fc3ff">×${r.faultBonus.toFixed(2)}</span></div>`:''}
+      ${!isCrash&&r.wxBonus>1?`<div class="sumRow"><span class="lbl">Weather Bonus</span><span style="color:#4fc3ff">×${r.wxBonus.toFixed(2)}</span></div>`:''}
+      ${r.leveled>0?`<div class="sumLevelUp">⭐ LEVEL UP → Lv ${C.level}</div>`:''}
+      <div class="sumRow final"><span class="lbl">${isCrash?'PENALTY':'PAYOUT'}</span>
+        <span style="color:${isCrash?'#ff6060':'#7dffa0'}">${isCrash?'−$'+Math.abs(r.reward).toLocaleString():'+$'+r.reward.toLocaleString()}</span></div>
+      ${!isCrash?`<div class="sumRow" style="border:none"><span class="lbl">XP</span><span style="color:#ffd060">+${r.xp}</span></div>`:''}
+      <button class="sumBtn" id="sumClose">CONTINUE</button></div>`;
+    el.classList.add('show');
+    document.getElementById('sumClose').addEventListener('click',()=>el.classList.remove('show'));
+  }
+
+  /* ---------- per-frame tick ---------- */
+  scene.registerBeforeRender(()=>{
+    if(!currentFlight){
+      startFlightIfNeeded();
+      if(currentFlight) showMsg('✈ FLIGHT STARTED · '+currentFlight.passengers+' PAX', 2500);
+    }
+    if(currentFlight){
+      const active=faults.list();
+      for(const f of active) currentFlight.faultsSeen.add(f);
+
+      if(plane.crashed){ completeCrash(); lastOnGround=plane.onGround; return; }
+      if(plane.justTouched && plane.gearPos>0.9 && !lastOnGround){ completeLanding(); }
+      lastOnGround=plane.onGround;
+    }
+  });
+
+  renderHUD();
+  console.log('[CAREER] initialized · money=$'+C.money+' level='+C.level);
+})();
 } /* end main */
 </script>
 </body>
-  </html>
+</html>
