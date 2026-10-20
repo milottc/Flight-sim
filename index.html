@@ -5395,12 +5395,17 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
   const save=()=>{try{localStorage.setItem(SAVE,JSON.stringify(C));}catch(e){}};
   if(!C.fleetV){const old=['cessna','atr','e190','b737','b787'];const nw=['cessna','atr','e190','dc9','b737','dc10','b787','a350'];
     const k=nw.indexOf(old[C.upgrades.fleet]);C.upgrades.fleet=k>=0?k:0;C.fleetV=2;save();}
+  if(C.fleetV===2){const o=['cessna','atr','e190','dc9','b737','dc10','b787','a350'],n=['cessna','dc3','atr','e190','dc9','b737','dc8','f18','dc10','b787','a350','b747'];
+    const mp=i=>{const k=n.indexOf(o[i]);return k>=0?k:0;};
+    const mf=C.maxFleet==null?C.upgrades.fleet:C.maxFleet;C.upgrades.fleet=mp(C.upgrades.fleet);C.maxFleet=mp(mf);C.fleetV=3;save();}
   if(C.maxFleet==null||C.maxFleet<C.upgrades.fleet){C.maxFleet=C.upgrades.fleet;save();}
 
   /* ---------- FLEET PROGRESSION ---------- */
   const FLEET=[
     { id:'cessna', name:'Cessna 172',     tag:'GA trainer',        pax:3,   fare:120, cruise:120, cost:0,      model:'cessna', camScale:0.35,
       physics:{mass:4000,  wingArea:16,   thrust:12000, CLmax:1.7, gearHeight:4.25}, fixedGear:true,  hasCockpit:true },
+    { id:'dc3',    name:'Douglas DC-3',   tag:'Classic piston twin',pax:28, fare:110, cruise:150, cost:1500,   model:'dc3', camScale:0.6,
+      physics:{mass:11500, wingArea:91,   thrust:36000, CLmax:1.8, gearHeight:2.5}, fixedGear:false, hasCockpit:true  },
     { id:'atr',    name:'ATR 72',         tag:'Regional turboprop',pax:70,  fare:80,  cruise:270, cost:3000,   model:'atr', camScale:0.55,
       physics:{mass:22000, wingArea:61,   thrust:55000, CLmax:1.8, gearHeight:2.35}, fixedGear:false, hasCockpit:true  },
     { id:'e190',   name:'Embraer E190',   tag:'Regional jet',      pax:100, fare:60,  cruise:450, cost:12000,  model:'e190', camScale:0.8,
@@ -5409,12 +5414,18 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
       physics:{mass:48000, wingArea:93,   thrust:140000,CLmax:1.8, gearHeight:2.1}, fixedGear:false, hasCockpit:true  },
     { id:'b737',   name:'Boeing 737-800', tag:'Narrowbody',        pax:180, fare:45,  cruise:470, cost:40000,  model:'737', camScale:1.0,
       physics:{mass:65000, wingArea:124.6,thrust:245000,CLmax:1.85,gearHeight:4.05}, fixedGear:false, hasCockpit:true  },
+    { id:'dc8',    name:'Douglas DC-8',   tag:'Classic quad jet',  pax:189, fare:48,  cruise:480, cost:55000,  model:'dc8', camScale:1.15,
+      physics:{mass:140000,wingArea:272,  thrust:400000,CLmax:1.85,gearHeight:3.5}, fixedGear:false, hasCockpit:true  },
+    { id:'f18',    name:'F/A-18 Hornet',  tag:'Fighter jet',       pax:2,   fare:5000,cruise:540, cost:62000,  model:'f18', camScale:0.55,
+      physics:{mass:16000, wingArea:38,   thrust:190000,CLmax:1.8, gearHeight:2.2}, fixedGear:false, hasCockpit:true  },
     { id:'dc10',   name:'McDonnell Douglas DC-10', tag:'Classic trijet',pax:270, fare:50,  cruise:480, cost:70000,  model:'dc10', camScale:1.3,
       physics:{mass:200000,wingArea:340,  thrust:520000,CLmax:1.9, gearHeight:3.6}, fixedGear:false, hasCockpit:true  },
     { id:'b787',   name:'Boeing 787-9',   tag:'Widebody',          pax:290, fare:55,  cruise:490, cost:100000, model:'787', camScale:1.2,
       physics:{mass:250000,wingArea:377,  thrust:640000,CLmax:1.9, gearHeight:5.47}, fixedGear:false, hasCockpit:true  },
     { id:'a350',   name:'Airbus A350-900', tag:'Widebody',         pax:325, fare:58,  cruise:490, cost:150000, model:'a350', camScale:1.25,
-      physics:{mass:260000,wingArea:442,  thrust:680000,CLmax:1.9, gearHeight:3.8}, fixedGear:false, hasCockpit:true  }
+      physics:{mass:260000,wingArea:442,  thrust:680000,CLmax:1.9, gearHeight:3.8}, fixedGear:false, hasCockpit:true  },
+    { id:'b747',   name:'Boeing 747-400', tag:'Jumbo jet',         pax:416, fare:62,  cruise:490, cost:250000, model:'b747', camScale:1.45,
+      physics:{mass:340000,wingArea:511,  thrust:900000,CLmax:1.9, gearHeight:5.3}, fixedGear:false, hasCockpit:true  }
   ];
   const UPGRADES={
     engines:{name:'Engine Efficiency',max:5,baseCost:4000,per:0.05,effect:'+5% payout per level'},
@@ -5718,6 +5729,38 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
     };
   })();
 
+  (function(){
+    const F=(arr)=>arr.map(p=>({w:1,h:1,yo:0,...p}));
+    DRESS.dc3={
+      fus:F([{z:10,r:.1},{z:9.2,r:.55},{z:7.5,r:.9},{z:4,r:1.02},{z:-3,r:.95},{z:-7,r:.6,yo:.25},{z:-9.3,r:.3,yo:.45},{z:-9.8,r:.08,yo:.5}]),
+      wing:[{s:1.2,y:-.55,zLE:2.2,c:4.2},{s:5.5,y:-.35,zLE:1.7,c:3.4},{s:14.5,y:.15,zLE:.9,c:1.6}],fin:{top:4.6,zLE:-8.2,c:1.5},
+      windows:{z0:5.5,z1:-5.5,step:.75,y:.3,w:.2,h:.24},
+      stripes:[[-.3,-.05,[.75,.1,.1]]],stripeZ:[8.5,-6],
+      finColor:[.75,.1,.1],engines:[{x:5.3,y:-.2,zF:4.0,zR:-2.6,r:.58,prop:{n:3,len:1.85,w:.22,z:4.4}},{x:-5.3,y:-.2,zF:4.0,zR:-2.6,r:.58,prop:{n:3,len:1.85,w:.22,z:4.4}}],
+      panes:{z:8.4,k:.6},lip:[.75,.1,.1]
+    };
+    DRESS.dc8={
+      fus:F([{z:28,r:.12},{z:26,r:1.0},{z:23,r:1.65},{z:18,r:1.9},{z:-14,r:1.9},{z:-21,r:1.5,yo:.4},{z:-26,r:.7,yo:1.0},{z:-28.5,r:.12,yo:1.3}]),
+      wing:[{s:1.9,y:-1.1,zLE:4,c:8},{s:9,y:-.5,zLE:-1.5,c:5.5},{s:21.5,y:.4,zLE:-10,c:2.2}],fin:{top:8.5,zLE:-25,c:2.2},
+      windows:{z0:22,z1:-19,step:.8,y:.55,w:.2,h:.26},
+      stripes:[[-.5,-.15,[.75,.1,.1]],[-.1,0,[.1,.1,.15]]],stripeZ:[23,-20],
+      finColor:[.75,.1,.1],engines:[{x:5.2,y:-2.1,zF:3.1,zR:-2.5,r:.75,pylon:true},{x:-5.2,y:-2.1,zF:3.1,zR:-2.5,r:.75,pylon:true},{x:11.2,y:-1.7,zF:1.0,zR:-4.6,r:.75,pylon:true},{x:-11.2,y:-1.7,zF:1.0,zR:-4.6,r:.75,pylon:true}],
+      panes:{z:25,k:1.0},lip:[.75,.1,.1]
+    };
+    DRESS.f18={
+      fus:F([{z:9.2,r:.06},{z:8.2,r:.28,h:.9},{z:6.2,r:.55,h:.85},{z:4.0,r:.8,h:.8},{z:1.5,r:1.0,h:.72},{z:-3,r:1.05,h:.7},{z:-7,r:.85,h:.65},{z:-9,r:.4,h:.6}]),
+      wing:[{s:1,y:-.05,zLE:2,c:5.2},{s:6.15,y:.1,zLE:-2.2,c:1.9}],fin:{top:.5,zLE:-7.2,c:1.5}
+    };
+    DRESS.b747={
+      fus:F([{z:30,r:.2},{z:28,r:1.5},{z:25,r:2.5},{z:19,r:3.0},{z:-18,r:3.0},{z:-25,r:2.2,yo:.6},{z:-29,r:1.0,yo:1.5},{z:-30.5,r:.2,yo:1.9}]),
+      wing:[{s:3,y:-1.9,zLE:5,c:11},{s:12,y:-1.1,zLE:-3,c:7.5},{s:22,y:.2,zLE:-12,c:4},{s:30,y:1.6,zLE:-18,c:2}],fin:{top:13.5,zLE:-26,c:3.4},
+      windows:{z0:24,z1:-22,step:.85,y:1.0,w:.24,h:.3},
+      stripes:[[-.9,-.25,[.12,.2,.55]],[-.2,-.05,[.8,.1,.1]]],stripeZ:[27,-24],
+      finColor:[.12,.2,.55],engines:[{x:10.5,y:-3.3,zF:3.25,zR:-4.25,r:1.4,pylon:true},{x:-10.5,y:-3.3,zF:3.25,zR:-4.25,r:1.4,pylon:true},{x:21,y:-2.4,zF:-6.4,zR:-13.4,r:1.4,pylon:true},{x:-21,y:-2.4,zF:-6.4,zR:-13.4,r:1.4,pylon:true}],
+      winglet:{h:2.6,c0:1.8,c1:.6},lip:[.12,.2,.55]
+    };
+  })();
+
   function surfHW(st,z,y){
     for(let i=0;i<st.length-1;i++){
       const a=st[i],b=st[i+1],hi=Math.max(a.z,b.z),lo=Math.min(a.z,b.z);
@@ -5910,12 +5953,95 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
       ws:[1.7,1,1.4,24],gear:[[0,23],[-3.6,-4],[3.6,-4],[-3.6,-7],[3.6,-7]],gh:3.6});
   }
 
+  /* ---- DC-3 (piston twin, retractable taildragger) ---- */
+  function buildDC3Model(){
+    const g=new BABYLON.TransformNode('ac_dc3',scene);g.parent=aircraftRoot;
+    const sv=MAT.white.clone('ac_dc3silver');sv.albedoColor=new BABYLON.Color3(.78,.8,.83);sv.metallic=.6;
+    tubeSmooth('dc3_fus',[{z:10,r:.1},{z:9.2,r:.55},{z:7.5,r:.9},{z:4,r:1.02},{z:-3,r:.95},{z:-7,r:.6,yo:.25},{z:-9.3,r:.3,yo:.45},{z:-9.8,r:.08,yo:.5}]
+      .map(p=>({w:1,h:1,yo:0,flat:.12,...p})),sv,g);
+    const wing=[{s:1.2,c:4.2,t:.15,zLE:2.2,y:-.55},{s:5.5,c:3.4,t:.13,zLE:1.7,y:-.35},{s:14.5,c:1.6,t:.1,zLE:.9,y:.15}];
+    horiz('dc3_wR',wing,sv,g);horiz('dc3_wL',wing.map(st=>({...st,s:-st.s})),sv,g);
+    vert('dc3_fin',[{s:.5,c:3.4,t:.14,zLE:-6.0},{s:3.0,c:2.4,t:.12,zLE:-7.0},{s:4.6,c:1.5,t:.1,zLE:-8.2}],sv,g);
+    const ht=[{s:.2,c:2.6,t:.1,zLE:-7.3,y:.6},{s:4.6,c:1.4,t:.08,zLE:-8.7,y:.6}];
+    horiz('dc3_hR',ht,sv,g);horiz('dc3_hL',ht.map(st=>({...st,s:-st.s})),sv,g);
+    g._props=[];
+    for(const side of [1,-1]){
+      tubeSmooth('dc3_nac'+side,[{z:4.2,r:.12},{z:3.9,r:.55},{z:2.5,r:.62},{z:-1.5,r:.5},{z:-3.0,r:.2}]
+        .map(p=>({w:1,h:1,yo:0,flat:.1,...p})),sv,g).position.set(side*5.3,-.2,0);
+      const prop=BABYLON.MeshBuilder.CreateDisc('dc3_prop'+side,{radius:1.85,tessellation:20},scene);
+      prop.position.set(side*5.3,-.2,4.4);prop.material=MAT.dark;prop.parent=g;prop.isPickable=false;g._props.push(prop);
+    }
+    box(g,'dc3_ws',1.3,.55,.2,MAT.glass,[0,.5,8.1]);
+    const gh=2.2,gear=new BABYLON.TransformNode('dc3_gear',scene);gear.parent=g;
+    for(const x of [-4.2,4.2]){
+      cyl(gear,'dc3_strut',.12,.12,gh-.6,MAT.gear,[x,-(gh+.6)/2,1.4]);
+      cyl(gear,'dc3_wheel',1.0,1.0,.32,MAT.dark,[x,-gh,1.4],[0,0,Math.PI/2]);
+    }
+    cyl(gear,'dc3_strut',.07,.07,gh-.1,MAT.gear,[0,-(gh+.1)/2,-8.2]);
+    cyl(gear,'dc3_wheel',.4,.4,.14,MAT.dark,[0,-gh,-8.2],[0,0,Math.PI/2]);
+    g.metadata={gearGroup:gear,fixed:false};
+    return g;
+  }
+  /* ---- F/A-18 Hornet ---- */
+  function buildF18Model(){
+    const g=new BABYLON.TransformNode('ac_f18',scene);g.parent=aircraftRoot;
+    const gm=MAT.white.clone('ac_f18grey');gm.albedoColor=new BABYLON.Color3(.42,.45,.5);
+    tubeSmooth('f18_fus',[{z:9.2,r:.06},{z:8.2,r:.28,h:.9},{z:6.2,r:.55,h:.85},{z:4.0,r:.8,h:.8},{z:1.5,r:1.0,h:.72},{z:-3,r:1.05,h:.7},{z:-7,r:.85,h:.65},{z:-9,r:.4,h:.6}]
+      .map(p=>({w:1,h:1,yo:0,flat:.15,...p})),gm,g);
+    const wing=[{s:1.0,c:5.2,t:.08,zLE:2.0,y:-.05},{s:6.15,c:1.9,t:.06,zLE:-2.2,y:.1}];
+    horiz('f18_wR',wing,gm,g);horiz('f18_wL',wing.map(st=>({...st,s:-st.s})),gm,g);
+    const lex=[{s:.6,c:6.4,t:.05,zLE:6.2,y:.05},{s:1.9,c:3.0,t:.05,zLE:2.4,y:.02}];
+    horiz('f18_lexR',lex,gm,g);horiz('f18_lexL',lex.map(st=>({...st,s:-st.s})),gm,g);
+    const stab=[{s:.9,c:2.8,t:.05,zLE:-6.0,y:-.25},{s:3.6,c:1.4,t:.04,zLE:-8.0,y:-.2}];
+    horiz('f18_hR',stab,gm,g);horiz('f18_hL',stab.map(st=>({...st,s:-st.s})),gm,g);
+    for(const side of [1,-1]){
+      const f=vert('f18_fin'+side,[{s:0,c:3.2,t:.07,zLE:-3.0},{s:2.8,c:1.5,t:.05,zLE:-5.8}],gm,g);
+      f.position.set(side*1.0,.4,0);f.rotation.z=-side*.38;
+      box(g,'f18_int'+side,.55,.62,1.5,gm,[side*1.0,-.25,2.2]);
+      box(g,'f18_intF'+side,.5,.56,.05,MAT.dark,[side*1.0,-.25,2.97]);
+      cyl(g,'f18_ex'+side,.9,.75,1.5,MAT.dark,[side*.55,-.05,-9.4],[Math.PI/2,0,0]);
+      cyl(g,'f18_aam'+side,.18,.18,2.6,MAT.white,[side*6.25,.08,-.8],[Math.PI/2,0,0]);
+    }
+    const can=BABYLON.MeshBuilder.CreateSphere('f18_ws',{diameter:1,segments:12},scene);
+    can.scaling.set(.85,.65,2.4);can.position.set(0,.6,5.0);can.material=MAT.glass;can.parent=g;can.isPickable=false;
+    const gh=1.9,gear=new BABYLON.TransformNode('f18_gear',scene);gear.parent=g;
+    for(const [x,z] of [[0,5.5],[-1.5,-1.2],[1.5,-1.2]]){
+      cyl(gear,'f18_strut',.1,.1,gh-.5,MAT.gear,[x,-(gh+.5)/2,z]);
+      cyl(gear,'f18_wheel',.55,.55,.22,MAT.dark,[x,-gh,z],[0,0,Math.PI/2]);
+    }
+    g.metadata={gearGroup:gear,fixed:false};
+    return g;
+  }
+  function buildDC8Model(){
+    return buildJet('dc8',{
+      fus:[{z:28,r:.12},{z:26,r:1.0},{z:23,r:1.65},{z:18,r:1.9},{z:-14,r:1.9},{z:-21,r:1.5,yo:.4},{z:-26,r:.7,yo:1.0},{z:-28.5,r:.12,yo:1.3}]
+        .map(p=>({w:1,h:1,yo:0,flat:.14,...p})),
+      wing:[{s:1.9,c:8,t:.12,zLE:4,y:-1.1},{s:9,c:5.5,t:.11,zLE:-1.5,y:-.5},{s:21.5,c:2.2,t:.1,zLE:-10,y:.4}],
+      fin:[{s:1.9,c:7,t:.14,zLE:-19},{s:5,c:4.5,t:.12,zLE:-22},{s:8.5,c:2.2,t:.1,zLE:-25}],
+      htail:[{s:.3,c:4,t:.12,zLE:-21.5,y:1.2},{s:7,c:2.2,t:.1,zLE:-26,y:1.6}],
+      engines:[{x:5.2,y:-2.1,z:.3,r:.75,len:5.6},{x:-5.2,y:-2.1,z:.3,r:.75,len:5.6},{x:11.2,y:-1.7,z:-1.8,r:.75,len:5.6},{x:-11.2,y:-1.7,z:-1.8,r:.75,len:5.6}],
+      ws:[1.5,.9,.9,25.2],gear:[[0,24],[-3.0,-2],[3.0,-2],[-1.2,-5],[1.2,-5]],gh:3.2});
+  }
+  function buildB747Model(){
+    const g=buildJet('b747',{
+      fus:[{z:30,r:.2},{z:28,r:1.5},{z:25,r:2.5},{z:19,r:3.0},{z:-18,r:3.0},{z:-25,r:2.2,yo:.6},{z:-29,r:1.0,yo:1.5},{z:-30.5,r:.2,yo:1.9}]
+        .map(p=>({w:1,h:1,yo:0,flat:.12,...p})),
+      wing:[{s:3,c:11,t:.13,zLE:5,y:-1.9},{s:12,c:7.5,t:.11,zLE:-3,y:-1.1},{s:22,c:4,t:.1,zLE:-12,y:.2},{s:30,c:2,t:.08,zLE:-18,y:1.6}],
+      fin:[{s:3,c:10,t:.14,zLE:-17},{s:8,c:7,t:.12,zLE:-21.5},{s:13.5,c:3.4,t:.1,zLE:-26}],
+      htail:[{s:.3,c:6,t:.12,zLE:-22,y:1.8},{s:10,c:3,t:.1,zLE:-28,y:2.8}],
+      engines:[{x:10.5,y:-3.3,z:-.5,r:1.4,len:7.5},{x:-10.5,y:-3.3,z:-.5,r:1.4,len:7.5},{x:21,y:-2.4,z:-9.9,r:1.4,len:7},{x:-21,y:-2.4,z:-9.9,r:1.4,len:7}],
+      ws:[1.8,.9,3.0,28.2],gear:[[0,26],[-4.2,-2],[4.2,-2],[-5.4,-4.5],[5.4,-4.5],[-1.6,-6],[1.6,-6]],gh:5.0});
+    tubeSmooth('b747_fusHump',[{z:29.5,r:.15,yo:2.6},{z:28,r:1.0,yo:2.7},{z:25,r:1.5,yo:2.6},{z:15,r:1.62,yo:2.5},{z:7,r:1.45,yo:2.2},{z:-2,r:.6,yo:2.0}]
+      .map(p=>({w:1,h:1,flat:.1,...p})),MAT.white,g);
+    return g;
+  }
+
   /* ---- Cockpit cameras for the non-737 aircraft ---- */
-  const CK_EYE={cessna:[-.4,.5,.4],atr:[-.6,.8,10.9],e190:[-.6,.7,14.8],dc9:[-.6,.7,14.2],dc10:[-.7,1.2,20.2],a350:[-.7,1.3,23]};
-  const CK_K={cessna:.8,atr:1.0,e190:1.0,dc9:1.0,dc10:1.4,a350:1.4};
+  const CK_EYE={cessna:[-.4,.5,.4],atr:[-.6,.8,10.9],e190:[-.6,.7,14.8],dc9:[-.6,.7,14.2],dc10:[-.7,1.2,20.2],a350:[-.7,1.3,23],dc3:[-.55,.55,7.5],dc8:[-.65,.9,24.4],f18:[0,.6,5.2],b747:[-.7,3.1,27.4]};
+  const CK_K={cessna:.8,atr:1.0,e190:1.0,dc9:1.0,dc10:1.4,a350:1.4,dc3:.9,dc8:1.1,f18:.7,b747:1.5};
   const ckFrames={};
-  const USE_INT=new Set(['atr','e190','dc9','dc10','a350']);
-  const INT_S={atr:1,e190:1,dc9:1,dc10:1.2,a350:1.2};
+  const USE_INT=new Set(['atr','e190','dc9','dc10','a350','dc3','dc8','f18','b747']);
+  const INT_S={atr:1,e190:1,dc9:1,dc10:1.2,a350:1.2,dc3:.85,dc8:1.0,f18:.8,b747:1.2};
   const CK_HIDE=/_fus|_ws$|_sw[LR]$|_strut|_wheel|_ng[SW]|_mg[SW]|c172_prop|c172_spin/;
 
   /* ---- Detailed Cessna 172 cockpit ---- */
@@ -6154,7 +6280,7 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
   const WX_LIST=Object.keys(WX_BONUS);
   const pickWx=()=>WX_LIST[Math.floor(Math.random()*WX_LIST.length)];
   const diffFor=b=>b>1.4?'HARD':b>1.15?'MED':'EASY';
-  const altCeiling=()=>({cessna:6000,atr:20000,e190:32000,dc9:33000,b737:35000,dc10:40000,b787:41000,a350:42000}[fleet().id])||30000;
+  const altCeiling=()=>({cessna:6000,atr:20000,e190:32000,dc9:33000,b737:35000,dc10:40000,b787:41000,a350:42000,dc3:14000,dc8:42000,f18:50000,b747:45000}[fleet().id])||30000;
   const rndPax=()=>{
     const cap=fleet().pax;
     if(cap<=6) return 1+Math.floor(Math.random()*cap);
@@ -6677,13 +6803,18 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
   modelRoots.dc9=buildDC9Model();
   modelRoots.dc10=buildDC10Model();
   modelRoots.a350=buildA350Model();
-  ['cessna','atr','e190','dc9','dc10','a350'].forEach(id=>{try{dressModel(id,modelRoots[id]);}catch(e){console.error('dress',id,e);}});
+  modelRoots.dc3=buildDC3Model();
+  modelRoots.dc8=buildDC8Model();
+  modelRoots.f18=buildF18Model();
+  modelRoots.b747=buildB747Model();
+  ['cessna','atr','e190','dc9','dc10','a350','dc3','dc8','f18','b747'].forEach(id=>{try{dressModel(id,modelRoots[id]);}catch(e){console.error('dress',id,e);}});
   modelRoots.cessna.setEnabled(false);
   modelRoots.atr.setEnabled(false);
   modelRoots.e190.setEnabled(false);
   modelRoots.dc9.setEnabled(false);
   modelRoots.dc10.setEnabled(false);
   modelRoots.a350.setEnabled(false);
+  ['dc3','dc8','f18','b747'].forEach(id=>modelRoots[id].setEnabled(false));
 
   setActiveAircraft(fleet().model);
   renderHUD();
