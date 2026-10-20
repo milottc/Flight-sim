@@ -6914,79 +6914,67 @@ const FLEET = [
   renderHUD();
   renderContracts();
 
-  /* ---- WONDERFUL PLANE GIMMICK v2: WASD triggers "wonderful" in your voice ---- */
-  /* - Any WASD press fires a one-shot "wonderful" pitched by climb/descent          */
-  /* - Holding A or D (turning) holds a long looping "WONDERFULLLLLL"               */
-  /* - Pitch goes UP when climbing, DOWN when descending                             */
-  let _wonderSpeaking=false;
-  let _wonderLoop=null;
-  let _wonderPrevKeys={w:false,a:false,s:false,d:false};
-  let _wonderTurnActive=false;
+  /* ---- WONDERFUL PLANE GIMMICK v3: hold ANY WASD = infinite woNDERFulLLLLLL ---- */
+  let _wActive=false;
+
+  // Chaotic funny spellings fed to the speech engine — sounds unhinged
+  const _wForms=[
+    'woNDERful llllllll',
+    'WUNderfulllllllllll',
+    'waaaonderful lllll',
+    'wonderful llllllllllllll llllll',
+    'WONderFULLLLLLLLLL',
+    'wondrrrrrrrrful',
+    'WUNDERFULLLLL lllll lllll',
+    'wooooonderful llll llll',
+    'wonDERRRRRRful llllll',
+    'WwwwONDERFULLLLLLLLL',
+  ];
+  let _wFormIdx=0;
 
   function _wonderPitch(){
-    // climb = higher pitch, descend = lower pitch
     const vsFpm=plane.vel.y*196.85;
     return Math.max(0.3,Math.min(2.0,1.0+vsFpm/1800));
   }
 
-  function speakOnce(){
+  function _wonderLoop(){
+    if(!_wActive)return;
     if(!window.speechSynthesis)return;
-    const u=new SpeechSynthesisUtterance('wonderful');
-    u.pitch=_wonderPitch();u.rate=1.1;u.volume=1.0;
+    const p=_wonderPitch();
+    // Alternate between very fast/high and slow/low for that unhinged sound
+    const crazyRate = 0.55+Math.random()*1.1;   // 0.55 – 1.65
+    const crazyPitch = Math.max(0.3,Math.min(2.0, p + (Math.random()-0.5)*1.2));
+    const text=_wForms[_wFormIdx % _wForms.length];
+    _wFormIdx++;
+    const u=new SpeechSynthesisUtterance(text);
+    u.pitch=crazyPitch;
+    u.rate=crazyRate;
+    u.volume=1.0;
+    u.onend=()=>{ if(_wActive)_wonderLoop(); };
+    u.onerror=()=>{ if(_wActive)_wonderLoop(); };
     speechSynthesis.cancel();
     speechSynthesis.speak(u);
-    showMsg('✨ wonderful ✨',900);
+    const msgs=['woNDERFulLLLLLLLLLLLLL!!!!!!1','WONDERFUL!!!!!','✨WUNDERFULLLLL✨','wONDERFULLLLLLL!!!!','🌀 wonderful 🌀','WOOONDERFULLL!!!!1!'];
+    showMsg(msgs[Math.floor(Math.random()*msgs.length)],800);
   }
 
-  function startHoldWonderful(){
-    if(_wonderTurnActive)return;
-    _wonderTurnActive=true;
-    if(!window.speechSynthesis)return;
-    // Speak a long drawn-out "wonderfullllll" and loop it while turning
-    function loopSpeak(){
-      if(!_wonderTurnActive)return;
-      const p=_wonderPitch();
-      // Stretch the word by repeating the ending: "wonderfullllll"
-      const u=new SpeechSynthesisUtterance('wonderfullllllllll');
-      u.pitch=p;u.rate=0.78;u.volume=1.0;
-      u.onend=()=>{ if(_wonderTurnActive)loopSpeak(); };
-      speechSynthesis.cancel();
-      speechSynthesis.speak(u);
-      showMsg('🌀 WONDERFULLLLLL (pitch '+p.toFixed(2)+')', 1200);
-    }
-    loopSpeak();
+  function _wonderStart(){
+    if(_wActive)return;
+    _wActive=true;
+    _wonderLoop();
   }
 
-  function stopHoldWonderful(){
-    if(!_wonderTurnActive)return;
-    _wonderTurnActive=false;
+  function _wonderStop(){
+    if(!_wActive)return;
+    _wActive=false;
     try{speechSynthesis.cancel();}catch(e){}
   }
 
-  // Poll every frame via setInterval — check keys state for WASD edges + hold
   setInterval(()=>{
-    if(activeModelId!=='wonderful')return;
-    if(plane.crashed)return;
-
-    const w=!!keys['KeyW'], a=!!keys['KeyA'], s=!!keys['KeyS'], d=!!keys['KeyD'];
-    const turning = a || d;
-
-    // Detect fresh WASD press (edge: was false, now true)
-    const freshPress=(w&&!_wonderPrevKeys.w)||(s&&!_wonderPrevKeys.s)||
-                     ((a&&!_wonderPrevKeys.a)||(d&&!_wonderPrevKeys.d));
-
-    if(turning){
-      // Hold turning → sustained WONDERFULLLL
-      if(!_wonderTurnActive) startHoldWonderful();
-      // Keep pitch live — restart with new pitch every ~1.3s handled by loopSpeak onend
-    } else {
-      // Not turning → stop the hold
-      if(_wonderTurnActive) stopHoldWonderful();
-      // Fresh W or S press → one-shot
-      if((w&&!_wonderPrevKeys.w)||(s&&!_wonderPrevKeys.s)) speakOnce();
-    }
-
-    _wonderPrevKeys={w,a,s,d};
+    if(activeModelId!=='wonderful'){if(_wActive)_wonderStop();return;}
+    if(plane.crashed){_wonderStop();return;}
+    const anyWASD=keys['KeyW']||keys['KeyA']||keys['KeyS']||keys['KeyD'];
+    if(anyWASD)_wonderStart(); else _wonderStop();
   },30);
 
   window.cheat={
