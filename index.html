@@ -6220,10 +6220,12 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
      startState:'cruise',wx:'clear',pax:0,pay:900,xp:120,
      objectives:[
        {id:'ap',label:'Engage autopilot (P)',check:()=>AP.master},
-       {id:'stbl',label:'Hold stable climb/descent (5s)',check:(f)=>{
-         const vs=Math.abs(plane.vel.y*196.85);
-         if(AP.master&&vs<600)f._holdT=(f._holdT||0)+0.016;else f._holdT=0;
-         return f._holdT>5;
+             {id:'stbl',label:'Fly with autopilot for 5 seconds',check:(f)=>{
+         const now=performance.now();
+         const dt=(now-(f._vsT||now))/1000;
+         f._vsT=now;
+         f._holdT=AP.master?(f._holdT||0)+Math.min(0.2,dt):0;
+         return f._holdT>=5;
        }}
      ]},
     {id:'L3',type:'lesson',title:'Approach & Landing',
