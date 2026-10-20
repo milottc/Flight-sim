@@ -4834,7 +4834,8 @@ function updateAutopilot(dt){
   }
   if(vsT!==null){
     if(vsT>0&&kts<150&&!AP.appr)vsT=Math.min(vsT,300);
-    input.pitch=BABYLON.Scalar.Clamp(-(vsT-vsFpm)/1300,-.6,.6);
+    AP._vsFilt=(AP._vsFilt||0)*0.88+vsFpm*0.12;
+    input.pitch=BABYLON.Scalar.Clamp(-(vsT-AP._vsFilt)/2000-plane.angVel.x*1.2,-.45,.45);
   }
   if(AP.athr&&AP.spdMode){
     const err=AP.spdTarget-kts;
