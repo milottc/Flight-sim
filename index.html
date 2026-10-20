@@ -5405,6 +5405,8 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
   const FLEET=[
     { id:'cessna', name:'Cessna 172',     tag:'GA trainer',        pax:3,   fare:120, cruise:120, cost:0,      model:'cessna', camScale:0.35,
       physics:{mass:4000,  wingArea:16,   thrust:12000, CLmax:1.7, gearHeight:4.25}, fixedGear:true,  hasCockpit:true },
+    { id:'wonderful', name:'The Wonderful Plane', tag:'It says wonderful', pax:1, fare:999, cruise:200, cost:1, model:'wonderful', camScale:0.5,
+      physics:{mass:2000, wingArea:10, thrust:20000, CLmax:1.8, gearHeight:1.4}, fixedGear:true, hasCockpit:true },
     { id:'dc3',    name:'Douglas DC-3',   tag:'Classic piston twin',pax:28, fare:110, cruise:150, cost:1500,   model:'dc3', camScale:0.6,
       physics:{mass:11500, wingArea:91,   thrust:36000, CLmax:1.8, gearHeight:2.5}, fixedGear:false, hasCockpit:true  },
     { id:'atr',    name:'ATR 72',         tag:'Regional turboprop',pax:70,  fare:80,  cruise:270, cost:3000,   model:'atr', camScale:0.55,
@@ -5427,8 +5429,7 @@ setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classL
       physics:{mass:260000,wingArea:442,  thrust:680000,CLmax:1.9, gearHeight:3.8}, fixedGear:false, hasCockpit:true  },
     { id:'b747',   name:'Boeing 747-400', tag:'Jumbo jet',         pax:416, fare:62,  cruise:490, cost:250000, model:'b747', camScale:1.45,
       physics:{mass:340000,wingArea:511,  thrust:900000,CLmax:1.9, gearHeight:5.3}, fixedGear:false, hasCockpit:true },
-    { id:'wonderful', name:'The Wonderful Plane', tag:'It says wonderful', pax:1, fare:999, cruise:200, cost:1, model:'wonderful', camScale:0.5,
-      physics:{mass:2000, wingArea:10, thrust:20000, CLmax:1.8, gearHeight:1.4}, fixedGear:true, hasCockpit:true },
+    
     { id:'l1011',  name:'Lockheed L-1011 TriStar', tag:'Classic widebody trijet', pax:256, fare:52, cruise:485, cost:85000, model:'l1011', camScale:1.25,
       physics:{mass:200000, wingArea:329, thrust:500000, CLmax:1.9, gearHeight:3.4}, fixedGear:false, hasCockpit:true },
     { id:'a380',   name:'Airbus A380-800', tag:'Superjumbo',       pax:555, fare:65,  cruise:490, cost:320000, model:'a380', camScale:1.5,
