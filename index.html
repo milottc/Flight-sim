@@ -6914,67 +6914,92 @@ const FLEET = [
   renderHUD();
   renderContracts();
 
-  /* ---- WONDERFUL PLANE GIMMICK v3: hold ANY WASD = infinite woNDERFulLLLLLL ---- */
-  let _wActive=false;
+  /* ---- WONDERFUL PLANE GIMMICK v4: ONE continuous "wonderful" held forever ---- */
+  /* Uses Web Audio API so the vowel literally never ends until you let go          */
+  let _wCtx=null,_wSrc=null,_wGain=null,_wActive=false;
 
-  // Chaotic funny spellings fed to the speech engine — sounds unhinged
-  const _wForms=[
-    'woNDERful llllllll',
-    'WUNderfulllllllllll',
-    'waaaonderful lllll',
-    'wonderful llllllllllllll llllll',
-    'WONderFULLLLLLLLLL',
-    'wondrrrrrrrrful',
-    'WUNDERFULLLLL lllll lllll',
-    'wooooonderful llll llll',
-    'wonDERRRRRRful llllll',
-    'WwwwONDERFULLLLLLLLL',
-  ];
-  let _wFormIdx=0;
-
-  function _wonderPitch(){
+  function _wonderPitchHz(){
+    // Base note: ~220hz (A3). Climb raises it, descent lowers it.
     const vsFpm=plane.vel.y*196.85;
-    return Math.max(0.3,Math.min(2.0,1.0+vsFpm/1800));
-  }
-
-  function _wonderLoop(){
-    if(!_wActive)return;
-    if(!window.speechSynthesis)return;
-    const p=_wonderPitch();
-    // Alternate between very fast/high and slow/low for that unhinged sound
-    const crazyRate = 0.55+Math.random()*1.1;   // 0.55 – 1.65
-    const crazyPitch = Math.max(0.3,Math.min(2.0, p + (Math.random()-0.5)*1.2));
-    const text=_wForms[_wFormIdx % _wForms.length];
-    _wFormIdx++;
-    const u=new SpeechSynthesisUtterance(text);
-    u.pitch=crazyPitch;
-    u.rate=crazyRate;
-    u.volume=1.0;
-    u.onend=()=>{ if(_wActive)_wonderLoop(); };
-    u.onerror=()=>{ if(_wActive)_wonderLoop(); };
-    speechSynthesis.cancel();
-    speechSynthesis.speak(u);
-    const msgs=['woNDERFulLLLLLLLLLLLLL!!!!!!1','WONDERFUL!!!!!','✨WUNDERFULLLLL✨','wONDERFULLLLLLL!!!!','🌀 wonderful 🌀','WOOONDERFULLL!!!!1!'];
-    showMsg(msgs[Math.floor(Math.random()*msgs.length)],800);
+    return Math.max(80,Math.min(600, 220+vsFpm*0.06));
   }
 
   function _wonderStart(){
     if(_wActive)return;
     _wActive=true;
-    _wonderLoop();
+    try{
+      if(!_wCtx)_wCtx=new(window.AudioContext||window.webkitAudioContext)();
+      if(_wCtx.state==='suspended')_wCtx.resume();
+
+      // Layered oscillators to sound like a voice vowel (formant synthesis)
+      _wGain=_wCtx.createGain();
+      _wGain.gain.setValueAtTime(0,_wCtx.currentTime);
+      _wGain.gain.linearRampToValueAtTime(0.35,_wCtx.currentTime+0.08); // fade in
+      _wGain.connect(_wCtx.destination);
+
+      _wSrc=[];
+      // Fundamental + harmonics shaped to sound like "AAHHH" vowel
+      const ratios=[1,2,3,4,5,6];
+      const amps=  [1,0.7,0.5,0.3,0.15,0.08];
+      const base=_wonderPitchHz();
+      ratios.forEach((r,i)=>{
+        const osc=_wCtx.createOscillator();
+        osc.type=i===0?'sawtooth':'sine';
+        osc.frequency.value=base*r;
+        const g=_wCtx.createGain();
+        g.gain.value=amps[i];
+        osc.connect(g);g.connect(_wGain);
+        osc.start();
+        _wSrc.push({osc,g,ratio:r});
+      });
+
+      // Wobble: slight vibrato LFO so it sounds alive
+      const lfo=_wCtx.createOscillator();
+      lfo.frequency.value=5.5+Math.random()*2;
+      const lfoGain=_wCtx.createGain();
+      lfoGain.gain.value=4;
+      lfo.connect(lfoGain);
+      _wSrc.forEach(s=>lfoGain.connect(s.osc.frequency));
+      lfo.start();
+      _wSrc.push({osc:lfo,g:lfoGain,ratio:0});
+
+    }catch(e){console.warn('wonderful audio fail',e);}
+    showMsg('woNDERFULLLLLLLLLLLLLLLLLLLLLLLLLLLL!!!!!!!!1',99999);
   }
 
   function _wonderStop(){
     if(!_wActive)return;
     _wActive=false;
-    try{speechSynthesis.cancel();}catch(e){}
+    try{
+      if(_wGain){
+        _wGain.gain.setValueAtTime(_wGain.gain.value,_wCtx.currentTime);
+        _wGain.gain.linearRampToValueAtTime(0,_wCtx.currentTime+0.12); // fade out
+      }
+      setTimeout(()=>{
+        try{(_wSrc||[]).forEach(s=>{try{s.osc.stop();}catch(e){}});}catch(e){}
+        _wSrc=null;_wGain=null;
+      },150);
+    }catch(e){}
+    showMsg('',1);
   }
 
+  // Continuously update pitch while held
   setInterval(()=>{
     if(activeModelId!=='wonderful'){if(_wActive)_wonderStop();return;}
     if(plane.crashed){_wonderStop();return;}
     const anyWASD=keys['KeyW']||keys['KeyA']||keys['KeyS']||keys['KeyD'];
-    if(anyWASD)_wonderStart(); else _wonderStop();
+    if(anyWASD){
+      _wonderStart();
+      // Live-update frequencies
+      if(_wSrc&&_wCtx){
+        const base=_wonderPitchHz();
+        _wSrc.forEach(s=>{
+          if(s.ratio>0)s.osc.frequency.setTargetAtTime(base*s.ratio,_wCtx.currentTime,0.1);
+        });
+      }
+    } else {
+      _wonderStop();
+    }
   },30);
 
   window.cheat={
