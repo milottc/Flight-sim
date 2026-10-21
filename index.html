@@ -4160,6 +4160,16 @@ LIVS.push(
  {n:'ARCTIC',b:[.97,.98,.99],a:[.05,.5,.58],t:[.05,.5,.58],e:[.6,.9,.95],rear:1,belly:[.78,.82,.86]},
  {n:'DESERT',b:[.96,.93,.86],a:[.72,.32,.12],t:[.72,.32,.12],e:[.95,.78,.4],rear:1,belly:[.74,.7,.62]},
  {n:'CARBON',b:[.14,.15,.17],a:[.1,.9,.6],t:[.06,.07,.08],e:[.1,.9,.6],belly:[.06,.07,.08]});
+
+LIVS.push(
+ {n:'AMERICN',nm:'Americn',f:'bold 104px Arial',tc:[.28,.32,.4],b:[.9,.91,.94],belly:[.62,.65,.7],a:[.8,.1,.15],t:[.8,.82,.86],e:[.8,.1,.15],nac:[.72,.74,.78],finst:'none',
+  finfn:(f,FS)=>{const th=FS*.2;[['#0d3a6e'],['#c8102e'],['#8e98a3']].forEach((c,k)=>{const y0=FS*.78+k*th*.0;f.fillStyle=c[0];f.beginPath();
+    f.moveTo(0,y0+k*th);f.lineTo(FS*.5,y0+k*th-FS*.5);f.lineTo(FS*.5,y0+k*th-FS*.5+th);f.lineTo(0,y0+k*th+th);f.closePath();f.fill();});}},
+ {n:'AMERICN OLD',nm:'Americn',f:'italic bold 104px Arial',tc:[.75,.1,.15],b:[.74,.76,.8],belly:[.66,.68,.72],a:[.75,.1,.15],t:[.74,.76,.8],e:[.75,.1,.15],nac:[.62,.64,.68],cheat:[.75,.1,.15],pin:[.1,.2,.5],finst:'none',
+  finfn:(f,FS)=>{f.font='bold 190px Arial';f.textAlign='center';f.textBaseline='middle';
+    f.fillStyle='#1c3c82';f.fillText('A',FS*.19,FS*.55);f.fillStyle='#c0141f';f.fillText('A',FS*.33,FS*.55);
+    f.fillStyle='#c0141f';f.fillRect(0,FS*.82,FS*.5,FS*.04);f.fillStyle='#1c3c82';f.fillRect(0,FS*.88,FS*.5,FS*.03);}},
+ {n:'FEDEZ',nm:'Fed',nm2:'Ez',tc:[.32,.12,.5],tc2:[1,.4,0],f:'bold 108px Arial',b:[.98,.98,.99],a:[.32,.12,.5],t:[.32,.12,.5],e:[1,.4,0],cheat:[.32,.12,.5],pin:[1,.4,0],nac:[.97,.97,.98],finst:'tip'});
 const EXTRA={
  'CLASSIC BLUE':{cheat:[.04,.14,.4],pin:[.5,.65,.95],finst:'chev',nac:[.04,.14,.4]},
  'CRIMSON':{cheat:[.75,.05,.1],pin:[.5,.5,.52],finst:'tip',nac:[.75,.05,.1]},
@@ -4261,6 +4271,7 @@ function applyLivery(i){
     f.fillStyle=css(L.e);
     if(L.finst==='tip'){f.beginPath();f.moveTo(0,0);f.lineTo(FS*.5,0);f.lineTo(FS*.5,FS*.1);f.lineTo(0,FS*.26);f.closePath();f.fill();}
     else if(L.finst==='chev'){f.beginPath();f.moveTo(FS*.02,FS*.9);f.lineTo(FS*.14,FS*.9);f.lineTo(FS*.5,FS*.08);f.lineTo(FS*.5,FS*.0);f.lineTo(FS*.36,FS*.0);f.closePath();f.fill();}
+    if(L.finfn)L.finfn(f,FS);
     f.restore();
   };
   motif(false);motif(true);
@@ -4268,11 +4279,14 @@ function applyLivery(i){
 
   embs.forEach(m=>m.emissiveColor=c3(L.e));
   const g2=nameTex.getContext();g2.clearRect(0,0,1536,128);
-  if(L.nm){g2.save();g2.font=L.f||'italic bold 104px Arial';const w=g2.measureText(L.nm).width,k=Math.min(1.4,1450/w);
+  if(L.nm){g2.save();g2.font=L.f||'italic bold 104px Arial';const w=g2.measureText(L.nm+(L.nm2||'')).width,k=Math.min(1.4,1450/w);
     g2.translate(768,64);g2.scale(k,1);g2.textAlign='center';g2.textBaseline='middle';
     g2.shadowColor='rgba(0,0,0,.25)';g2.shadowBlur=6;g2.shadowOffsetY=2;
-    g2.fillStyle=css(L.tc);g2.fillText(L.nm,0,4);g2.restore();}
+    if(L.nm2){g2.textAlign='left';const w1=g2.measureText(L.nm).width,w2=g2.measureText(L.nm2).width;let x0=-(w1+w2)/2;
+      g2.fillStyle=css(L.tc);g2.fillText(L.nm,x0,4);g2.fillStyle=css(L.tc2);g2.fillText(L.nm2,x0+w1,4);}
+    else{g2.fillStyle=css(L.tc);g2.fillText(L.nm,0,4);}g2.restore();}
   nameTex.update();namePlanes.forEach(q=>q.setEnabled(!!L.nm));
+  try{if(window.liveryOthers)window.liveryOthers();}catch(e){console.error('liveryOthers',e);}
 }
 const liverySel=document.getElementById('liverySel');
 LIVS.forEach((L,i)=>{const o=document.createElement('option');o.value=i;o.textContent=L.n;liverySel.appendChild(o);});
@@ -6902,6 +6916,21 @@ const FLEET = [
   modelRoots.a380=buildA380Model();
   modelRoots.wonderful=buildWonderfulModel();
   ['cessna','atr','e190','dc9','dc10','a350','dc3','dc8','f18','b747','l1011','a380','wonderful'].forEach(id=>{try{dressModel(id,modelRoots[id]);}catch(e){console.error('dress',id,e);}});
+  /* apply the selected livery to every airliner model (shared fuselage/tail textures) */
+  window.liveryOthers=function(){
+    const L=LIVS[curLiv];if(!L)return;
+    ['atr','e190','dc9','dc10','a350','dc8','b747','l1011','a380'].forEach(id=>{
+      const g=modelRoots[id];if(!g)return;
+      g.getChildMeshes().forEach(m=>{
+        const n=m.name;
+        if(n===id+'_fus')m.material=M.fus;
+        else if(n===id+'_fin')m.material=M.tail;
+        else if(n===id+'_wR'||n===id+'_wL'||n===id+'_hR'||n===id+'_hL')m.material=M.body;
+        else if(/_fusStripe/.test(n))m.setEnabled(false);
+      });
+    });
+  };
+  try{window.liveryOthers();}catch(e){console.error(e);}
   modelRoots.cessna.setEnabled(false);
   modelRoots.atr.setEnabled(false);
   modelRoots.e190.setEnabled(false);
