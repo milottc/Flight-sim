@@ -1813,6 +1813,7 @@ M.glass.albedoColor=new BABYLON.Color3(.4,.5,.6);
 M.glass.metallic=0;M.glass.roughness=.05;M.glass.alpha=.05;M.glass.environmentIntensity=.1;
 M.glass.transparencyMode=BABYLON.PBRMaterial.PBRMATERIAL_ALPHABLEND;
 M.glass.backFaceCulling=false;
+M.glass.clearCoat.isEnabled=true;M.glass.clearCoat.intensity=1;M.glass.clearCoat.roughness=.03;
 M.metal=new BABYLON.PBRMaterial('metalM',scene);
 M.metal.albedoColor=new BABYLON.Color3(.72,.74,.78);
 M.metal.metallic=.95;M.metal.roughness=.24;
@@ -1835,8 +1836,9 @@ M.cockpitBody=new BABYLON.PBRMaterial('cockpitBodyM',scene);
 M.cockpitBody.albedoColor=new BABYLON.Color3(.3,.32,.36);
 M.cockpitBody.metallic=.15;M.cockpitBody.roughness=.75;
 M.cockpitPanel=new BABYLON.PBRMaterial('cockpitPanelM',scene);
-M.cockpitPanel.albedoColor=new BABYLON.Color3(.16,.17,.19);
-M.cockpitPanel.metallic=.25;M.cockpitPanel.roughness=.65;
+M.cockpitPanel.albedoColor=new BABYLON.Color3(.14,.15,.17);
+M.cockpitPanel.metallic=.2;M.cockpitPanel.roughness=.55;
+M.cockpitPanel.clearCoat.isEnabled=true;M.cockpitPanel.clearCoat.intensity=.4;M.cockpitPanel.clearCoat.roughness=.25;
 M.bezel=new BABYLON.PBRMaterial('bezelM',scene);
 M.bezel.albedoColor=new BABYLON.Color3(.02,.02,.02);
 M.bezel.metallic=.1;M.bezel.roughness=.9;
@@ -2315,6 +2317,7 @@ function drawMainPanel(){
   panelTex.update(true);
 }
 drawMainPanel();
+panelTex.anisotropicFilteringLevel=16;panelTex.updateSamplingMode(BABYLON.Texture.TRILINEAR_SAMPLINGMODE);
 
 const panelMesh=BABYLON.MeshBuilder.CreatePlane('panel',{width:panelW,height:panelH,sideOrientation:BABYLON.Mesh.DOUBLESIDE},scene);
 panelMesh.position.set(0,-.12,15.15);panelMesh.rotation.x=-.28;
@@ -2462,6 +2465,7 @@ const ohpTex=new BABYLON.DynamicTexture('ohpTex',{width:1024,height:256},scene,t
   c.fillText('ANTI-ICE',670,20);c.fillText('LIGHTS',810,20);
   c.fillText('CABIN',950,20);
   ohpTex.update(true);
+  ohpTex.anisotropicFilteringLevel=16;ohpTex.updateSamplingMode(BABYLON.Texture.TRILINEAR_SAMPLINGMODE);
 })();
 const ohpMesh=BABYLON.MeshBuilder.CreatePlane('ohp',{width:2.4,height:.6,sideOrientation:BABYLON.Mesh.DOUBLESIDE},scene);
 ohpMesh.position.set(0,1.28,15.0);ohpMesh.rotation.x=Math.PI/2-.15;
@@ -4715,8 +4719,10 @@ function initCityMeshes(){
     const m=BABYLON.MeshBuilder.CreateBox('bld2_'+i,{size:1},scene);m.bakeTransformIntoVertices(BABYLON.Matrix.Translation(0,.5,0));
     const mat=new BABYLON.StandardMaterial('bld2M'+i,scene),[d,e]=winTex2(i,c.ny,i+3);
     d.uScale=e.uScale=c.us;d.vScale=e.vScale=c.vs;
-    mat.diffuseTexture=d;mat.emissiveTexture=e;mat.emissiveColor=new BABYLON.Color3(.1,.1,.1);
-    mat.specularColor=i===2?new BABYLON.Color3(.35,.4,.45):new BABYLON.Color3(.08,.08,.08);mat.specularPower=48;
+    mat.diffuseTexture=d;mat.emissiveTexture=e;mat.emissiveColor=new BABYLON.Color3(.12,.12,.11);
+    mat.specularColor=i===2?new BABYLON.Color3(.55,.62,.7):new BABYLON.Color3(.14,.14,.15);mat.specularPower=i===2?96:48;
+    if(scene.environmentTexture){mat.reflectionTexture=scene.environmentTexture;mat.reflectionFresnelParameters=new BABYLON.FresnelParameters();mat.reflectionFresnelParameters.bias=i===2?.25:.6;mat.reflectionFresnelParameters.power=2;}
+    d.anisotropicFilteringLevel=16;e.anisotropicFilteringLevel=16;
     m.material=mat;m.isPickable=false;m.alwaysSelectAsActiveMesh=true;m.setEnabled(false);cityMeshes.push(m);cityMats.push(mat);
   });
   roofMesh=new BABYLON.Mesh('roof2',scene);const vd=new BABYLON.VertexData();
@@ -4748,9 +4754,9 @@ function buildCity(cx,cz){
         tb.push(s,0,0,0, 0,s*1.5,0,0, 0,0,s,0, tx,ty+s*.7,tz,1);tc.push(gc[0]*sh,gc[1]*sh,gc[2]*sh,1);
       }
     }
-    let dens=village?(h2(i>>3,j>>3,9)>.9?.6:0):Math.max(Math.exp(-((dc/3200)**2)),.2*Math.exp(-((d0/7000)**2)))*(.6+.4*h2(i>>2,j>>2,5));
-    if(h2(i,j,3)>dens*.85)continue;
-    if(d0<900)continue;
+    let dens=village?(h2(i>>3,j>>3,9)>.9?.6:0):Math.max(Math.exp(-((dc/3800)**2)),.28*Math.exp(-((d0/8200)**2)))*(.7+.45*h2(i>>2,j>>2,5));
+    if(h2(i,j,3)>dens*.9)continue;
+    if(d0<550)continue;
     if(runBlock(x,z))continue;
     const y=sampleTerrain(x,z);if(y<minY||sampleTerrain(x+120,z)<minY||sampleTerrain(x-120,z)<minY||sampleTerrain(x,z+120)<minY||sampleTerrain(x,z-120)<minY)continue;
     if(Math.abs(sampleTerrain(x+30,z)-y)+Math.abs(sampleTerrain(x,z+30)-y)>(village?22:14))continue;
