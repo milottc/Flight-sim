@@ -1171,6 +1171,18 @@ body.mobile .chBtn{padding:5px 9px;font-size:10px}
 .obj.met .objCheck{color:#4ade80}
 .obj.lesson{color:#c4b5fd}
 .obj.lesson.met{color:#a5f3fc}
+.objEndBtn{
+  pointer-events:auto;width:100%;margin-top:10px;padding:8px 0;
+  border:2px solid #263652;border-radius:7px;background:#1a2438;
+  color:#5a6d87;font-weight:800;font-size:11px;letter-spacing:1px;
+  text-transform:uppercase;cursor:not-allowed;transition:all .2s;font-family:inherit;
+}
+.objEndBtn.ready{
+  border-color:#22c55e;background:#14532d;color:#86efac;cursor:pointer;
+  box-shadow:0 0 12px rgba(34,197,94,.35);animation:objReadyPulse 1.4s ease-in-out infinite;
+}
+.objEndBtn.ready:hover{background:#16653a;color:#bbf7d0}
+@keyframes objReadyPulse{0%,100%{box-shadow:0 0 6px rgba(34,197,94,.25)}50%{box-shadow:0 0 16px rgba(34,197,94,.55)}}
 
 /* ============ DISPATCH PANEL: LESSONS + CONTRACTS ============ */
 .cpSection{margin-bottom:18px}
@@ -2397,11 +2409,12 @@ panelMesh.material.metallic=.4;panelMesh.material.roughness=.55;panelMesh.isPick
 
 const displays={};
 function makeDisplayTex(name,w,h){return new BABYLON.DynamicTexture(name,{width:w,height:h},scene,true);}
-displays.pfdL=makeDisplayTex('pfdL',420,420);
-displays.ndL=makeDisplayTex('ndL',420,420);
-displays.eicas=makeDisplayTex('eicas',560,420);
-displays.ndR=makeDisplayTex('ndR',420,420);
-displays.pfdR=makeDisplayTex('pfdR',420,420);
+displays.pfdL=makeDisplayTex('pfdL',640,640);
+displays.ndL=makeDisplayTex('ndL',640,640);
+displays.eicas=makeDisplayTex('eicas',840,640);
+displays.ndR=makeDisplayTex('ndR',640,640);
+displays.pfdR=makeDisplayTex('pfdR',640,640);
+Object.values(displays).forEach(t=>{try{t.anisotropicFilteringLevel=16;t.updateSamplingMode(BABYLON.Texture.TRILINEAR_SAMPLINGMODE);}catch(e){}});
 function placeDisplay(name,tex,panelX,panelY,w,h){
   const localX=panelX*panelW,localY=panelY*panelH;
   const cosA=Math.cos(-.28),sinA=Math.sin(-.28);
@@ -2413,13 +2426,96 @@ function placeDisplay(name,tex,panelX,panelY,w,h){
   mat.emissiveColor=new BABYLON.Color3(1,1,1);
   mat.diffuseColor=new BABYLON.Color3(.15,.15,.15);
   mat.specularColor=new BABYLON.Color3(.05,.05,.05);
-  mat.backFaceCulling=false;m.material=mat;return m;
+  mat.backFaceCulling=false;tex.anisotropicFilteringLevel=16;m.material=mat;return m;
 }
-placeDisplay('dPfdL',displays.pfdL,-.40,0,.25,.25);
-placeDisplay('dNdL', displays.ndL, -.20,0,.25,.25);
-placeDisplay('dEic', displays.eicas, 0,0,.333,.25);
-placeDisplay('dNdR', displays.ndR, .20,0,.25,.25);
-placeDisplay('dPfdR',displays.pfdR,.40,0,.25,.25);
+const glassMeshes=[
+  placeDisplay('dPfdL',displays.pfdL,-.40,0,.25,.25),
+  placeDisplay('dNdL', displays.ndL, -.20,0,.25,.25),
+  placeDisplay('dEic', displays.eicas, 0,0,.333,.25),
+  placeDisplay('dNdR', displays.ndR, .20,0,.25,.25),
+  placeDisplay('dPfdR',displays.pfdR,.40,0,.25,.25)
+];
+/* ---- classic steam-gauge panel: used by pre-glass-cockpit era aircraft instead of the EFIS screens above ---- */
+const classicTex=makeDisplayTex('classicPanel',1536,420);
+classicTex.anisotropicFilteringLevel=16;classicTex.updateSamplingMode(BABYLON.Texture.TRILINEAR_SAMPLINGMODE);
+const classicMesh=placeDisplay('dClassic',classicTex,0,0,panelW*.94,panelH*.6);
+classicMesh.isVisible=false;
+function drawRoundGauge(ctx,cx,cy,r,label){
+  ctx.save();ctx.translate(cx,cy);
+  const g=ctx.createRadialGradient(-r*.3,-r*.3,r*.1,0,0,r);g.addColorStop(0,'#3a3d42');g.addColorStop(1,'#15171a');
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(0,0,r,0,6.2832);ctx.fill();
+  ctx.lineWidth=r*.08;ctx.strokeStyle='#060708';ctx.beginPath();ctx.arc(0,0,r*.97,0,6.2832);ctx.stroke();
+  ctx.fillStyle='#dce6ef';ctx.font='bold '+Math.round(r*.16)+'px monospace';ctx.textAlign='center';
+  ctx.fillText(label,0,-r*.42);
+  ctx.restore();
+}
+function gaugeTicks(ctx,cx,cy,r,count,span,start,majorEvery){
+  ctx.save();ctx.translate(cx,cy);
+  for(let i=0;i<=count;i++){
+    const a=start+span*(i/count)-Math.PI/2,maj=(i%majorEvery===0);
+    ctx.save();ctx.rotate(a);ctx.strokeStyle=maj?'#eef3f8':'#9fb0c0';ctx.lineWidth=maj?2:1;
+    ctx.beginPath();ctx.moveTo(0,-r*.86);ctx.lineTo(0,-r*(maj?.74:.80));ctx.stroke();ctx.restore();
+  }
+  ctx.restore();
+}
+function gaugeNeedle(ctx,cx,cy,r,angRad,len,col,w){
+  ctx.save();ctx.translate(cx,cy);ctx.rotate(angRad-Math.PI/2);
+  ctx.strokeStyle=col||'#fff';ctx.lineWidth=w||3;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(0,r*.14);ctx.lineTo(0,-r*len);ctx.stroke();
+  ctx.restore();
+  ctx.save();ctx.translate(cx,cy);ctx.fillStyle='#ccc';ctx.beginPath();ctx.arc(0,0,r*.07,0,6.2832);ctx.fill();ctx.restore();
+}
+function drawClassicPanel(ctx,W,H,hdg,pitch,bank,spd,alt,vs,n1L,n1R,flapsName,gearTxt){
+  ctx.fillStyle='#1c1e21';ctx.fillRect(0,0,W,H);
+  const r=H*.42,y=H*.52;
+  const slots=[
+    {x:W*.09,label:'AIRSPEED',draw:()=>{
+      drawRoundGauge(ctx,W*.09,y,r,'AIRSPEED KT');gaugeTicks(ctx,W*.09,y,r,12,Math.PI*1.5,0,3);
+      const kt=Math.max(0,Math.min(400,spd)),ang=(kt/400)*Math.PI*1.5;
+      gaugeNeedle(ctx,W*.09,y,r,ang,.72,'#ffd400',3);
+      ctx.fillStyle='#8fe0ff';ctx.font='bold '+Math.round(r*.22)+'px monospace';ctx.textAlign='center';ctx.fillText(Math.round(kt),W*.09,y+r*.5);
+    }},
+    {x:W*.27,label:'ATTITUDE',draw:()=>{
+      drawRoundGauge(ctx,W*.27,y,r,'ATTITUDE');
+      ctx.save();ctx.beginPath();ctx.arc(W*.27,y,r*.86,0,6.2832);ctx.clip();
+      ctx.translate(W*.27,y);ctx.rotate(-bank*Math.PI/180);ctx.translate(0,pitch*r*.012);
+      ctx.fillStyle='#2a6fb0';ctx.fillRect(-r*2,-r*2,r*4,r*2);
+      ctx.fillStyle='#8a5a2a';ctx.fillRect(-r*2,0,r*4,r*2);
+      ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(-r*2,0);ctx.lineTo(r*2,0);ctx.stroke();
+      ctx.restore();
+      ctx.strokeStyle='#ffd400';ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(W*.27-r*.4,y);ctx.lineTo(W*.27-r*.12,y);ctx.moveTo(W*.27+r*.12,y);ctx.lineTo(W*.27+r*.4,y);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(W*.27,y-r*.1);ctx.lineTo(W*.27,y);ctx.stroke();
+    }},
+    {x:W*.45,label:'ALTITUDE',draw:()=>{
+      drawRoundGauge(ctx,W*.45,y,r,'ALTITUDE FT');gaugeTicks(ctx,W*.45,y,r,10,Math.PI*2,0,1);
+      const ft=Math.max(0,alt),hund=(ft%1000)/1000*Math.PI*2,thou=((ft/1000)%10)/10*Math.PI*2;
+      gaugeNeedle(ctx,W*.45,y,r,thou,.5,'#9fd4ff',4);
+      gaugeNeedle(ctx,W*.45,y,r,hund,.78,'#ffd400',2.5);
+      ctx.fillStyle='#8fe0ff';ctx.font='bold '+Math.round(r*.18)+'px monospace';ctx.textAlign='center';ctx.fillText(Math.round(ft).toLocaleString(),W*.45,y+r*.55);
+    }},
+    {x:W*.63,label:'VERT SPEED',draw:()=>{
+      drawRoundGauge(ctx,W*.63,y,r,'VSI ×100FPM');gaugeTicks(ctx,W*.63,y,r,10,Math.PI*1.6,-Math.PI*.8,5);
+      const v=Math.max(-2000,Math.min(2000,vs)),ang=(v/2000)*Math.PI*.8;
+      gaugeNeedle(ctx,W*.63,y,r,ang,.7,'#7fffb0',3);
+    }},
+    {x:W*.81,label:'ENGINES',draw:()=>{
+      drawRoundGauge(ctx,W*.81-r*.52,y,r*.62,'N1 L');drawRoundGauge(ctx,W*.81+r*.52,y,r*.62,'N1 R');
+      [[W*.81-r*.52,n1L],[W*.81+r*.52,n1R]].forEach(([gx,n1])=>{
+        gaugeTicks(ctx,gx,y,r*.62,10,Math.PI*1.5,0,5);
+        gaugeNeedle(ctx,gx,y,r*.62,(Math.max(0,Math.min(100,n1))/100)*Math.PI*1.5,.7,'#ff8060',2.5);
+      });
+    }}
+  ];
+  slots.forEach(s=>s.draw());
+  ctx.fillStyle='#8fe0ff';ctx.font='bold '+Math.round(H*.05)+'px monospace';ctx.textAlign='left';
+  ctx.fillText('HDG '+String(Math.round(((hdg%360)+360)%360)).padStart(3,'0')+'°',W*.02,H*.1);
+  ctx.textAlign='right';ctx.fillText('FLAPS '+flapsName+'   GEAR '+gearTxt,W*.98,H*.1);
+}
+function setPanelCategory(analog){
+  if(classicMesh.isVisible===analog)return;
+  classicMesh.isVisible=analog;
+  glassMeshes.forEach(m=>{if(m)m.isVisible=!analog;});
+}
 
 intBox('glare',panelW+.2,.05,.35,0,.1,15.15,-.2,M.bezel);
 intBox('ped',.55,.5,2.0,0,-.55,14.3,0,M.cockpitPanel);
@@ -2825,6 +2921,7 @@ function triggerFire(key){
   faults.inject('ENG_FIRE_'+key);
   fireTimers[key]=0;
   ENG.fireWarning[key]=true;
+  try{masterWarn();setTimeout(()=>speak(key==='L'?'engine 1 fire':'engine 2 fire'),450);}catch(e){}
 }
 function extinguishFire(key){
   faults.clear('ENG_FIRE_'+key);
@@ -3136,6 +3233,21 @@ function updateSurfaceVisuals(){
       throttleLevers[i].lever.position.y=y;
       throttleLevers[i].knob.position.y=y+.105;throttleLevers[i].knob.position.z=14.747;
     }
+  }
+  if(sbLever&&sbKnob){
+    const sy=-.26+(plane.spoilerVisual||0)*.14;
+    sbLever.position.y=sy;sbKnob.position.y=sy+.11;
+  }
+  if(flapLever&&flapKnob){
+    const ft=(FLAPS.length>1)?plane.flaps/(FLAPS.length-1):0;
+    const fy=-.26+ft*.14;
+    flapLever.position.y=fy;flapKnob.position.y=fy+.11;
+  }
+  /* cockpit dome/panel lighting reacts to day/night so instruments stay readable without washing out daylight */
+  if(cockpitLight.isEnabled()){
+    const nt=(typeof nightMode!=='undefined')&&nightMode;
+    cockpitLight.intensity=nt?2.3:0.55;
+    cockpitLight2.intensity=nt?1.7:0.4;
   }
 }
 
@@ -3857,6 +3969,8 @@ const wxFlash=document.getElementById('wxFlash');
 const attCtx=document.getElementById('attitudeCanvas').getContext('2d');
 const cmpCtx=document.getElementById('compassCanvas').getContext('2d');
 let DV={spd:0,alt:0,vs:0,agl:0,aoa:0,fuel:0,hdg:0,pitch:0,bank:0,flags:{}};
+/* pre-EFIS era aircraft get round steam gauges instead of the glass PFD/ND/EICAS cluster */
+const ANALOG_SET=new Set(['dc3','dc8','dc9','dc10','l1011','concorde','b727']);
 const SENS={t0:{},kias0:0,altM0:0,alt0:0,fuel0:0};
 function sensorLatch(name){
   const now=performance.now()*.001;SENS.t0[name]=now;if(name==='COLLISION')try{spawnIntruder();}catch(e){}
@@ -4214,6 +4328,16 @@ function drawEICAS(ctx,W,H){
 let _screenAccum=0;
 function drawScreens(hdg,pitch,bank){
   if(camMode!==1)return;
+  const isAnalog=ANALOG_SET.has(window._activeModelId);
+  try{setPanelCategory(isAnalog);}catch(e){}
+  if(isAnalog){
+    try{
+      const n1L=ENG.L.n1||0,n1R=ENG.R.n1||0;
+      drawClassicPanel(classicTex.getContext(),1536,420,hdg,pitch,bank,DV.spd,DV.alt,DV.vs,n1L,n1R,FLAPS[plane.flaps].name,plane.gearPos>0.9?'DN':(plane.gearPos<0.1?'UP':'TRANSIT'));
+      classicTex.update(true);
+    }catch(e){}
+    return;
+  }
   _screenAccum++;
   if(_screenAccum%3!==0)return;
   if(faults.has('ELEC_BUS')){
@@ -4232,11 +4356,11 @@ function drawScreens(hdg,pitch,bank){
     return;
   }
   try{
-    if(faults.has('GEN_FAIL'))blankScr(displays.pfdL);else drawPFD(displays.pfdL.getContext(),420,420,hdg,pitch,bank);
-    if(faults.has('GEN_FAIL'))blankScr(displays.ndL);else drawND(displays.ndL.getContext(),420,420,hdg);
-    drawEICAS(displays.eicas.getContext(),560,420);
-    drawND(displays.ndR.getContext(),420,420,hdg);
-    drawPFD(displays.pfdR.getContext(),420,420,hdg,pitch,bank);
+    if(faults.has('GEN_FAIL'))blankScr(displays.pfdL);else drawPFD(displays.pfdL.getContext(),640,640,hdg,pitch,bank);
+    if(faults.has('GEN_FAIL'))blankScr(displays.ndL);else drawND(displays.ndL.getContext(),640,640,hdg);
+    drawEICAS(displays.eicas.getContext(),840,640);
+    drawND(displays.ndR.getContext(),640,640,hdg);
+    drawPFD(displays.pfdR.getContext(),640,640,hdg,pitch,bank);
     displays.pfdL.update(true);displays.ndL.update(true);displays.eicas.update(true);
     displays.ndR.update(true);displays.pfdR.update(true);
   }catch(e){}
@@ -4717,6 +4841,7 @@ function buildCity(cx,cz){
 
 /* ===== TRAFFIC + TCAS + IMPROVED CITY ===== */
 const traffic=[];let trafficSpawnT=2,tcasMsgT=0,tcasLevel=0,envT=0,tcasDrawT=0;
+let TCAS_V={lvl:0,dir:0,t0:0,tier:0};
 const tcasCtx=document.getElementById('tcasCanvas').getContext('2d');
 function makeAirliner(col){
   const r=new BABYLON.TransformNode('ai',scene);const mats=[];
@@ -4833,6 +4958,24 @@ function updateTraffic(dt){
   if(lvl&&tcasMsgT<=0&&!plane.crashed){
     if(lvl===2){showMsg(ra.dz>0?'⚠ TCAS RA · DESCEND, DESCEND':'⚠ TCAS RA · CLIMB, CLIMB',2200);tcasMsgT=2.5;}
     else{showMsg('TCAS TA · TRAFFIC, TRAFFIC',2200);tcasMsgT=5;}
+  }
+  /* TCAS voice: announced once per state change, with escalation on a sustained RA, not re-said every showMsg cooldown */
+  if(!plane.crashed&&lvl!==TCAS_V.lvl){
+    try{
+      if(lvl===1&&TCAS_V.lvl===0)speak('traffic, traffic');
+      else if(lvl===2){TCAS_V.dir=ra.dz>0?1:-1;TCAS_V.t0=performance.now()/1000;TCAS_V.tier=0;speak(TCAS_V.dir>0?'descend, descend':'climb, climb');}
+      else if(lvl===0&&TCAS_V.lvl>0)speak('clear of conflict');
+    }catch(e){}
+    TCAS_V.lvl=lvl;
+  }
+  if(!plane.crashed&&lvl===2){
+    const el=performance.now()/1000-TCAS_V.t0;
+    try{
+      if(TCAS_V.dir>0){
+        if(el>12&&TCAS_V.tier<2){TCAS_V.tier=2;speak('increase descent');}
+        else if(el>6&&TCAS_V.tier<1){TCAS_V.tier=1;speak('descend, descend now');}
+      }else if(el>7&&TCAS_V.tier<1){TCAS_V.tier=1;speak('increase climb');}
+    }catch(e){}
   }
   tcasDrawT-=dt;if(tcasDrawT<=0){tcasDrawT=.1;drawTCAS();}
 }
@@ -5276,7 +5419,7 @@ function createRunway(code){
     g.n=n;
   });
   /* parked jets: real sim models (cloned + merged for speed) */
-  const parkSet=['a350','a320','e190','b777','md83','crj9','b747','dc10'];
+  const parkSet=['a350','a320','e190','b777','md83','crj9','b747','dc10','b727','b767'];
   const doPark=()=>{
     const MR=window._modelRoots,DR=window._DRESS,FL=window._FLEET;if(!MR||!MR.a350)return false;
     gates.forEach((g,n)=>{
@@ -5592,12 +5735,154 @@ const atc=(function(){
 
 /* ===== EXTRA FAULTS, GPWS CALLOUTS, DYNAMIC PAPI ===== */
 const XF={t:{},fog0:null,thr:0,chaosT:20,lastCall:9999,said:{},lastAgl:0};
-const SFX_MAP=[[/approaching minimums/,'APRMIN'],[/minimums/,'MINIM'],[/twenty five hundred/,'2500'],[/one thousand/,'1000'],[/five hundred/,'500'],[/four hundred/,'400'],[/three hundred/,'300'],[/two hundred/,'200'],[/one hundred/,'100'],[/^fifty/,'50'],[/^forty/,'40'],[/^thirty/,'30'],[/^twenty$/,'20'],[/^ten$/,'10'],[/terrain pull/,'TERPUL'],[/too low terrain/,'LOWTRN'],[/terrain/,'TERAIN'],[/sink rate/,'SNKRAT'],[/pull up/,'PULLUP'],[/too low gear/,'LOWGEA'],[/too low flaps/,'LOWFLP'],[/bank angle/,'BNKANG'],[/don't sink/,'DONSNK'],[/overspeed/,'OVRSPD'],[/windshear|wind shear/,'WINSHR'],[/altitude alert/,'ALTAL1'],[/altitude deviation/,'ALTAL2'],[/altitude entering|altitude capture/,'ALTENT'],[/autopilot disconnect/,'APDISC'],[/hello/,'HELLO'],[/startup/,'STRTUP']];
+/* [regex, exact filename on the repo (case-sensitive), kind] — kind:'alt' marks the GPWS altitude callouts that must not double up within window._minsT */
+const SFX_MAP=[
+  [/approaching minimums/,'APRMIN.wav'],
+  [/^minimums/,'airbus-gpws-callout-v2-minimum.mp3'],
+  [/twenty five hundred/,'airbus-gpws-callout-v2-2500-ft.mp3','alt'],
+  [/one thousand/,'airbus-gpws-callout-v2-1000-ft.mp3','alt'],
+  [/five hundred/,'airbus-gpws-callout-v2-500-ft.mp3','alt'],
+  [/four hundred/,'airbus-gpws-callout-v2-400-ft.mp3','alt'],
+  [/three hundred/,'airbus-gpws-callout-v2-300-ft.mp3','alt'],
+  [/two hundred/,'airbus-gpws-callout-v2-200-ft.mp3','alt'],
+  [/one hundred/,'airbus-gpws-callout-v2-100-ft.mp3','alt'],
+  [/^fifty/,'airbus-gpws-callout-v2-50-ft.mp3','alt'],
+  [/^forty/,'airbus-gpws-callout-v2-40-ft.mp3','alt'],
+  [/^thirty/,'airbus-gpws-callout-v2-30-ft.mp3','alt'],
+  [/^twenty$/,'airbus-gpws-callout-v2-20-ft.mp3','alt'],
+  [/^ten$/,'10.wav','alt'],
+  [/terrain pull/,'TERPUL.wav'],
+  [/too low terrain/,'LOWTRN.wav'],
+  [/terrain/,'TERAIN.wav'],
+  [/sink rate/,'SNKRAT.wav'],
+  [/pull up/,'PULLUP.wav'],
+  [/too low gear/,'LOWGEA.wav'],
+  [/too low flaps/,'LOWFLP.wav'],
+  [/bank angle/,'BNKANG.wav'],
+  [/don't sink/,'DONSNK.wav'],
+  [/overspeed/,'OVRSPD.mp3'],
+  [/windshear ahead/,'airbus-2x-windshear-ahead-warning.mp3'],
+  [/windshear|wind shear/,'windshear.mp3'],
+  [/altitude alert/,'ALTAL1.wav'],
+  [/altitude deviation/,'ALTAL2.wav'],
+  [/altitude entering|altitude capture/,'ALTENT.wav'],
+  [/autopilot disconnect/,'autopilot-disconnect.mp3'],
+  [/engine 1 fire|engine one fire/,'md-engine-1-fire.mp3'],
+  [/engine 2 fire|engine two fire/,'md-engine-2-fire.mp3'],
+  [/glideslope/,'glideslope.mp3'],
+  [/clear of conflict/,'airbus-clear-of-conflict-warning.mp3'],
+  [/traffic,? traffic/,'traffic-traffic-traffic.mp3'],
+  [/descend,? descend now/,'descend-descend-now.mp3'],
+  [/descend,? descend/,'descend-descend.mp3'],
+  [/increase climb/,'increase-climb.mp3'],
+  [/increase descen/,'increase-descend.mp3'],
+  [/adjust vertical speed|^adjust$/,'adjust.mp3'],
+  [/startup/,'STRTUP.wav']
+];
 const SFX_BASES=['','https://milottc.github.io/Flight-sim/'];let _sfxCur=null;window._minsT=0;
-function playSfx(name,onFail){let i=0;const tryNext=()=>{if(i>=SFX_BASES.length){onFail&&onFail();return;}const a=new Audio(SFX_BASES[i++]+name+'.wav');a.volume=1;a.onerror=tryNext;
-    a.play().then(()=>{if(_sfxCur&&_sfxCur!==a){try{_sfxCur.pause();}catch(e){}}_sfxCur=a;}).catch(()=>{if(a.error)tryNext();else onFail&&onFail();});};tryNext();}
-const speak=(t,rate)=>{const l=t.toLowerCase();for(const [re,f] of SFX_MAP){if(re.test(l)){if(/^\d+$/.test(f)&&performance.now()/1000-window._minsT<1.3)return;if(f==='MINIM')window._minsT=performance.now()/1000;if(atc.voice)playSfx(f,()=>{try{if(window.speechSynthesis&&atc.voice){const u=new SpeechSynthesisUtterance(t);u.rate=rate||1.15;u.pitch=.8;speechSynthesis.speak(u);}}catch(e){}});return;}}
+function playSfx(file,onFail){
+  const combos=SFX_BASES.map(b=>b+file);
+  let i=0;const tryNext=()=>{if(i>=combos.length){onFail&&onFail();return;}const a=new Audio(combos[i++]);a.volume=masterVol!==undefined?masterVol:1;a.onerror=tryNext;
+    a.play().then(()=>{if(_sfxCur&&_sfxCur!==a){try{_sfxCur.pause();}catch(e){}}_sfxCur=a;}).catch(()=>{if(a.error)tryNext();else onFail&&onFail();});};tryNext();
+}
+const speak=(t,rate)=>{const l=t.toLowerCase();for(const [re,f,kind] of SFX_MAP){if(re.test(l)){if(kind==='alt'&&performance.now()/1000-window._minsT<1.3)return;if(f==='airbus-gpws-callout-v2-minimum.mp3')window._minsT=performance.now()/1000;if(atc.voice)playSfx(f,()=>{try{if(window.speechSynthesis&&atc.voice){const u=new SpeechSynthesisUtterance(t);u.rate=rate||1.15;u.pitch=.8;speechSynthesis.speak(u);}}catch(e){}});return;}}
   try{if(window.speechSynthesis&&atc.voice){const u=new SpeechSynthesisUtterance(t);u.rate=rate||1.15;u.pitch=.8;speechSynthesis.speak(u);}}catch(e){}};
+/* master warning triple-chime, played ahead of the voice line for severe cautions (fire, stall, etc.) */
+function masterWarn(){if(atc.voice)playSfx('airbus-master-warn.mp3');}
+
+/* ===== AMBIENT ENGINE + WIND SOUND (synthesized, no external files) ===== */
+let masterVol=.6,_prevVol=.6;
+const AMB=(function(){
+  let ctx=null,master=null,started=false,noiseBuf=null;
+  const mkNoise=()=>{const sr=ctx.sampleRate,len=sr*2,b=ctx.createBuffer(1,len,sr),d=b.getChannelData(0);
+    let last=0;for(let i=0;i<len;i++){const w=Math.random()*2-1;last=(last+w*.18)/1.18;d[i]=last;}return b;};
+  const mkEngine=()=>{
+    /* soft turbine whine: two gently detuned triangle oscillators (no raw sawtooth buzz) + a slow drifting LFO so it never sits on one static pitch like a siren */
+    const whine=ctx.createOscillator();whine.type='triangle';whine.frequency.value=90;
+    const whine2=ctx.createOscillator();whine2.type='triangle';whine2.frequency.value=90.6;
+    const whineF=ctx.createBiquadFilter();whineF.type='lowpass';whineF.frequency.value=950;whineF.Q.value=.4;
+    const whineHP=ctx.createBiquadFilter();whineHP.type='highpass';whineHP.frequency.value=160;
+    const whineG=ctx.createGain();whineG.gain.value=0;
+    const drift=ctx.createOscillator();drift.type='sine';drift.frequency.value=.13+Math.random()*.08;
+    const driftG=ctx.createGain();driftG.gain.value=3;drift.connect(driftG);driftG.connect(whine.frequency);driftG.connect(whine2.frequency);drift.start();
+    whine.connect(whineF);whine2.connect(whineF);whineF.connect(whineHP);whineHP.connect(whineG);whineG.connect(master);whine.start();whine2.start();
+    const noiseSrc=ctx.createBufferSource();noiseSrc.buffer=noiseBuf;noiseSrc.loop=true;
+    const noiseF=ctx.createBiquadFilter();noiseF.type='bandpass';noiseF.frequency.value=250;noiseF.Q.value=.6;
+    const noiseG=ctx.createGain();noiseG.gain.value=0;
+    noiseSrc.connect(noiseF);noiseF.connect(noiseG);noiseG.connect(master);noiseSrc.start();
+    return {whine,whine2,whineF,whineG,noiseF,noiseG};
+  };
+  let engL=null,engR=null,windSrc=null,windF=null,windG=null,rumbleSrc=null,rumbleF=null,rumbleG=null;
+  const ensure=()=>{
+    if(started)return true;
+    try{
+      ctx=new(window.AudioContext||window.webkitAudioContext)();
+      master=ctx.createGain();master.gain.value=masterVol;master.connect(ctx.destination);
+      noiseBuf=mkNoise();
+      engL=mkEngine();engR=mkEngine();
+      windSrc=ctx.createBufferSource();windSrc.buffer=noiseBuf;windSrc.loop=true;
+      windF=ctx.createBiquadFilter();windF.type='highpass';windF.frequency.value=900;windF.Q.value=.5;
+      windG=ctx.createGain();windG.gain.value=0;
+      windSrc.connect(windF);windF.connect(windG);windG.connect(master);windSrc.start();
+      rumbleSrc=ctx.createBufferSource();rumbleSrc.buffer=noiseBuf;rumbleSrc.loop=true;
+      rumbleF=ctx.createBiquadFilter();rumbleF.type='lowpass';rumbleF.frequency.value=140;rumbleF.Q.value=.5;
+      rumbleG=ctx.createGain();rumbleG.gain.value=0;
+      rumbleSrc.connect(rumbleF);rumbleF.connect(rumbleG);rumbleG.connect(master);rumbleSrc.start();
+      started=true;
+    }catch(e){console.warn('ambient audio',e);}
+    return started;
+  };
+  const rampG=(g,v,t)=>{try{g.gain.setTargetAtTime(v,ctx.currentTime,t||.15);}catch(e){}};
+  const rampF=(f,v,t)=>{try{f.frequency.setTargetAtTime(v,ctx.currentTime,t||.2);}catch(e){}};
+  let prevGear=null,prevRev=false;let gearSfxT=0;
+  const thump=(amount)=>{if(!ensure())return;const g=ctx.createGain(),src=ctx.createBufferSource();src.buffer=noiseBuf;
+    const f=ctx.createBiquadFilter();f.type='lowpass';f.frequency.value=160;
+    g.gain.value=0;src.connect(f);f.connect(g);g.connect(master);src.start();
+    g.gain.setTargetAtTime(Math.min(1.4,.4+amount),ctx.currentTime,.01);
+    g.gain.setTargetAtTime(0,ctx.currentTime+.04,.09);
+    src.stop(ctx.currentTime+.6);};
+  window._ambThump=thump;
+  const update=(dt)=>{
+    if(!ctx){if(ENG.L.state!=='OFF'||ENG.R.state!=='OFF')ensure();else return;}
+    if(ctx.state==='suspended')ctx.resume().catch(()=>{});
+    const n1L=ENG.L.n1||0,n1R=ENG.R.n1||0;
+    const setEng=(e,n1,running)=>{
+      const on=running&&n1>3;
+      /* whine stays a quiet background texture that only emerges at higher spool, never the loudest layer */
+      const whineAmt=on?Math.max(0,(n1-35)/65):0;
+      rampG(e.whineG,Math.min(.16,whineAmt*.16),.3);
+      const wf=120+n1*3.6;rampF(e.whine,wf,.25);rampF(e.whine2,wf*1.007,.25);
+      rampG(e.noiseG,on?Math.min(.6,.1+n1/100*.5):0,.3);
+      rampF(e.noiseF,80+n1*3.0,.25);
+    };
+    setEng(engL,n1L,ENG.L.state==='RUNNING'||ENG.L.state==='STARTING');
+    setEng(engR,n1R,ENG.R.state==='RUNNING'||ENG.R.state==='STARTING');
+    const kts=(plane.speed||0)*1.94384;
+    rampG(windG,Math.min(.5,Math.pow(Math.min(1,kts/420),1.3)*.45),.3);
+    rampF(windF,800+kts*2.2,.25);
+    const rev=!!plane.reverserOn&&plane.onGround;
+    rampG(rumbleG,rev?Math.min(.6,.25+(n1L+n1R)/200*.4):(plane.onGround&&(n1L+n1R)>50?.05:0),.2);
+    rampF(rumbleF,rev?90:140,.2);
+    if(rev&&!prevRev)thump(.15);
+    prevRev=rev;
+    if(prevGear!==null&&plane.gearDown!==prevGear&&performance.now()/1000-gearSfxT>1){
+      gearSfxT=performance.now()/1000;
+      try{const g=ctx.createGain(),src=ctx.createBufferSource();src.buffer=noiseBuf;
+        const f=ctx.createBiquadFilter();f.type='bandpass';f.frequency.value=500;f.Q.value=1.2;
+        g.gain.value=0;src.connect(f);f.connect(g);g.connect(master);src.start();
+        g.gain.setTargetAtTime(.22,ctx.currentTime,.05);f.frequency.linearRampToValueAtTime(900,ctx.currentTime+1.6);
+        g.gain.setTargetAtTime(0,ctx.currentTime+1.6,.2);src.stop(ctx.currentTime+2);}catch(e){}
+    }
+    prevGear=plane.gearDown;
+    master.gain.value=masterVol;
+  };
+  return {update,setVol:v=>{masterVol=v;try{if(master)master.gain.value=v;}catch(e){}},ensure};
+})();
+window.addEventListener('keydown',e=>{if(e.code==='KeyY'&&!/INPUT|SELECT|TEXTAREA/.test((e.target||{}).tagName||'')){
+  if(masterVol>0){_prevVol=masterVol;AMB.setVol(0);showMsg('SOUND MUTED',1200);}
+  else{AMB.setVol(_prevVol||.6);showMsg('SOUND ON',1200);}
+}});
+scene.registerBeforeRender(()=>{try{AMB.update(Math.min(.05,engine.getDeltaTime()/1000));}catch(e){}});
 function xfUpdate(dt){
   if(plane.crashed)return;
   const air=!plane.onGround,f=n=>faults.has(n),now=performance.now()/1000;
@@ -5645,6 +5930,20 @@ function xfUpdate(dt){
   if(air&&agl<400&&agl>30&&faults.has('ICING')===false&&plane.alpha>ACFG.stallAlpha*.92&&now-XF.lastCall>3){XF.lastCall=now;speak('stall. stall.');}
   XF.lastAgl=agl;
   if(!air)XF.lastAgl=0;
+  /* glideslope-low warning: height above the threshold vs a 3 deg glidepath, independent of the PAPI units */
+  if(window.apGeo&&!plane.onGround){
+    try{
+      const g=window.apGeo,inv=g.root.getWorldMatrix().clone().invert(),lp=BABYLON.Vector3.TransformCoordinates(plane.pos,inv);
+      const gearH=(typeof ACFG!=='undefined'&&ACFG.gearHeight)?ACFG.gearHeight:3;
+      for(const e of [1,-1]){
+        const thrZ=e*(-g.L/2),dz=(lp.z-thrZ)*e*-1,hd=Math.hypot(lp.x,lp.z-thrZ);
+        if(dz>50&&dz<9000&&hd<9200){
+          const ang=Math.atan2(lp.y-gearH,hd)*180/Math.PI,now2=performance.now()/1000;
+          if(ang<2.1&&ang>-5&&now2-(XF._gsT||0)>6){XF._gsT=now2;speak('glideslope');}
+        }
+      }
+    }catch(e){}
+  }
   /* dynamic PAPI: each unit looks at the aircraft's elevation angle above the lens along the runway axis (3.0 deg glide; 2.5/2.83/3.17/3.5 deg splits) */
   if(window.apPapi&&window.apGeo){const g=window.apGeo;const inv=g.root.getWorldMatrix().clone().invert();const lp=BABYLON.Vector3.TransformCoordinates(plane.pos,inv);
     const gearH=(typeof ACFG!=='undefined'&&ACFG.gearHeight)?ACFG.gearHeight:3;
@@ -5948,7 +6247,11 @@ const FLEET = [
   { id:'a380', name:'Airbus A380-800', tag:'Superjumbo', pax:555, fare:65, cruise:490, cost:320000, model:'a380', camScale:1.5,
     physics:{mass:560000, wingArea:845, thrust:1200000, CLmax:1.9, gearHeight:4.7}, fixedGear:false, hasCockpit:true },
   { id:'concorde', name:'Aerospatiale/BAC Concorde', tag:'Supersonic legend', pax:100, fare:300, cruise:1170, cost:400000, model:'concorde', camScale:1.2,
-    physics:{mass:110000, wingArea:358, thrust:620000, CLmax:1.55, gearHeight:3.4}, fixedGear:false, hasCockpit:true }
+    physics:{mass:110000, wingArea:358, thrust:620000, CLmax:1.55, gearHeight:3.4}, fixedGear:false, hasCockpit:true },
+  { id:'b727', name:'Boeing 727-200', tag:'Classic trijet · steam gauges', pax:149, fare:49, cruise:460, cost:450000, model:'b727', camScale:1.0,
+    physics:{mass:78000, wingArea:157, thrust:200000, CLmax:1.8, gearHeight:2.5}, fixedGear:false, hasCockpit:true },
+  { id:'b767', name:'Boeing 767-300ER', tag:'Widebody twin', pax:269, fare:58, cruise:488, cost:480000, model:'b767', camScale:1.25,
+    physics:{mass:186000, wingArea:283, thrust:560000, CLmax:1.85, gearHeight:3.3}, fixedGear:false, hasCockpit:true }
 ];
   const UPGRADES={
     engines:{name:'Engine Efficiency',max:5,baseCost:4000,per:0.05,effect:'+5% payout per level'},
@@ -6249,6 +6552,22 @@ const FLEET = [
       stripes:[[-.7,-.2,[.05,.12,.3]],[-.15,-.05,[.0,.7,.85]]],stripeZ:[21,-20],
       finColor:[.05,.12,.3],engines:[{x:9.2,y:-2.6,zF:4.75,zR:-2.75,r:1.5,pylon:true},{x:-9.2,y:-2.6,zF:4.75,zR:-2.75,r:1.5,pylon:true}],
       panes:{z:24.2,k:1.2},winglet:{h:2.4,c0:1.6,c1:.6},lip:[.0,.7,.85]
+    };
+    DRESS.b727={
+      fus:F([{z:19,r:.1},{z:17,r:.85},{z:14,r:1.2},{z:6,r:1.3},{z:-6,r:1.3},{z:-13,r:.95,yo:.35},{z:-17.5,r:.4,yo:.9},{z:-19,r:.1,yo:1.1}]),
+      wing:[{s:1.6,y:-.6,zLE:2,c:4.8},{s:7.5,y:-.3,zLE:0,c:3.6},{s:15,y:0,zLE:-2.5,c:1.7}],fin:{top:8.3,zLE:-17,c:1.9},
+      windows:{z0:13,z1:-11,step:.78,y:.4,w:.2,h:.26},
+      stripes:[[-.4,-.1,[.05,.3,.6]],[-.05,.05,[.15,.15,.18]]],stripeZ:[13.5,-12.5],
+      finColor:[.05,.3,.6],engines:[{x:2.4,y:.6,zF:-9.1,zR:-13.3,r:.9,pylon:'fus'},{x:-2.4,y:.6,zF:-9.1,zR:-13.3,r:.9,pylon:'fus'},{x:0,y:3.0,zF:-14.9,zR:-18.5,r:.85}],
+      panes:{z:16.4,k:.85},lip:[.05,.3,.6]
+    };
+    DRESS.b767={
+      fus:F([{z:24,r:.15},{z:21.5,r:1.3},{z:18,r:2.0},{z:12,r:2.35},{z:-12,r:2.35},{z:-20,r:1.9,yo:.4},{z:-24,r:.85,yo:1.1},{z:-25.5,r:.15,yo:1.5}]),
+      wing:[{s:2.2,y:-1.0,zLE:3.5,c:7.5},{s:11,y:-.2,zLE:-2,c:5},{s:23,y:1.3,zLE:-9,c:2.1}],fin:{top:10.2,zLE:-24,c:2.2},
+      windows:{z0:17.5,z1:-15,step:.84,y:.78,w:.24,h:.3},
+      stripes:[[-.6,-.15,[.0,.3,.55]],[-.1,0,[.9,.75,.1]]],stripeZ:[18.5,-16.5],
+      finColor:[.0,.3,.55],engines:[{x:7.6,y:-2.3,zF:3.25,zR:-3.25,r:1.35,pylon:true},{x:-7.6,y:-2.3,zF:3.25,zR:-3.25,r:1.35,pylon:true}],
+      panes:{z:21,k:1.1},lip:[.9,.75,.1]
     };
   })();
 
@@ -6561,6 +6880,29 @@ const FLEET = [
       ws:[1.7,1,1.4,24],gear:[[0,23],[-3.6,-4],[3.6,-4],[-3.6,-7],[3.6,-7]],gh:3.6});
   }
 
+  /* ---- Boeing 727 (classic trijet, 2 tail pods + buried centre engine) ---- */
+  function buildB727Model(){
+    return buildJet('b727',{
+      fus:[{z:19,r:.1},{z:17,r:.85},{z:14,r:1.2},{z:6,r:1.3},{z:-6,r:1.3},{z:-13,r:.95,yo:.35},{z:-17.5,r:.4,yo:.9},{z:-19,r:.1,yo:1.1}]
+        .map(p=>({w:1,h:1,yo:0,flat:.15,...p})),
+      wing:[{s:1.6,c:4.8,t:.13,zLE:2,y:-.6},{s:7.5,c:3.6,t:.11,zLE:0,y:-.3},{s:15,c:1.7,t:.1,zLE:-2.5,y:0}],
+      fin:[{s:1.6,c:5.2,t:.14,zLE:-12},{s:5.2,c:3.6,t:.12,zLE:-14.5},{s:8.3,c:1.9,t:.1,zLE:-17}],
+      htail:[{s:.2,c:2.9,t:.12,zLE:-15.8,y:8.3},{s:4.7,c:1.7,t:.1,zLE:-17.8,y:8.3}],
+      engines:[{x:2.4,y:.6,z:-11,r:.9,len:4.8},{x:-2.4,y:.6,z:-11,r:.9,len:4.8},{x:0,y:3.0,z:-16.5,r:.85,len:4.4}],
+      ws:[1.2,.8,.7,16.5],gear:[[0,15.5],[-2.5,-1],[2.5,-1]],gh:2.0});
+  }
+  /* ---- Boeing 767 (widebody twin) ---- */
+  function buildB767Model(){
+    return buildJet('b767',{
+      fus:[{z:24,r:.15},{z:21.5,r:1.3},{z:18,r:2.0},{z:12,r:2.35},{z:-12,r:2.35},{z:-20,r:1.9,yo:.4},{z:-24,r:.85,yo:1.1},{z:-25.5,r:.15,yo:1.5}]
+        .map(p=>({w:1,h:1,yo:0,flat:.12,...p})),
+      wing:[{s:2.2,c:7.5,t:.13,zLE:3.5,y:-1.0},{s:11,c:5,t:.11,zLE:-2,y:-.2},{s:23,c:2.1,t:.09,zLE:-9,y:1.3}],
+      fin:[{s:2.2,c:7.5,t:.14,zLE:-18},{s:6.8,c:4.6,t:.12,zLE:-21.5},{s:10.2,c:2.2,t:.1,zLE:-24}],
+      htail:[{s:.3,c:4.2,t:.12,zLE:-21,y:1.5},{s:6.6,c:2.3,t:.1,zLE:-25,y:2.0}],
+      engines:[{x:7.6,y:-2.3,z:0,r:1.35,len:6.5},{x:-7.6,y:-2.3,z:0,r:1.35,len:6.5}],
+      ws:[1.6,1,1.3,19.5],gear:[[0,19],[-3.0,-3],[3.0,-3]],gh:3.3});
+  }
+
   /* ---- DC-3 (piston twin, retractable taildragger) ---- */
   function buildDC3Model(){
     const g=new BABYLON.TransformNode('ac_dc3',scene);g.parent=aircraftRoot;
@@ -6742,6 +7084,16 @@ const FLEET = [
   /* ---- The Wonderful Plane ---- */
   function buildWonderfulModel(){
     const g=new BABYLON.TransformNode('ac_wonderful',scene);g.parent=aircraftRoot;
+    /* cheerful painted skin: pastel rainbow body + big friendly cheeks, instead of flat white */
+    const skinTex=new BABYLON.DynamicTexture('wonderSkin',{width:512,height:256},scene,true);
+    (function(){const c=skinTex.getContext();
+      const grd=c.createLinearGradient(0,0,512,0);
+      grd.addColorStop(0,'#ffd4e8');grd.addColorStop(.25,'#ffe9b0');grd.addColorStop(.5,'#c9f7d4');grd.addColorStop(.75,'#c7ecff');grd.addColorStop(1,'#e2d3ff');
+      c.fillStyle=grd;c.fillRect(0,0,512,256);
+      c.globalAlpha=.5;for(let i=0;i<40;i++){c.fillStyle=['#fff','#ffe','#eef'][i%3];c.beginPath();c.arc(Math.random()*512,Math.random()*256,3+Math.random()*5,0,6.3);c.fill();}
+      c.globalAlpha=1;c.fillStyle='#ff9bbf';c.beginPath();c.arc(256,190,34,0,6.3);c.fill();
+      skinTex.update();})();
+    const skinM=new BABYLON.StandardMaterial('wonderSkinM',scene);skinM.diffuseTexture=skinTex;skinM.specularColor=new BABYLON.Color3(.4,.4,.4);skinM.specularPower=48;
     tubeSmooth('wonderful_fus',[
       {z:5,r:.05,w:1,h:1,yo:0,flat:.1},
       {z:4.5,r:.7,w:1,h:1,yo:0,flat:.1},
@@ -6750,22 +7102,29 @@ const FLEET = [
       {z:-2.5,r:1.2,w:1,h:1.1,yo:.1,flat:.1},
       {z:-4.5,r:.7,w:1,h:1,yo:.3,flat:.1},
       {z:-5.5,r:.15,w:1,h:1,yo:.4,flat:.1}
-    ],MAT.white,g);
+    ],skinM,g);
     const wing=[{s:1.5,c:2.2,t:.15,zLE:0,y:.2},{s:4.5,c:1.8,t:.14,zLE:-.3,y:.4},{s:6,c:1,t:.1,zLE:-.7,y:.5}];
     horiz('wonderful_wR',wing,MAT.white,g);
     horiz('wonderful_wL',wing.map(st=>({...st,s:-st.s})),MAT.white,g);
-    vert('wonderful_fin',[{s:.6,c:1.4,t:.12,zLE:-4},{s:2,c:1,t:.1,zLE:-4.5},{s:3,c:.5,t:.08,zLE:-5}],MAT.white,g);
+    vert('wonderful_fin',[{s:.6,c:1.4,t:.12,zLE:-4},{s:2,c:1,t:.1,zLE:-4.5},{s:3,c:.5,t:.08,zLE:-5}],MAT.red,g);
     const ht=[{s:.4,c:1,t:.1,zLE:-4.3,y:.1},{s:2.5,c:.6,t:.08,zLE:-5.2,y:.1}];
     horiz('wonderful_hR',ht,MAT.white,g);
     horiz('wonderful_hL',ht.map(st=>({...st,s:-st.s})),MAT.white,g);
+    /* big friendly eyes with eyebrows (so it reads as cheerful, not startled) */
     const eyeW=new BABYLON.StandardMaterial('wonderEyeW',scene);eyeW.emissiveColor=new BABYLON.Color3(1,1,1);eyeW.disableLighting=true;
     const pupilM=new BABYLON.StandardMaterial('wonderPupilM',scene);pupilM.emissiveColor=new BABYLON.Color3(.05,.05,.05);pupilM.disableLighting=true;
+    const browM=new BABYLON.StandardMaterial('wonderBrowM',scene);browM.diffuseColor=new BABYLON.Color3(.15,.1,.08);browM.specularColor=BABYLON.Color3.Black();
     for(const sd of [-1,1]){
       const eye=BABYLON.MeshBuilder.CreateSphere('wonderful_eyeW'+sd,{diameter:.55,segments:12},scene);
       eye.material=eyeW;eye.position.set(sd*.5,.65,4.15);eye.parent=g;eye.isPickable=false;
       const pupil=BABYLON.MeshBuilder.CreateSphere('wonderful_eyeP'+sd,{diameter:.24,segments:10},scene);
-      pupil.material=pupilM;pupil.position.set(sd*.5,.65,4.4);pupil.parent=g;pupil.isPickable=false;
+      pupil.material=pupilM;pupil.position.set(sd*.5,.68,4.4);pupil.parent=g;pupil.isPickable=false;
+      const brow=BABYLON.MeshBuilder.CreateBox('wonderful_brow'+sd,{width:.42,height:.07,depth:.07},scene);
+      brow.material=browM;brow.position.set(sd*.5,.98,4.22);brow.rotation.z=sd*-.3;brow.parent=g;brow.isPickable=false;
     }
+    /* smiling mouth: a thin red arc under the eyes */
+    const mouth=BABYLON.MeshBuilder.CreateTorus('wonderful_mouth',{diameter:.9,thickness:.08,tessellation:24},scene);
+    mouth.material=MAT.red;mouth.scaling.set(1,.5,.4);mouth.rotation.x=Math.PI/2;mouth.position.set(0,.18,4.55);mouth.parent=g;mouth.isPickable=false;
     const prop=BABYLON.MeshBuilder.CreateDisc('wonderful_prop',{radius:1.6,tessellation:20},scene);
     prop.position.set(0,0,5.1);prop.material=MAT.dark;prop.parent=g;prop.isPickable=false;
     const spinner=BABYLON.MeshBuilder.CreateCylinder('wonderful_spin',{diameterTop:0,diameterBottom:.3,height:.4,tessellation:12},scene);
@@ -6775,16 +7134,29 @@ const FLEET = [
       cyl(gear,'wonderful_strut',.07,.07,.7,MAT.gear,[x,-.8,z]);
       cyl(gear,'wonderful_wheel',.5,.5,.15,MAT.dark,[x,-1.3,z],[0,0,Math.PI/2]);
     }
-    g.metadata={gearGroup:gear,fixed:true};
+    /* sparkle trail: little glowing motes drifting off behind it */
+    try{
+      const sTex=new BABYLON.DynamicTexture('wonderSparkT',{width:32,height:32},scene,true),sc=sTex.getContext();
+      const gr=sc.createRadialGradient(16,16,0,16,16,16);gr.addColorStop(0,'rgba(255,255,255,1)');gr.addColorStop(.4,'rgba(255,230,255,.8)');gr.addColorStop(1,'rgba(255,230,255,0)');
+      sc.fillStyle=gr;sc.fillRect(0,0,32,32);sTex.update();sTex.hasAlpha=true;
+      const sp=new BABYLON.ParticleSystem('wonderSparkle',200,scene);sp.particleTexture=sTex;
+      const em=new BABYLON.TransformNode('wonderSparkEm',scene);em.parent=g;em.position.set(0,-.1,-5.6);sp.emitter=em;
+      sp.minEmitBox=new BABYLON.Vector3(-1.2,-.3,0);sp.maxEmitBox=new BABYLON.Vector3(1.2,.3,0);
+      sp.color1=new BABYLON.Color4(1,.8,1,.9);sp.color2=new BABYLON.Color4(.8,.9,1,.7);sp.colorDead=new BABYLON.Color4(1,1,1,0);
+      sp.minSize=.15;sp.maxSize=.5;sp.minLifeTime=.6;sp.maxLifeTime=1.4;sp.emitRate=26;
+      sp.minEmitPower=.2;sp.maxEmitPower=.8;sp.direction1=new BABYLON.Vector3(-.3,-.1,-1);sp.direction2=new BABYLON.Vector3(.3,.3,-1);
+      sp.gravity=new BABYLON.Vector3(0,-.3,0);sp.blendMode=BABYLON.ParticleSystem.BLENDMODE_ADD;sp.start();
+      g.metadata={gearGroup:gear,fixed:true,sparkle:sp};
+    }catch(e){g.metadata={gearGroup:gear,fixed:true};}
     return g;
   }
 
   /* ---- Cockpit cameras for the non-737 aircraft ---- */
-  const CK_EYE={cessna:[-.4,.5,.4],atr:[-.6,.8,10.9],e190:[-.6,.7,14.8],dc9:[-.6,.7,14.2],dc10:[-.7,1.2,20.2],a350:[-.7,1.3,23],dc3:[-.55,.55,7.5],dc8:[-.65,.9,24.4],f18:[0,.6,5.2],b747:[-.7,3.1,27.4],l1011:[-.7,1.2,21.5],a380:[-.8,1.8,33.5],wonderful:[0,1.0,2.5],md83:[-.6,.7,19.1],crj9:[-.5,.55,15.8],dhc8:[-.6,.7,13.9],a320:[-.6,.85,12.4],b777:[-.7,1.3,26.1],concorde:[-.45,.45,17.9]};
-  const CK_K={cessna:.8,atr:1.0,e190:1.0,dc9:1.0,dc10:1.4,a350:1.4,dc3:.9,dc8:1.1,f18:.7,b747:1.5,md83:1.0,crj9:.9,dhc8:1.0,a320:1.0,b777:1.4,concorde:.8};
+  const CK_EYE={cessna:[-.4,.5,.4],atr:[-.6,.8,10.9],e190:[-.6,.7,14.8],dc9:[-.6,.7,14.2],dc10:[-.7,1.2,20.2],a350:[-.7,1.3,23],dc3:[-.55,.55,7.5],dc8:[-.65,.9,24.4],f18:[0,.6,5.2],b747:[-.7,3.1,27.4],l1011:[-.7,1.2,21.5],a380:[-.8,1.8,33.5],wonderful:[0,1.0,2.5],md83:[-.6,.7,19.1],crj9:[-.5,.55,15.8],dhc8:[-.6,.7,13.9],a320:[-.6,.85,12.4],b777:[-.7,1.3,26.1],concorde:[-.45,.45,17.9],b727:[-.6,.75,16.6],b767:[-.7,1.2,21.7]};
+  const CK_K={cessna:.8,atr:1.0,e190:1.0,dc9:1.0,dc10:1.4,a350:1.4,dc3:.9,dc8:1.1,f18:.7,b747:1.5,md83:1.0,crj9:.9,dhc8:1.0,a320:1.0,b777:1.4,concorde:.8,b727:1.0,b767:1.35};
   const ckFrames={};
-  const USE_INT=new Set(['atr','e190','dc9','dc10','a350','dc3','dc8','f18','b747','l1011','a380','md83','crj9','dhc8','a320','b777','concorde']);
-  const INT_S={atr:1,e190:1,dc9:1,dc10:1.2,a350:1.2,dc3:.85,dc8:1.0,f18:.8,b747:1.2,l1011:1.2,a380:1.4,md83:1,crj9:.9,dhc8:1,a320:1,b777:1.2,concorde:.8};
+  const USE_INT=new Set(['atr','e190','dc9','dc10','a350','dc3','dc8','f18','b747','l1011','a380','md83','crj9','dhc8','a320','b777','concorde','b727','b767']);
+  const INT_S={atr:1,e190:1,dc9:1,dc10:1.2,a350:1.2,dc3:.85,dc8:1.0,f18:.8,b747:1.2,l1011:1.2,a380:1.4,md83:1,crj9:.9,dhc8:1,a320:1,b777:1.2,concorde:.8,b727:1.0,b767:1.3};
   const CK_HIDE=/_fus|_ws$|_sw[LR]$|_strut|_wheel|_ng[SW]|_mg[SW]|c172_prop|c172_spin/;
 
   /* ---- Detailed Cessna 172 cockpit ---- */
@@ -6917,6 +7289,7 @@ const FLEET = [
 
   function setActiveAircraft(modelId){
     activeModelId=modelId;
+    window._activeModelId=modelId;
     window._ckEye=CK_EYE[modelId]||null;
     try{ exteriorRoot.setEnabled(false); }catch(e){}
     try{ interiorRoot.setEnabled(false); }catch(e){}
@@ -7025,7 +7398,7 @@ const FLEET = [
   const WX_LIST=Object.keys(WX_BONUS);
   const pickWx=()=>WX_LIST[Math.floor(Math.random()*WX_LIST.length)];
   const diffFor=b=>b>1.4?'HARD':b>1.15?'MED':'EASY';
-  const altCeiling=()=>({cessna:6000,atr:20000,e190:32000,dc9:33000,b737:35000,dc10:40000,b787:41000,a350:42000,dc3:14000,dc8:42000,f18:50000,b747:45000,l1011:40000,a380:43000,wonderful:8000,md83:37000,crj9:41000,dhc8:25000,a320:39000,b777:43000,concorde:60000}[fleet().id])||30000;
+  const altCeiling=()=>({cessna:6000,atr:20000,e190:32000,dc9:33000,b737:35000,dc10:40000,b787:41000,a350:42000,dc3:14000,dc8:42000,f18:50000,b747:45000,l1011:40000,a380:43000,wonderful:8000,md83:37000,crj9:41000,dhc8:25000,a320:39000,b777:43000,concorde:60000,b727:33000,b767:43000}[fleet().id])||30000;
   const rndPax=()=>{
     const cap=fleet().pax;
     if(cap<=6) return 1+Math.floor(Math.random()*cap);
@@ -7307,12 +7680,16 @@ const FLEET = [
     const isLesson=currentFlight.type==='lesson';
     const head=(isLesson?'📚 LESSON':'📋 ')+currentFlight.title;
     const cls=isLesson?' lesson':'';
+    const ready=!!currentFlight.readyToEnd;
     objPanel.innerHTML=`
       <div class="objHead"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px">${head}</span><span class="objProg">${completed}/${total}</span></div>
       <div class="objList">${currentFlight.objectives.map(o=>
         `<div class="obj${o.met?' met':''}${cls}"><span class="objCheck">${o.met?'✓':'○'}</span><span>${o.label}</span></div>`
-      ).join('')}</div>`;
+      ).join('')}</div>
+      <button class="objEndBtn${ready?' ready':''}" id="objEndBtn" ${ready?'':'disabled'}>${ready?'🏁 END FLIGHT':'Complete objectives to end'}</button>`;
     objPanel.style.display='block';
+    const eb=document.getElementById('objEndBtn');
+    if(eb)eb.addEventListener('click',()=>{if(currentFlight&&currentFlight.readyToEnd)completeSuccess();});
   }
 
   const sModal=document.createElement('div');sModal.id='summaryModal';
@@ -7537,7 +7914,7 @@ const FLEET = [
       if(!r)allMet=false;
     }
     if(newlyMet)showMsg('✓ '+newlyMet.label,1400);
-    if(allMet){completeSuccess();return;}
+    if(allMet&&!currentFlight.readyToEnd){currentFlight.readyToEnd=true;showMsg('✓ ALL OBJECTIVES COMPLETE · press END FLIGHT when ready',2800);}
     renderObjHud();
   });
 
@@ -7564,12 +7941,16 @@ const FLEET = [
   modelRoots.crj9=buildCRJ9Model();
   modelRoots.dhc8=buildDHC8Model();
   modelRoots.a380=buildA380Model();
+  modelRoots.b727=buildB727Model();
+  modelRoots.b767=buildB767Model();
   modelRoots.wonderful=buildWonderfulModel();
-  ['cessna','atr','e190','dc9','dc10','a350','dc3','dc8','f18','b747','l1011','a380','wonderful','md83','crj9','dhc8','a320','b777','concorde'].forEach(id=>{try{dressModel(id,modelRoots[id]);}catch(e){console.error('dress',id,e);}});
+  (function(){const wsp=modelRoots.wonderful.metadata&&modelRoots.wonderful.metadata.sparkle;if(wsp){wsp.emitRate=0;
+    scene.onBeforeRenderObservable.add(()=>{wsp.emitRate=(activeModelId==='wonderful'&&!plane.crashed)?26:0;});}})();
+  ['cessna','atr','e190','dc9','dc10','a350','dc3','dc8','f18','b747','l1011','a380','wonderful','md83','crj9','dhc8','a320','b777','concorde','b727','b767'].forEach(id=>{try{dressModel(id,modelRoots[id]);}catch(e){console.error('dress',id,e);}});
   /* apply the selected livery to every airliner model (shared fuselage/tail textures) */
   window.liveryOthers=function(){
     const L=LIVS[curLiv];if(!L)return;
-    ['atr','e190','dc9','dc10','a350','dc8','b747','l1011','a380','md83','crj9','dhc8','a320','b777','concorde'].forEach(id=>{
+    ['atr','e190','dc9','dc10','a350','dc8','b747','l1011','a380','md83','crj9','dhc8','a320','b777','concorde','b727','b767'].forEach(id=>{
       const g=modelRoots[id];if(!g)return;
       g.getChildMeshes().forEach(m=>{
         const n=m.name;
@@ -7587,7 +7968,7 @@ const FLEET = [
   modelRoots.dc9.setEnabled(false);
   modelRoots.dc10.setEnabled(false);
   modelRoots.a350.setEnabled(false);
-  ['dc3','dc8','f18','b747','l1011','a380','wonderful','md83','crj9','dhc8','a320','b777','concorde'].forEach(id=>modelRoots[id].setEnabled(false));
+  ['dc3','dc8','f18','b747','l1011','a380','wonderful','md83','crj9','dhc8','a320','b777','concorde','b727','b767'].forEach(id=>modelRoots[id].setEnabled(false));
   window._modelRoots=modelRoots;window._DRESS=DRESS;window._FLEET=FLEET;
 
   setActiveAircraft(fleet().model);
@@ -7783,7 +8164,7 @@ const FLEET = [
 
   /* ---- WONDERFUL PLANE GIMMICK v4: ONE continuous "wonderful" held forever ---- */
   /* Uses Web Audio API so the vowel literally never ends until you let go          */
-  let _wCtx=null,_wSrc=null,_wGain=null,_wActive=false;
+  let _wCtx=null,_wSrc=null,_wGain=null,_wActive=false,_wTrem=null,_wVolTap=null;
 
   function _wonderPitchHz(){
     // Base note: ~220hz (A3). Climb raises it, descent lowers it.
@@ -7798,20 +8179,26 @@ const FLEET = [
       if(!_wCtx)_wCtx=new(window.AudioContext||window.webkitAudioContext)();
       if(_wCtx.state==='suspended')_wCtx.resume();
 
-      // Layered oscillators to sound like a voice vowel (formant synthesis)
+      // Layered oscillators to sound like a voice vowel (formant synthesis), softened to triangle so it sings instead of buzzing like a siren
       _wGain=_wCtx.createGain();
       _wGain.gain.setValueAtTime(0,_wCtx.currentTime);
-      _wGain.gain.linearRampToValueAtTime(0.35,_wCtx.currentTime+0.08); // fade in
-      _wGain.connect(_wCtx.destination);
+      _wGain.gain.linearRampToValueAtTime(0.3,_wCtx.currentTime+0.08); // fade in
+      /* tremolo node gives it a cheerful "wo-oo-oo" chant pulse instead of one flat held tone */
+      _wTrem=_wCtx.createGain();_wTrem.gain.value=1;
+      _wVolTap=_wCtx.createGain();_wVolTap.gain.value=(typeof masterVol!=='undefined'?masterVol:1);
+      _wGain.connect(_wTrem);_wTrem.connect(_wVolTap);_wVolTap.connect(_wCtx.destination);
+      const tlfo=_wCtx.createOscillator();tlfo.type='sine';tlfo.frequency.value=2.6;
+      const tlfoGain=_wCtx.createGain();tlfoGain.gain.value=.22;
+      tlfo.connect(tlfoGain);tlfoGain.connect(_wTrem.gain);tlfo.start();
 
       _wSrc=[];
-      // Fundamental + harmonics shaped to sound like "AAHHH" vowel
+      // Fundamental + harmonics shaped to sound like a cheerful "oo" vowel
       const ratios=[1,2,3,4,5,6];
-      const amps=  [1,0.7,0.5,0.3,0.15,0.08];
+      const amps=  [1,0.55,0.38,0.2,0.1,0.05];
       const base=_wonderPitchHz();
       ratios.forEach((r,i)=>{
         const osc=_wCtx.createOscillator();
-        osc.type=i===0?'sawtooth':'sine';
+        osc.type=i===0?'triangle':'sine';
         osc.frequency.value=base*r;
         const g=_wCtx.createGain();
         g.gain.value=amps[i];
@@ -7829,6 +8216,7 @@ const FLEET = [
       _wSrc.forEach(s=>lfoGain.connect(s.osc.frequency));
       lfo.start();
       _wSrc.push({osc:lfo,g:lfoGain,ratio:0});
+      _wSrc.push({osc:tlfo,g:tlfoGain,ratio:0});
 
     }catch(e){console.warn('wonderful audio fail',e);}
     showMsg('woNDERFULLLLLLLLLLLLLLLLLLLLLLLLLLLL!!!!!!!!1',99999);
@@ -7844,7 +8232,7 @@ const FLEET = [
       }
       setTimeout(()=>{
         try{(_wSrc||[]).forEach(s=>{try{s.osc.stop();}catch(e){}});}catch(e){}
-        _wSrc=null;_wGain=null;
+        _wSrc=null;_wGain=null;_wTrem=null;_wVolTap=null;
       },150);
     }catch(e){}
     showMsg('',1);
@@ -7863,6 +8251,7 @@ const FLEET = [
         _wSrc.forEach(s=>{
           if(s.ratio>0)s.osc.frequency.setTargetAtTime(base*s.ratio,_wCtx.currentTime,0.1);
         });
+        if(_wVolTap)_wVolTap.gain.setTargetAtTime(typeof masterVol!=='undefined'?masterVol:1,_wCtx.currentTime,0.1);
       }
     } else {
       _wonderStop();
@@ -7888,6 +8277,8 @@ const FLEET = [
 })();
 
 } /* end main */
+
+(function(){const prevTD=window._onTouchdown;window._onTouchdown=(sink,hs,noGear,water)=>{try{prevTD&&prevTD(sink,hs,noGear,water);}catch(e){}try{if(!noGear&&!water)window._ambThump&&window._ambThump(Math.min(1,sink/8));}catch(e){}};})();
 </script>
 </body>
 </html>
