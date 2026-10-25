@@ -5736,21 +5736,42 @@ const atc=(function(){
 /* ===== EXTRA FAULTS, GPWS CALLOUTS, DYNAMIC PAPI ===== */
 const XF={t:{},fog0:null,thr:0,chaosT:20,lastCall:9999,said:{},lastAgl:0};
 /* [regex, exact filename on the repo (case-sensitive), kind] — kind:'alt' marks the GPWS altitude callouts that must not double up within window._minsT */
+/* McDonnell Douglas jets (DC-9, MD-83, DC-10) get their own GPWS voice pack instead of the Airbus one */
+const MD_SET=new Set(['dc9','md83','dc10']);
+/* genuine Airbus jets in the fleet — the "airbus-*" branded files (master warning chime, clear-of-conflict, windshear-ahead) are gated to these so a 737/747/Cessna/DC-3/etc. doesn't ring an Airbus cockpit chime */
+const AIRBUS_SET=new Set(['a320','a350','a380']);
+const ALT_FILES={
+  '2500':['airbus-gpws-callout-v2-2500-ft.mp3','2500-ft-over-the-ground.mp3'],
+  '1000':['airbus-gpws-callout-v2-1000-ft.mp3','1000-ft-over-the-ground.mp3'],
+  '500': ['airbus-gpws-callout-v2-500-ft.mp3','500-ft-over-the-ground.mp3'],
+  '400': ['airbus-gpws-callout-v2-400-ft.mp3','400-ft-over-the-ground.mp3'],
+  '300': ['airbus-gpws-callout-v2-300-ft.mp3','300-ft-over-the-ground.mp3'],
+  '200': ['airbus-gpws-callout-v2-200-ft.mp3','200-ft-over-the-ground.mp3'],
+  '100': ['airbus-gpws-callout-v2-100-ft.mp3','100-ft-over-the-ground.mp3'],
+  '50':  ['airbus-gpws-callout-v2-50-ft.mp3','50-ft-over-the-ground.mp3'],
+  '40':  ['airbus-gpws-callout-v2-40-ft.mp3','40-ft-over-the-ground.mp3'],
+  '30':  ['airbus-gpws-callout-v2-30-ft.mp3','30-ft-over-the-ground.mp3'],
+  '20':  ['airbus-gpws-callout-v2-20-ft.mp3','20-ft-over-the-ground.mp3'],
+  '10':  ['10.wav','10-ft-over-the-ground.mp3']
+};
+const MINIM_FILES=['airbus-gpws-callout-v2-minimum.mp3','minimums.mp3'];
+const APRMIN_FILES=['APRMIN.wav','approaching-minimums.mp3'];
+const pickMD=pair=>pair[MD_SET.has(window._activeModelId)?1:0];
 const SFX_MAP=[
-  [/approaching minimums/,'APRMIN.wav'],
-  [/^minimums/,'airbus-gpws-callout-v2-minimum.mp3'],
-  [/twenty five hundred/,'airbus-gpws-callout-v2-2500-ft.mp3','alt'],
-  [/one thousand/,'airbus-gpws-callout-v2-1000-ft.mp3','alt'],
-  [/five hundred/,'airbus-gpws-callout-v2-500-ft.mp3','alt'],
-  [/four hundred/,'airbus-gpws-callout-v2-400-ft.mp3','alt'],
-  [/three hundred/,'airbus-gpws-callout-v2-300-ft.mp3','alt'],
-  [/two hundred/,'airbus-gpws-callout-v2-200-ft.mp3','alt'],
-  [/one hundred/,'airbus-gpws-callout-v2-100-ft.mp3','alt'],
-  [/^fifty/,'airbus-gpws-callout-v2-50-ft.mp3','alt'],
-  [/^forty/,'airbus-gpws-callout-v2-40-ft.mp3','alt'],
-  [/^thirty/,'airbus-gpws-callout-v2-30-ft.mp3','alt'],
-  [/^twenty$/,'airbus-gpws-callout-v2-20-ft.mp3','alt'],
-  [/^ten$/,'10.wav','alt'],
+  [/approaching minimums/,'APRMIN','aprmin'],
+  [/^minimums/,'MINIM','minim'],
+  [/twenty five hundred/,'2500','alt'],
+  [/one thousand/,'1000','alt'],
+  [/five hundred/,'500','alt'],
+  [/four hundred/,'400','alt'],
+  [/three hundred/,'300','alt'],
+  [/two hundred/,'200','alt'],
+  [/one hundred/,'100','alt'],
+  [/^fifty/,'50','alt'],
+  [/^forty/,'40','alt'],
+  [/^thirty/,'30','alt'],
+  [/^twenty$/,'20','alt'],
+  [/^ten$/,'10','alt'],
   [/terrain pull/,'TERPUL.wav'],
   [/too low terrain/,'LOWTRN.wav'],
   [/terrain/,'TERAIN.wav'],
@@ -5761,16 +5782,16 @@ const SFX_MAP=[
   [/bank angle/,'BNKANG.wav'],
   [/don't sink/,'DONSNK.wav'],
   [/overspeed/,'OVRSPD.mp3'],
-  [/windshear ahead/,'airbus-2x-windshear-ahead-warning.mp3'],
+  [/windshear ahead/,'windshear-ahead','wsahead'],
   [/windshear|wind shear/,'windshear.mp3'],
   [/altitude alert/,'ALTAL1.wav'],
   [/altitude deviation/,'ALTAL2.wav'],
   [/altitude entering|altitude capture/,'ALTENT.wav'],
   [/autopilot disconnect/,'autopilot-disconnect.mp3'],
-  [/engine 1 fire|engine one fire/,'md-engine-1-fire.mp3'],
-  [/engine 2 fire|engine two fire/,'md-engine-2-fire.mp3'],
+  [/engine 1 fire|engine one fire/,'1','fire'],
+  [/engine 2 fire|engine two fire/,'2','fire'],
   [/glideslope/,'glideslope.mp3'],
-  [/clear of conflict/,'airbus-clear-of-conflict-warning.mp3'],
+  [/clear of conflict/,'clear-of-conflict','coc'],
   [/traffic,? traffic/,'traffic-traffic-traffic.mp3'],
   [/descend,? descend now/,'descend-descend-now.mp3'],
   [/descend,? descend/,'descend-descend.mp3'],
@@ -5785,10 +5806,32 @@ function playSfx(file,onFail){
   let i=0;const tryNext=()=>{if(i>=combos.length){onFail&&onFail();return;}const a=new Audio(combos[i++]);a.volume=masterVol!==undefined?masterVol:1;a.onerror=tryNext;
     a.play().then(()=>{if(_sfxCur&&_sfxCur!==a){try{_sfxCur.pause();}catch(e){}}_sfxCur=a;}).catch(()=>{if(a.error)tryNext();else onFail&&onFail();});};tryNext();
 }
-const speak=(t,rate)=>{const l=t.toLowerCase();for(const [re,f,kind] of SFX_MAP){if(re.test(l)){if(kind==='alt'&&performance.now()/1000-window._minsT<1.3)return;if(f==='airbus-gpws-callout-v2-minimum.mp3')window._minsT=performance.now()/1000;if(atc.voice)playSfx(f,()=>{try{if(window.speechSynthesis&&atc.voice){const u=new SpeechSynthesisUtterance(t);u.rate=rate||1.15;u.pitch=.8;speechSynthesis.speak(u);}}catch(e){}});return;}}
-  try{if(window.speechSynthesis&&atc.voice){const u=new SpeechSynthesisUtterance(t);u.rate=rate||1.15;u.pitch=.8;speechSynthesis.speak(u);}}catch(e){}};
-/* master warning triple-chime, played ahead of the voice line for severe cautions (fire, stall, etc.) */
-function masterWarn(){if(atc.voice)playSfx('airbus-master-warn.mp3');}
+const _ttsFallback=(t,rate)=>{try{if(window.speechSynthesis&&atc.voice){const u=new SpeechSynthesisUtterance(t);u.rate=rate||1.15;u.pitch=.8;speechSynthesis.speak(u);}}catch(e){}};
+const speak=(t,rate)=>{const l=t.toLowerCase();for(const [re,f,kind] of SFX_MAP){if(re.test(l)){
+    if(kind==='alt'&&performance.now()/1000-window._minsT<1.3)return;
+    let file;
+    if(kind==='alt')file=pickMD(ALT_FILES[f]);
+    else if(kind==='minim'){file=pickMD(MINIM_FILES);window._minsT=performance.now()/1000;}
+    else if(kind==='aprmin')file=pickMD(APRMIN_FILES);
+    else if(kind==='fire'){
+      /* the only engine-fire bell audio on the repo is McDonnell Douglas-branded (md-engine-*-fire.mp3) — only play it on actual MD jets; everyone else gets the spoken callout with no mismatched brand chime */
+      if(MD_SET.has(window._activeModelId))file='md-engine-'+f+'-fire.mp3';
+      else{_ttsFallback(t,rate);return;}
+    }else if(kind==='coc'){
+      /* "clear of conflict" audio file is Airbus-branded; non-Airbus jets fall back to speech so they don't borrow an Airbus chime */
+      if(AIRBUS_SET.has(window._activeModelId))file='airbus-clear-of-conflict-warning.mp3';
+      else{_ttsFallback(t,rate);return;}
+    }else if(kind==='wsahead'){
+      if(AIRBUS_SET.has(window._activeModelId))file='airbus-2x-windshear-ahead-warning.mp3';
+      else file='windshear.mp3';
+    }
+    else file=f;
+    if(atc.voice)playSfx(file,()=>_ttsFallback(t,rate));
+    return;
+  }}
+  _ttsFallback(t,rate);};
+/* master warning chime, played ahead of the voice line for severe cautions (fire, stall, etc.) — the only chime file available is Airbus-branded, so it's gated to actual Airbus jets; other aircraft just get the spoken warning */
+function masterWarn(){if(atc.voice&&AIRBUS_SET.has(window._activeModelId))playSfx('airbus-master-warn.mp3');}
 
 /* ===== AMBIENT ENGINE + WIND SOUND (synthesized, no external files) ===== */
 let masterVol=.6,_prevVol=.6;
