@@ -3672,18 +3672,32 @@ function physicsStep(dt){
       /* oleo rebound: restitution grows with sink rate; spoilers kill the lift that carries the bounce */
       const spo=plane.spoilerVisual>0.5;
       if(!noGear && !isWaterContact && sink > 0.2 && sink < 14){
-        /* bouncier gear: first touch rebounds at ~0.75 of sink speed with a minimum hop (~4 cm) even on soft landings;
-           rebounds lose more energy (~0.5) so the bounces die out after a few hops. Spoilers still halve it. */
-        const rebound=(Date.now()-(plane._lastTD||0))<4000;
-        const e=Math.min(0.9,(rebound?0.5:0.75)+sink*0.03)*(spo?.5:1);
-        const hop=Math.max(rebound?0:0.9, sink*e);
+        /* BOUNCIER LANDINGS: dramatic rebounds with cascading bounces. Hard landings bounce higher, soft ones still pop.
+           Restitution decays per bounce so motion settles naturally. Spoilers kill 60% of energy. */
+        const lastTD=Date.now()-(plane._lastTD||0);
+        const rebound=lastTD<5500;  // extend window to catch more bounces
+        plane._bounces=(plane._bounces||0)+(rebound?1:0);
+        const bounceN=plane._bounces;
+
+        /* First bounce: 80% restitution min, scales with sink. Subsequent: decay by ~40% each time. */
+        const isFirstBounce=!rebound;
+        let e = isFirstBounce ? Math.min(0.95, 0.8 + sink*0.025) : Math.max(0.15, 0.45 - (bounceN-1)*0.15);
+        e *= (spo ? 0.4 : 1);  // spoilers more aggressive
+
+        /* Hop height: soft lands still bounce (min 2m/s), hard lands launch (sink 30 = ~24m/s rebound). */
+        const hop = Math.max(2, sink * e);
         plane.vel.y = hop;
-        plane._bounces=rebound?(plane._bounces||0)+1:1;
-        /* mains-first: nose slams forward; nose-first: porpoise up */
-        plane.angVel.x += (pitchDeg>1.5?1:-1.4)*Math.min(.35,Math.max(0,sink-.2)*.09);
-        /* one-wing-low touchdown rocks the wings */
-        plane.angVel.z += BABYLON.Scalar.Clamp(-bankDeg*.04,-.4,.4)*Math.min(1,sink/2)+(Math.random()-.5)*Math.min(.25,sink*.05);
-        if(plane._bounces>1&&hop>.5)setTimeout(()=>showMsg('🏀 BOUNCE ×'+plane._bounces+' · '+fpm+' fpm',1600),10);
+
+        /* Pitch & roll motion: violent for first bounce, settles for repeats. */
+        const bounceAmp = isFirstBounce ? 1.2 : Math.max(0.3, 1 - (bounceN-2)*0.25);
+        plane.angVel.x += (pitchDeg>1.5?1:-1.4)*Math.min(.5, Math.max(0,sink-.2)*.12)*bounceAmp;
+        plane.angVel.z += BABYLON.Scalar.Clamp(-bankDeg*.05,-.55,.55)*Math.min(1.2,sink/1.8)*bounceAmp + (Math.random()-.5)*Math.min(.4,sink*.07)*bounceAmp;
+
+        /* Show bounce msg on 2nd+ bounces and when rebound energy is visible (>1.5 m/s). */
+        if(bounceN>1&&hop>1.5){
+          const bounceMsg=bounceN===2?'🏀 BOUNCE ×'+bounceN+' · '+fpm+' fpm':(bounceN>3?'🏀 BOUNCE ×'+bounceN+' (STILL BOUNCING)':'🏀 BOUNCE ×'+bounceN);
+          setTimeout(()=>showMsg(bounceMsg,1200),10);
+        }
       } else { plane.vel.y = 0; plane.angVel.z=0; plane._bounces=0; }
       plane._lastTD=Date.now();
       try{camState.shake=Math.max(camState.shake,Math.min(1.6,.15+sink*.28));}catch(e){}
