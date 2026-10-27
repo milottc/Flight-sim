@@ -6245,8 +6245,12 @@ NJ.forEach(p=>{if(p.analog)ANALOG_SET.add(p.id);if(p.brand==='airbus')AIRBUS_SET
         vort.forEach(v=>{v.em.position.set(v.sd*tip.s,tip.y,tip.zLE-tip.c);v.ps.emitRate=vk*120;});
       });
     }catch(e){console.warn('contrails',e);}
-    scene.onBeforeRenderObservable.add(()=>{const g=window._modelRoots[window._activeModelId];if(!g)return;
-      const c=plane.onGround||Math.abs(plane.gearCompress||0)>.01?(plane.gearCompress||0):0;g.position.y=-c*.32;});
+       scene.onBeforeRenderObservable.add(()=>{
+      const g = window._modelRoots ? window._modelRoots[window._activeModelId] : null;
+      if(!g) return;
+      const c = plane.onGround || Math.abs(plane.gearCompress||0) > .01 ? (plane.gearCompress||0) : 0;
+      g.position.y = -c * .32;
+    });
     try{const dp=scene.postProcessRenderPipelineManager.supportedPipelines[0];
       if(dp&&HQ){dp.samples=4;dp.fxaaEnabled=true;dp.imageProcessing.exposure=Math.max(dp.imageProcessing.exposure,1.12);
         dp.bloomThreshold=.78;dp.bloomWeight=.32;dp.imageProcessing.colorCurves&&(dp.imageProcessing.colorCurves.globalSaturation=18);}}catch(e){}
