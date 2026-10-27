@@ -5947,19 +5947,41 @@ scene.registerBeforeRender(()=>{const dt=Math.min(.05,engine.getDeltaTime()/1000
 let landingOn=true;const llights=[];
 (function(){
   for(const sx of [-1,1]){
-    const sp=new BABYLON.SpotLight('ll'+sx,new BABYLON.Vector3(sx*5.5,-1.3,5),new BABYLON.Vector3(sx*.03,-.16,1),.9,1.6,scene);
-    sp.parent=aircraftRoot;sp.intensity=9;sp.range=1400;sp.diffuse=new BABYLON.Color3(1,.97,.88);sp.specular=new BABYLON.Color3(1,.97,.88);llights.push(sp);
-    const g=BABYLON.MeshBuilder.CreateSphere('llg',{diameter:.7},scene);const gm=new BABYLON.StandardMaterial('llgm',scene);gm.emissiveColor=new BABYLON.Color3(1,1,.9);gm.disableLighting=true;g.material=gm;g.parent=aircraftRoot;g.position.set(sx*5.5,-1.3,5.2);g.isPickable=false;sp._glare=g;
-    const bm=new BABYLON.StandardMaterial('llbm',scene);bm.emissiveColor=new BABYLON.Color3(1,.97,.85);bm.disableLighting=true;bm.alpha=.06;bm.backFaceCulling=false;
-    const cone=BABYLON.MeshBuilder.CreateCylinder('llcone',{height:260,diameterTop:90,diameterBottom:.6,tessellation:20,cap:BABYLON.Mesh.NO_CAP},scene);cone.material=bm;cone.parent=aircraftRoot;cone.rotation.x=Math.PI/2+.16;cone.position.set(sx*5.5,-1.3-20,5+128);cone.isPickable=false;cone.applyFog=false;sp._cone=cone;
+    /* Twin landing lights: wider cone, brighter, longer range. Warm 3000K tungsten. */
+    const sp=new BABYLON.SpotLight('ll'+sx,new BABYLON.Vector3(sx*5.5,-1.3,5),new BABYLON.Vector3(sx*.02,-.14,1),.75,2.0,scene);
+    sp.parent=aircraftRoot;sp.intensity=14;sp.range=2800;sp.diffuse=new BABYLON.Color3(1,.95,.82);sp.specular=new BABYLON.Color3(1,.95,.82);llights.push(sp);
+
+    /* Larger glow sphere at landing light position */
+    const g=BABYLON.MeshBuilder.CreateSphere('llg'+sx,{diameter:1.1},scene);
+    const gm=new BABYLON.StandardMaterial('llgm'+sx,scene);
+    gm.emissiveColor=new BABYLON.Color3(1,.98,.85);gm.disableLighting=true;g.material=gm;g.parent=aircraftRoot;g.position.set(sx*5.5,-1.3,5.2);g.isPickable=false;sp._glare=g;
+
+    /* Very transparent beam guide cones — almost invisible but show light beam shape. */
+    const bm=new BABYLON.StandardMaterial('llbm'+sx,scene);
+    bm.emissiveColor=new BABYLON.Color3(1,.95,.80);bm.disableLighting=true;bm.alpha=.02;bm.backFaceCulling=false;
+
+    const cone=BABYLON.MeshBuilder.CreateCylinder('llcone'+sx,{height:350,diameterTop:110,diameterBottom:.6,tessellation:24,cap:BABYLON.Mesh.NO_CAP},scene);
+    cone.material=bm;cone.parent=aircraftRoot;cone.rotation.x=Math.PI/2+.16;cone.position.set(sx*5.5,-1.3-18,5+175);cone.isPickable=false;cone.applyFog=false;sp._cone=cone;
+
+    /* Inner hotspot — even more transparent. */
+    const bm2=new BABYLON.StandardMaterial('llbm2'+sx,scene);
+    bm2.emissiveColor=new BABYLON.Color3(1,.97,.88);bm2.disableLighting=true;bm2.alpha=.015;bm2.backFaceCulling=false;
+    const cone2=BABYLON.MeshBuilder.CreateCylinder('llcone2'+sx,{height:280,diameterTop:35,diameterBottom:.3,tessellation:20,cap:BABYLON.Mesh.NO_CAP},scene);
+    cone2.material=bm2;cone2.parent=aircraftRoot;cone2.rotation.x=Math.PI/2+.16;cone2.position.set(sx*5.5,-1.3-14,5+140);cone2.isPickable=false;cone2.applyFog=false;sp._coneInner=cone2;
   }
-  const setLL=on=>{landingOn=on;llights.forEach(l=>{l.setEnabled(on);l._glare.setEnabled(on);l._cone.setEnabled(on&&nightMode!==false);});};
+
+  const setLL=on=>{landingOn=on;llights.forEach(l=>{l.setEnabled(on);l._glare.setEnabled(on);l._cone.setEnabled(on&&nightMode!==false);l._coneInner.setEnabled(on&&nightMode!==false);});};
   scene.materials.forEach(m=>m.maxSimultaneousLights=8);scene.onNewMaterialAddedObservable.add(m=>m.maxSimultaneousLights=8);
   scene.textures.forEach(t=>{try{t.anisotropicFilteringLevel=16;}catch(e){}});scene.onNewTextureAddedObservable.add(t=>{try{t.anisotropicFilteringLevel=16;}catch(e){}});
   window.addEventListener('keydown',e=>{if(e.code==='KeyL'&&!/INPUT|SELECT/.test((e.target||{}).tagName||'')){setLL(!landingOn);showMsg('LANDING LIGHTS '+(landingOn?'ON':'OFF'));}});
   scene.registerBeforeRender(()=>{const agl=plane.pos.y-sampleSurface(plane.pos.x,plane.pos.z);const night=(typeof nightMode!=='undefined')?nightMode:false;
-    llights.forEach(l=>{l._cone.setEnabled(landingOn&&night);l._glare.setEnabled(landingOn&&night);l.intensity=night?9:3;});});
-  try{const dp=scene.postProcessRenderPipelineManager.supportedPipelines[0];if(dp){dp.samples=isTouchDev?1:4;dp.sharpen.edgeAmount=.45;dp.bloomWeight=.35;dp.imageProcessing.contrast=1.18;}}catch(e){}
+    llights.forEach(l=>{
+      l._cone.setEnabled(landingOn&&night);l._coneInner.setEnabled(landingOn&&night);l._glare.setEnabled(landingOn&&night);
+      /* Intensity ramps with altitude: dim at 200ft, full bright above 1000ft, scales with night mode. */
+      const altRamp=Math.max(.4,Math.min(1,(agl-200)/800));
+      l.intensity=night?14*altRamp:4;l.range=night?2800:1400;
+    });});
+  try{const dp=scene.postProcessRenderPipelineManager.supportedPipelines[0];if(dp){dp.samples=isTouchDev?1:4;dp.sharpen.edgeAmount=.45;dp.bloomWeight=.38;dp.imageProcessing.contrast=1.22;}}catch(e){}
   if(!isTouchDev){try{engine.setHardwareScalingLevel(1/Math.min(window.devicePixelRatio||1,1.75));}catch(e){}}
   try{const mb=new BABYLON.MotionBlurPostProcess&&null;}catch(e){}
 })();
