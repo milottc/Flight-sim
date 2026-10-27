@@ -3921,7 +3921,7 @@ function createRunway(code){
   /* parked jets: real sim models (cloned + merged for speed) */
   const parkSet=['a350','a320','e190','b777','md83','crj9','b747','dc10','b727','b767'];
   const doPark=()=>{
-    const MR=window._modelRoots,DR=window._DRESS,FL=window._FLEET;if(!MR||!MR.a350)return false;
+    const MR=window._modelRoots,DR=window._DRESS,FL=window._FLEET;if(!MR||!DR||!DR.a350)return false;
     gates.forEach((g,n)=>{
       const id=parkSet[(n+((L*7)|0))%parkSet.length],src=MR[id];if(!src)return;
       const D=DR[id],nose=D&&D.fus?D.fus[0].z:20,span=D&&D.wing?D.wing[D.wing.length-1].s:20;
@@ -6463,6 +6463,7 @@ NJ.forEach(p=>{if(p.analog)ANALOG_SET.add(p.id);if(p.brand==='airbus')AIRBUS_SET
   }
 
   function setActiveAircraft(modelId){
+    if(modelId!=='737'&&modelId!=='787'&&window._ensureModel){try{window._ensureModel(modelId);}catch(e){console.warn('lazy setActive',e);}}
     activeModelId=modelId;
     window._activeModelId=modelId;
     window._ckEye=CK_EYE[modelId]||null;
@@ -7098,32 +7099,107 @@ NJ.forEach(p=>{if(p.analog)ANALOG_SET.add(p.id);if(p.brand==='airbus')AIRBUS_SET
     MAT.glass.clearCoat.isEnabled=true;MAT.glass.roughness=.04;MAT.glass.metallic=.9;
     if(M.body&&M.body.clearCoat){M.body.clearCoat.isEnabled=true;M.body.clearCoat.intensity=.6;M.body.clearCoat.roughness=.08;}
     if(M.fus&&M.fus.clearCoat){M.fus.clearCoat.isEnabled=true;M.fus.clearCoat.intensity=.6;M.fus.clearCoat.roughness=.08;}}catch(e){console.warn('paint',e);}
-  modelRoots.cessna=buildCessnaModel();
-  modelRoots.atr=buildATRModel();
-  modelRoots.e190=buildE190Model();
-  modelRoots.dc9=buildDC9Model();
-  modelRoots.dc10=buildDC10Model();
-  modelRoots.a350=buildA350Model();
-  modelRoots.dc3=buildDC3Model();
-  modelRoots.dc8=buildDC8Model();
-  modelRoots.f18=buildF18Model();
-  modelRoots.b747=buildB747Model();
-  modelRoots.l1011=buildL1011Model();
-  modelRoots.md83=buildMD83Model();
-  modelRoots.a320=buildA320Model();
-  modelRoots.b777=buildB777Model();
-  modelRoots.concorde=buildConcordeModel();
-  modelRoots.crj9=buildCRJ9Model();
-  modelRoots.dhc8=buildDHC8Model();
-  modelRoots.a380=buildA380Model();
-  modelRoots.b727=buildB727Model();
-  modelRoots.b767=buildB767Model();
-  NJ.forEach(p=>{try{DRESS[p.id]=p.d;modelRoots[p.id]=buildJet(p.id,p.b);dressModel(p.id,modelRoots[p.id]);modelRoots[p.id].setEnabled(false);}catch(e){console.error('NJ build',p.id,e);}});
-  modelRoots.wonderful=buildWonderfulModel();
-  (function(){const wsp=modelRoots.wonderful.metadata&&modelRoots.wonderful.metadata.sparkle;if(wsp){wsp.emitRate=0;
-    scene.onBeforeRenderObservable.add(()=>{wsp.emitRate=(activeModelId==='wonderful'&&!plane.crashed)?26:0;});}})();
-  ['cessna','atr','e190','dc9','dc10','a350','dc3','dc8','f18','b747','l1011','a380','wonderful','md83','crj9','dhc8','a320','b777','concorde','b727','b767'].forEach(id=>{try{dressModel(id,modelRoots[id]);}catch(e){console.error('dress',id,e);}});
-  /* apply the selected livery to every airliner model (shared fuselage/tail textures) */
+
+  /* ===== LAZY MODEL BUILDERS: nothing builds until a plane is actually selected ===== */
+  const _BUILDERS={
+    cessna:buildCessnaModel,atr:buildATRModel,e190:buildE190Model,
+    dc9:buildDC9Model,dc10:buildDC10Model,a350:buildA350Model,
+    dc3:buildDC3Model,dc8:buildDC8Model,f18:buildF18Model,
+    b747:buildB747Model,l1011:buildL1011Model,md83:buildMD83Model,
+    a320:buildA320Model,b777:buildB777Model,concorde:buildConcordeModel,
+    crj9:buildCRJ9Model,dhc8:buildDHC8Model,a380:buildA380Model,
+    b727:buildB727Model,b767:buildB767Model
+  };
+  const _NJ_BUILDERS={};
+  NJ.forEach(p=>{
+    DRESS[p.id]=p.d;
+    _NJ_BUILDERS[p.id]=()=>{
+      const g=buildJet(p.id,p.b);
+      dressModel(p.id,g);
+      g.setEnabled(false);
+      return g;
+    };
+  });
+
+  window._ensureModel=function(id){
+    if(modelRoots[id])return modelRoots[id];
+    let g=null;
+    try{
+      if(id==='wonderful'){
+        g=buildWonderfulModel();
+        const wsp=g.metadata&&g.metadata.sparkle;
+        if(wsp){
+          wsp.emitRate=0;
+          scene.onBeforeRenderObservable.add(()=>{
+            wsp.emitRate=(activeModelId==='wonderful'&&!plane.crashed)?26:0;
+          });
+        }
+      }
+      else if(_NJ_BUILDERS[id]){g=_NJ_BUILDERS[id]();}
+      else if(_BUILDERS[id]){g=_BUILDERS[id]();dressModel(id,g);g.setEnabled(false);}
+      if(g){
+        modelRoots[id]=g;
+        try{window.liveryOthers&&window.liveryOthers();}catch(e){}
+      }
+    }catch(e){console.warn('lazy model',id,e);}
+    return g;
+  };
+
+  /* paint any model that actually exists — safe to call before models are built */
+  window.liveryOthers=function(){
+    const L=LIVS[curLiv];if(!L)return;
+    ['atr','e190','dc9','dc10',  initMats();
+  try{MAT.white.clearCoat.isEnabled=true;MAT.white.clearCoat.intensity=.8;MAT.white.clearCoat.roughness=.06;MAT.white.roughness=.28;
+    MAT.glass.clearCoat.isEnabled=true;MAT.glass.roughness=.04;MAT.glass.metallic=.9;
+    if(M.body&&M.body.clearCoat){M.body.clearCoat.isEnabled=true;M.body.clearCoat.intensity=.6;M.body.clearCoat.roughness=.08;}
+    if(M.fus&&M.fus.clearCoat){M.fus.clearCoat.isEnabled=true;M.fus.clearCoat.intensity=.6;M.fus.clearCoat.roughness=.08;}}catch(e){console.warn('paint',e);}
+
+  /* ===== LAZY MODEL BUILDERS: nothing builds until a plane is actually selected ===== */
+  const _BUILDERS={
+    cessna:buildCessnaModel,atr:buildATRModel,e190:buildE190Model,
+    dc9:buildDC9Model,dc10:buildDC10Model,a350:buildA350Model,
+    dc3:buildDC3Model,dc8:buildDC8Model,f18:buildF18Model,
+    b747:buildB747Model,l1011:buildL1011Model,md83:buildMD83Model,
+    a320:buildA320Model,b777:buildB777Model,concorde:buildConcordeModel,
+    crj9:buildCRJ9Model,dhc8:buildDHC8Model,a380:buildA380Model,
+    b727:buildB727Model,b767:buildB767Model
+  };
+  const _NJ_BUILDERS={};
+  NJ.forEach(p=>{
+    DRESS[p.id]=p.d;
+    _NJ_BUILDERS[p.id]=()=>{
+      const g=buildJet(p.id,p.b);
+      dressModel(p.id,g);
+      g.setEnabled(false);
+      return g;
+    };
+  });
+
+  window._ensureModel=function(id){
+    if(modelRoots[id])return modelRoots[id];
+    let g=null;
+    try{
+      if(id==='wonderful'){
+        g=buildWonderfulModel();
+        const wsp=g.metadata&&g.metadata.sparkle;
+        if(wsp){
+          wsp.emitRate=0;
+          scene.onBeforeRenderObservable.add(()=>{
+            wsp.emitRate=(activeModelId==='wonderful'&&!plane.crashed)?26:0;
+          });
+        }
+      }
+      else if(_NJ_BUILDERS[id]){g=_NJ_BUILDERS[id]();}
+      else if(_BUILDERS[id]){g=_BUILDERS[id]();dressModel(id,g);g.setEnabled(false);}
+      if(g){
+        modelRoots[id]=g;
+        try{window.liveryOthers&&window.liveryOthers();}catch(e){}
+      }
+    }catch(e){console.warn('lazy model',id,e);}
+    return g;
+  };
+
+  /* paint any model that actually exists — safe to call before models are built */
   window.liveryOthers=function(){
     const L=LIVS[curLiv];if(!L)return;
     ['atr','e190','dc9','dc10','a350','dc8','b747','l1011','a380','md83','crj9','dhc8','a320','b777','concorde','b727','b767',...NJ_IDS].forEach(id=>{
@@ -7138,19 +7214,29 @@ NJ.forEach(p=>{if(p.analog)ANALOG_SET.add(p.id);if(p.brand==='airbus')AIRBUS_SET
     });
   };
   try{window.liveryOthers();}catch(e){console.error(e);}
-  modelRoots.cessna.setEnabled(false);
-  modelRoots.atr.setEnabled(false);
-  modelRoots.e190.setEnabled(false);
-  modelRoots.dc9.setEnabled(false);
-  modelRoots.dc10.setEnabled(false);
-  modelRoots.a350.setEnabled(false);
-  ['dc3','dc8','f18','b747','l1011','a380','wonderful','md83','crj9','dhc8','a320','b777','concorde','b727','b767',...NJ_IDS].forEach(id=>modelRoots[id]&&modelRoots[id].setEnabled(false));
+
+  window._modelRoots=modelRoots;window._DRESS=DRESS;window._FLEET=FLEET;
+
+  setActiveAircraft(fleet().model);
+  renderHUD();
+  renderContracts();func'a350','dc8','b747','l1011','a380','md83','crj9','dhc8','a320','b777','concorde','b727','b767',...NJ_IDS].forEach(id=>{
+      const g=modelRoots[id];if(!g)return;
+      g.getChildMeshes().forEach(m=>{
+        const n=m.name;
+        if(n===id+'_fus')m.material=M.fus;
+        else if(n===id+'_fin')m.material=M.tail;
+        else if(n===id+'_wR'||n===id+'_wL'||n===id+'_hR'||n===id+'_hL')m.material=M.body;
+        else if(/_fusStripe/.test(n))m.setEnabled(false);
+      });
+    });
+  };
+  try{window.liveryOthers();}catch(e){console.error(e);}
+
   window._modelRoots=modelRoots;window._DRESS=DRESS;window._FLEET=FLEET;
 
   setActiveAircraft(fleet().model);
   renderHUD();
   renderContracts();
-
   /* ================= GRAPHICS v3 ================= */
   (function(){
     const HQ=!isTouchDev;
