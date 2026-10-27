@@ -4834,7 +4834,6 @@ applyWeatherVisuals();
 updateSurfaceVisuals();updateChips();
 setCamMode(0);
 status('ready');
-
 startBtn.addEventListener('click',async()=>{
   startBtn.disabled=true;overlay.classList.add('hidden');
   let lat,lon,elev,code;
@@ -4858,7 +4857,9 @@ startBtn.addEventListener('click',async()=>{
     const [latS,lonS,elevS,codeS]=val.split(',');
     lat=parseFloat(latS);lon=parseFloat(lonS);elev=parseFloat(elevS);code=codeS;
   }
-  setTOD(document.getElementById('todSelect').value);applyLivery(+liverySel.value);
+  
+  setTOD(document.getElementById('todSelect').value);
+  applyLivery(+liverySel.value);
   currentWeather=WEATHER[wxSel.value]||WEATHER.clear;
   applyEnvironment();
   applyWeatherVisuals();
@@ -4866,15 +4867,17 @@ startBtn.addEventListener('click',async()=>{
   createRunway(currentLocation.code);
   resetAircraft(currentLocation.lat,currentLocation.lon,currentLocation.elev);
   terrainCenter={x:0,z:0};plane.hold=true;
-    // --- RESOLUTION SETTINGS ---
+
+  // --- RESOLUTION SETTINGS ---
   const RES_SETTINGS = {
     low:   { tex: 1024, tiles: 48,  zoom: 16 },
     med:   { tex: 2048, tiles: 96,  zoom: 17 },
     high:  { tex: 4096, tiles: 144, zoom: 18 },
     ultra: { tex: 4096, tiles: 288, zoom: 19 }
   };
-  const resVal = document.getElementById('resSelect').value || 'med';
-  const r = RES_SETTINGS[resVal];
+  const resSelect = document.getElementById('resSelect');
+  const resVal = resSelect ? resSelect.value : 'med';
+  const r = RES_SETTINGS[resVal] || RES_SETTINGS.med;
   
   CFG.texSize = r.tex;
   CFG.maxImageryTiles = r.tiles;
@@ -4889,13 +4892,25 @@ startBtn.addEventListener('click',async()=>{
       terrainMat.albedoTexture = terrainTex;
   }
   // ---------------------------
+  
   const key=keyInput.value.trim();
   if(key)localStorage.setItem('gmapsKey',key);else localStorage.removeItem('gmapsKey');
-  try{loadEl.textContent='Authenticating imagery…';await Imagery.init(key);el.src.textContent=Imagery.mode==='google'?'GOOGLE':'ESRI';}catch(e){}
-  try{loadEl.textContent='Loading elevation…';
+  
+  try{
+    loadEl.textContent='Authenticating imagery…';
+    await Imagery.init(key);
+    el.src.textContent=Imagery.mode==='google'?'GOOGLE':'ESRI';
+  }catch(e){}
+  
+  try{
+    loadEl.textContent='Loading elevation…';
     await withTimeout(ensureHeightTiles(0,0),20000,'h');
-    rebuildGeom(0,0);fallback.setEnabled(false);}catch(e){rebuildGeom(0,0);fallback.setEnabled(false);}
-  try{  loadEl.textContent='Streaming satellite imagery…';
+    rebuildGeom(0,0);fallback.setEnabled(false);
+  }catch(e){
+    rebuildGeom(0,0);fallback.setEnabled(false);
+  }
+  
+  loadEl.textContent='Streaming satellite imagery…';
   buildTerrainTexture(0,0).then(function(drawn){
     if(drawn===0)showMsg('IMAGERY UNAVAILABLE',5000);
   }).catch(function(e){console.warn('img',e);});
