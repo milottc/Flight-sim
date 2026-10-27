@@ -2967,7 +2967,7 @@ let terrainCenter={x:0,z:0};
 
 async function buildTerrainTexture(cx,cz){
   const nw=worldToLL(cx-E/2,cz-E/2),se=worldToLL(cx+E/2,cz+E/2);
-  let z=Math.min(Imagery.maxZoom,16),r;
+let z=Math.min(Imagery.maxZoom,13),r;
   while(z>5){r=tileRange(nw,se,z);if((r.x1-r.x0+1)*(r.y1-r.y0+1)<=CFG.maxImageryTiles)break;z--;}
   const jobs=[],coords=[];
   for(let tx=r.x0;tx<=r.x1;tx++)for(let ty=r.y0;ty<=r.y1;ty++){
@@ -4872,11 +4872,15 @@ startBtn.addEventListener('click',async()=>{
   try{loadEl.textContent='Loading elevation…';
     await withTimeout(ensureHeightTiles(0,0),20000,'h');
     rebuildGeom(0,0);fallback.setEnabled(false);}catch(e){rebuildGeom(0,0);fallback.setEnabled(false);}
-  try{loadEl.textContent='Streaming satellite imagery…';
-    const drawn=await withTimeout(buildTerrainTexture(0,0),30000,'i');
+  try{  loadEl.textContent='Streaming satellite imagery…';
+  buildTerrainTexture(0,0).then(function(drawn){
     if(drawn===0)showMsg('IMAGERY UNAVAILABLE',5000);
-    else showMsg('READY · '+currentWeather.name+' · '+(currentLocation.start==='takeoff'?'TAKEOFF · SHIFT=THR · S=ROTATE':'FLY SAFE'),6000);}
-  catch(e){showMsg('IMAGERY TIMEOUT',4000);}
+  }).catch(function(e){console.warn('img',e);});
+  
+  setTimeout(function(){
+    if(typeof showMsg === 'function') showMsg('READY · FLY SAFE',6000);
+  }, 500);
+  
   createRunway(currentLocation.code);
   resetAircraft(currentLocation.lat,currentLocation.lon,currentLocation.elev);
   plane.hold=false;loadEl.textContent='Ready';status('flying');
