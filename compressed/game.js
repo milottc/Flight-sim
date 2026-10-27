@@ -6233,7 +6233,7 @@ NJ.forEach(p=>{if(p.analog)ANALOG_SET.add(p.id);if(p.brand==='airbus')AIRBUS_SET
         ps.minEmitBox=ps.maxEmitBox=new V3(0,0,0);ps.color1=new BABYLON.Color4(1,1,1,.05);ps.color2=new BABYLON.Color4(1,1,1,.03);ps.addSizeGradient(0,.35);ps.addSizeGradient(1,1.1);ps.colorDead=new BABYLON.Color4(1,1,1,0);
         ps.minSize=.12;ps.maxSize=.25;ps.minLifeTime=.5;ps.maxLifeTime=1.1;ps.emitRate=0;ps.minEmitPower=0;ps.maxEmitPower=.1;ps.start();vort.push({ps,em,sd});}
       scene.onBeforeRenderObservable.add(()=>{
-        const D=DRESS[activeModelId];
+       const D=window._DRESS[window._activeModelId];
         const eng=(D&&D.engines)||[{x:5,y:-1.5,zR:-3},{x:-5,y:-1.5,zR:-3}];
         const altFt=plane.pos.y*3.28084,on=altFt>26000&&ENG.L.state==='RUNNING'&&!plane.crashed;
         const k=on?Math.min(1,(altFt-26000)/3000):0;
@@ -6537,7 +6537,7 @@ void main(){
       if(waterM){waterM.setVector3('uFogCol',vec.uFogCol);waterM.setFloat('uFogD',scene.fogDensity);}
     }
     let fr=0,lastKey='';
-    scene.onBeforeRenderObservable.add(()=>{
+      scene.onBeforeRenderObservable.add(()=>{
       try{
         const cam=scene.activeCamera||camera,cp=cam.globalPosition||cam.position;
         const key=sun.direction.x.toFixed(3)+sun.direction.y.toFixed(3)+(currentWeather&&currentWeather.name)+(window._gq|0);
