@@ -5564,7 +5564,7 @@ NJ.forEach(p=>{if(p.analog)ANALOG_SET.add(p.id);if(p.brand==='airbus')AIRBUS_SET
   }
   (function(){
     scene.registerBeforeRender(()=>{
-      const g=modelRoots[activeModelId];if(!g||!g.metadata)return;
+      const g=window._modelRoots[window._activeModelId];if(!g||!g.metadata)return;
       const dt=Math.min(.1,scene.getEngine().getDeltaTime()/1000);
       try{
         const gg=g.metadata.gearGroup;if(gg&&!g.metadata.fixed)gg.setEnabled(plane.gearPos>.5);
@@ -6077,7 +6077,7 @@ NJ.forEach(p=>{if(p.analog)ANALOG_SET.add(p.id);if(p.brand==='airbus')AIRBUS_SET
     try{if(USE_INT.has(activeModelId)){const e=CK_EYE[activeModelId],sc=INT_S[activeModelId]||1;interiorRoot.scaling.setAll(sc);interiorRoot.position.set(e[0]+.6*sc,e[1]-.30*sc,e[2]-14.0*sc);}else{interiorRoot.scaling.setAll(1);interiorRoot.position.set(0,0,0);}}catch(er){}
     if(activeModelId==='737'){try{exteriorRoot.setEnabled(true);exteriorRoot.scaling.set(1,1,1);}catch(e){}}
     else if(activeModelId==='787'){try{exteriorRoot.setEnabled(true);exteriorRoot.scaling.set(1.35,1.15,1.35);interiorRoot.setEnabled(m===1);}catch(e){}}
-    else{try{exteriorRoot.setEnabled(false);interiorRoot.setEnabled(m===1&&USE_INT.has(activeModelId));if(modelRoots[activeModelId])modelRoots[activeModelId].setEnabled(true);}catch(e){}}
+    else{try{exteriorRoot.setEnabled(false);interiorRoot.setEnabled(m===1&&USE_INT.has(activeModelId));if(window._modelRoots[window._activeModelId])window._modelRoots[window._activeModelId].setEnabled(true);}catch(e){}}
   };
 
   scene.registerBeforeRender(()=>{
@@ -6087,7 +6087,7 @@ NJ.forEach(p=>{if(p.analog)ANALOG_SET.add(p.id);if(p.brand==='airbus')AIRBUS_SET
         if(!shouldShow737){exteriorRoot.setEnabled(false);exteriorRoot.getChildMeshes().forEach(m=>m.setEnabled(false));}
         else{exteriorRoot.setEnabled(true);exteriorRoot.getChildMeshes().forEach(m=>m.setEnabled(!(camMode===1&&/^(fuselage|cpGlass|cw|stripe|bc|nac|lip|fan|spin|exh|pyl|revD)/.test(m.name))));}
       }
-      if(!shouldShow737&&modelRoots[activeModelId]){const root=modelRoots[activeModelId];root.setEnabled(true);root.getChildMeshes().forEach(m=>m.setEnabled(!(camMode===1&&CK_HIDE.test(m.name))));}
+      if(!shouldShow737&&window._modelRoots[window._activeModelId]){const root=window._modelRoots[window._activeModelId];root.setEnabled(true);root.getChildMeshes().forEach(m=>m.setEnabled(!(camMode===1&&CK_HIDE.test(m.name))));}
     }
     if(fleet().fixedGear){plane.gearPos=1.0;plane.gearTarget=1.0;plane.gearDown=true;}
     if(!currentFlight){startFlightIfNeeded();return;}
