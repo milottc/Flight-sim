@@ -6611,7 +6611,7 @@ void main(){
     all:()=>{cheat.money(1e7);cheat.lessons();return 'money + lessons unlocked. use cheat.fly("a350")';}
   };
   console.log('[CAREER v4] ready · cheats: cheat.list(), cheat.fly("a350"), cheat.next(), cheat.money()');
-})();
+
 
 } /* end main */
 
