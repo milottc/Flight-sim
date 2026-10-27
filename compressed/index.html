@@ -1,0 +1,1571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>Babylon Flight 737 · Pro</title>
+<style>
+/* ============================================================ */
+/* BABYLON FLIGHT 737 · SOLID GAME UI                           */
+/* Chunky but restrained — Roblox-adjacent, not cartoonish      */
+/* ============================================================ */
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#0b1220;color:#e6edf6;font-family:'Inter','Segoe UI',system-ui,-apple-system,sans-serif;font-weight:500;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+#renderCanvas{width:100%;height:100%;display:block;outline:none;touch-action:none}
+
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:#0a0f1c;border-radius:6px}
+::-webkit-scrollbar-thumb{background:#2a3a55;border-radius:6px;border:2px solid #0a0f1c}
+::-webkit-scrollbar-thumb:hover{background:#3d5170}
+
+/* ============ TOP BADGES ============ */
+#errorBanner{position:fixed;top:0;left:0;right:0;z-index:99999;display:none;background:#b91c1c;color:#fff;padding:12px 20px;font-size:13px;white-space:pre-wrap;border-bottom:2px solid #000;font-weight:600;letter-spacing:.3px}
+#bootBadge{position:fixed;top:10px;right:14px;z-index:9999;padding:7px 14px;border-radius:10px;background:rgba(14,21,38,.72);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(34,211,238,.45);color:#a5f3fc;font-size:11px;font-weight:600;letter-spacing:1.5px;box-shadow:0 4px 14px rgba(0,0,0,.3)}
+#camBadge{position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:9999;padding:9px 20px;border-radius:10px;background:rgba(14,21,38,.72);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(34,211,238,.45);color:#a5f3fc;font-size:12px;font-weight:700;letter-spacing:2.5px;box-shadow:0 4px 14px rgba(0,0,0,.3);pointer-events:none;transition:opacity .4s}
+body.cockpit #camBadge{opacity:0}
+
+/* ============ HUD ============ */
+#hud{position:fixed;inset:0;pointer-events:none;z-index:10}
+.panelBox{
+  position:absolute;
+  background:rgba(14,21,38,.72);
+  backdrop-filter:blur(10px) saturate(1.3);
+  -webkit-backdrop-filter:blur(10px) saturate(1.3);
+  border:1px solid rgba(100,130,170,.35);
+  border-radius:14px;
+  padding:10px 14px;
+  box-shadow:0 6px 18px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.06);
+}
+
+#infoBox{left:20px;top:20px;width:250px;font-size:11.5px;line-height:1.7;border-color:#22d3ee}
+#infoBox .lbl{font-weight:700;letter-spacing:1.5px;color:#22d3ee;font-size:11px;margin-bottom:5px;text-transform:uppercase}
+#infoBox .sub{color:#8ba3c0;font-size:11px}
+
+#msgBox{
+  left:50%;top:66px;transform:translateX(-50%);
+  font-size:13px;letter-spacing:.8px;
+  color:#0b1220;
+  opacity:0;
+  transition:opacity .3s;
+  text-align:center;
+  max-width:80vw;
+  padding:10px 22px;
+  border-radius:10px;
+  background:#fbbf24;
+  border:2px solid #000;
+  box-shadow:0 3px 0 #000;
+  font-weight:700;
+}
+
+/* speed */
+#airspeed{left:20px;bottom:130px;width:180px;padding:12px 16px}
+#airspeed .lbl{color:#22d3ee;font-weight:700;letter-spacing:2px;font-size:10.5px;margin-bottom:4px;text-transform:uppercase}
+#airspeed .val{font-size:42px;font-weight:800;line-height:1;color:#e6edf6;letter-spacing:-.5px}
+#airspeed .sub{margin-top:8px;display:flex;justify-content:space-between;font-size:11px;color:#8ba3c0;font-weight:500}
+#airspeed .bar{margin-top:8px;height:6px;background:#000;border-radius:3px;overflow:hidden;position:relative;border:1px solid #263652}
+#airspeed .bar .fill{position:absolute;top:0;left:0;height:100%;background:linear-gradient(90deg,#22c55e,#fbbf24,#ef4444);transition:width .15s}
+#airspeed .bar .mark{position:absolute;top:-2px;width:2px;height:10px;background:#e6edf6}
+
+/* altitude */
+#altitude{right:20px;bottom:130px;width:190px;padding:12px 16px;text-align:right}
+#altitude .lbl{color:#22d3ee;font-weight:700;letter-spacing:2px;font-size:10.5px;margin-bottom:4px;text-transform:uppercase}
+#altitude .val{font-size:42px;font-weight:800;line-height:1;color:#e6edf6;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
+#altitude .sub{margin-top:8px;display:flex;justify-content:space-between;font-size:11px;color:#8ba3c0;direction:ltr}
+#altitude .bar{margin-top:8px;height:6px;background:#000;border-radius:3px;overflow:hidden;position:relative;border:1px solid #263652}
+#altitude .bar .fill{position:absolute;top:0;left:0;height:100%;background:linear-gradient(90deg,#22c55e,#22d3ee);transition:width .15s}
+
+/* vsi */
+#vsi{right:20px;bottom:20px;width:190px;padding:10px 16px;text-align:right}
+#vsi .lbl{color:#22d3ee;font-weight:700;letter-spacing:2px;font-size:10.5px;margin-bottom:2px;text-transform:uppercase}
+#vsi .val{font-size:28px;font-weight:700;line-height:1.1;color:#a5f3fc;font-variant-numeric:tabular-nums}
+#vsi .sub{margin-top:3px;font-size:11px;color:#8ba3c0}
+
+/* attitude & compass */
+#attitude{left:50%;bottom:78px;transform:translateX(-50%);width:220px;height:220px;padding:0;border-radius:16px;overflow:hidden;background:#000;border:1px solid rgba(34,211,238,.45);box-shadow:0 6px 18px rgba(0,0,0,.35)}
+#compass{left:50%;bottom:20px;transform:translateX(-50%);width:340px;height:54px;padding:0;overflow:hidden;border-radius:14px;border-color:rgba(34,211,238,.45)}
+.lbl{font-size:10.5px;letter-spacing:1.5px;color:#22d3ee;font-weight:700;text-transform:uppercase}
+.val{font-size:26px;font-weight:700;line-height:1.05}
+.sub{font-size:11px;color:#8ba3c0}
+#attitudeCanvas{display:block;width:220px;height:220px}
+#compassCanvas{display:block;width:340px;height:54px}
+
+/* chips */
+#configPanel{position:absolute;left:50%;transform:translateX(-50%);bottom:310px;display:flex;gap:6px;flex-wrap:wrap;justify-content:center;max-width:85vw}
+.cfgChip{
+  padding:7px 14px;
+  border-radius:9px;
+  background:rgba(15,24,41,.7);
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
+  border:1px solid rgba(100,130,170,.3);
+  font-size:10.5px;
+  letter-spacing:1px;
+  color:#8ba3c0;
+  white-space:nowrap;
+  font-weight:700;
+  text-transform:uppercase;
+  box-shadow:0 3px 10px rgba(0,0,0,.25);
+  transition:all .12s;
+}
+.cfgChip.on{background:#166534;color:#d1fae5;border-color:#22c55e}
+.cfgChip.warn{background:#7c2d12;color:#fed7aa;border-color:#f97316}
+.cfgChip.fire{background:#7f1d1d;color:#fecaca;border-color:#ef4444;animation:blink .5s infinite alternate}
+.cfgChip.rev{background:#4c1d95;color:#e9d5ff;border-color:#a855f7}
+.cfgChip.wx{background:#1e3a8a;color:#dbeafe;border-color:#3b82f6}
+@keyframes blink{from{opacity:1}to{opacity:.6}}
+
+/* warnings */
+#stallWarn{
+  position:absolute;left:50%;top:120px;transform:translateX(-50%);
+  font-size:14px;font-weight:800;letter-spacing:2.5px;
+  color:#fff;opacity:0;transition:opacity .15s;
+  padding:10px 20px;border-radius:10px;
+  background:#b91c1c;
+  border:2px solid #000;
+  box-shadow:0 3px 0 #000;
+  text-transform:uppercase;
+}
+#stallWarn.on{opacity:1;animation:pulse .5s infinite alternate}
+@keyframes pulse{from{transform:translateX(-50%) scale(1)}to{transform:translateX(-50%) scale(1.04)}}
+
+#windWarn{
+  position:absolute;left:50%;top:168px;transform:translateX(-50%);
+  font-size:12px;font-weight:700;letter-spacing:1.5px;
+  color:#0b1220;opacity:0;transition:opacity .15s;
+  padding:8px 16px;border-radius:10px;
+  background:#fbbf24;
+  border:2px solid #000;
+  box-shadow:0 3px 0 #000;
+  text-transform:uppercase;
+}
+#windWarn.on{opacity:.95}
+
+body.cockpit #attitude,body.cockpit #compass,body.cockpit #configPanel,body.cockpit #stallWarn,body.cockpit #windWarn,body.cockpit #airspeed,body.cockpit #altitude,body.cockpit #vsi{opacity:0;transition:opacity .4s}
+body.cockpit #msgBox{top:auto;bottom:84px}
+body.cockpit #infoBox{opacity:.75}
+
+/* ============ START OVERLAY ============ */
+#overlay{
+  position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(180deg,#0b1220 0%,#0f1b33 60%,#0a1428 100%);
+  overflow:auto;padding:20px;
+}
+#overlay.hidden{display:none}
+
+.card{
+  position:relative;
+  width:min(840px,94vw);
+  background:#111a2e;
+  border:2px solid #22d3ee;
+  border-radius:14px;
+  padding:30px 34px;
+  box-shadow:0 4px 0 #000,0 20px 60px rgba(0,0,0,.6);
+  color:#e6edf6;
+}
+.card h1{
+  font-size:26px;letter-spacing:6px;
+  color:#e6edf6;margin-bottom:4px;
+  font-weight:800;text-transform:uppercase;
+  text-align:center;
+}
+.card h1::after{content:'';display:block;width:60px;height:3px;background:#22d3ee;margin:10px auto 0;border-radius:2px}
+.card h2{
+  font-size:11px;letter-spacing:2.5px;
+  color:#8ba3c0;font-weight:600;
+  margin-bottom:24px;text-transform:uppercase;
+  text-align:center;
+}
+
+.row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.rowFull{grid-column:span 2}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px;grid-column:span 2}
+
+.card label{
+  display:block;font-size:10.5px;letter-spacing:1.5px;
+  color:#22d3ee;margin-bottom:6px;
+  text-transform:uppercase;font-weight:700;
+}
+.card input,.card select{
+  width:100%;padding:11px 13px;
+  background:#0a0f1c;
+  border:2px solid #263652;
+  border-radius:8px;
+  color:#e6edf6;
+  font-family:inherit;
+  font-size:13px;
+  font-weight:500;
+  outline:none;
+  transition:border-color .15s,box-shadow .15s;
+}
+.card input:focus,.card select:focus{
+  border-color:#22d3ee;
+  box-shadow:0 0 0 3px rgba(34,211,238,.2);
+}
+.card select{cursor:pointer}
+.card select option{background:#0a0f1c;color:#e6edf6}
+
+.hint{
+  font-size:12px;color:#a5b8d0;line-height:1.6;
+  margin-top:8px;grid-column:span 2;
+  padding:12px 16px;
+  background:#0a1424;
+  border-radius:8px;
+  border-left:3px solid #22d3ee;
+}
+
+.sectionHead{
+  font-size:12px;letter-spacing:2px;
+  color:#22d3ee;
+  margin:18px 0 10px 0;padding-bottom:8px;
+  border-bottom:2px solid #263652;
+  text-transform:uppercase;
+  grid-column:span 2;
+  font-weight:700;
+}
+
+.keys{
+  display:grid;grid-template-columns:auto 1fr auto 1fr;
+  gap:6px 16px;font-size:11.5px;margin-top:16px;
+  color:#a5b8d0;
+  background:#0a1424;
+  padding:14px;border-radius:10px;
+  border:2px solid #263652;
+}
+.keys b{
+  color:#e6edf6;font-weight:700;
+  font-family:inherit;font-size:10.5px;
+  padding:2px 8px;
+  background:#1e2a44;
+  border:1px solid #3a4a68;
+  border-radius:5px;
+  letter-spacing:.3px;
+}
+
+#startBtn{
+  margin-top:20px;width:100%;padding:16px;
+  border:2px solid #000;border-radius:10px;cursor:pointer;
+  background:#22d3ee;
+  color:#0b1220;
+  font-family:inherit;
+  font-size:14px;letter-spacing:3px;
+  font-weight:800;text-transform:uppercase;
+  box-shadow:0 4px 0 #000;
+  transition:transform .08s,box-shadow .08s,filter .15s;
+}
+#startBtn:hover:not(:disabled){filter:brightness(1.08);transform:translateY(-1px);box-shadow:0 5px 0 #000}
+#startBtn:active:not(:disabled){transform:translateY(2px);box-shadow:0 2px 0 #000}
+#startBtn:disabled{opacity:.5;cursor:wait;filter:grayscale(.5)}
+#loadStatus{margin-top:12px;font-size:12px;color:#22d3ee;min-height:18px;text-align:center;font-weight:600;letter-spacing:.5px}
+
+/* ============ CRASH OVERLAY ============ */
+#crashOverlay{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;background:rgba(60,0,0,.85)}
+#crashOverlay.show{display:flex;animation:crashIn .2s ease-out}
+@keyframes crashIn{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
+#crashOverlay .card{
+  background:#1a0d0d;
+  border-color:#ef4444;
+  width:min(420px,90vw);
+  box-shadow:0 4px 0 #000,0 20px 60px rgba(0,0,0,.8),0 0 50px rgba(239,68,68,.2);
+}
+#crashOverlay h1{color:#ef4444}
+#crashOverlay h1::after{background:#ef4444}
+#respawnBtn{
+  margin-top:18px;width:100%;padding:14px;
+  border:2px solid #000;border-radius:10px;cursor:pointer;
+  background:#ef4444;
+  color:#fff;
+  font-family:inherit;
+  font-size:13px;letter-spacing:3px;
+  font-weight:800;text-transform:uppercase;
+  box-shadow:0 4px 0 #000;
+  transition:transform .08s,box-shadow .08s,filter .15s;
+}
+#respawnBtn:hover{filter:brightness(1.1);transform:translateY(-1px);box-shadow:0 5px 0 #000}
+#respawnBtn:active{transform:translateY(2px);box-shadow:0 2px 0 #000}
+#wxFlash{position:fixed;inset:0;z-index:15;pointer-events:none;opacity:0;background:#fff}
+
+/* ============ FAULT PANEL ============ */
+#faultPanel{
+  position:fixed;top:52px;right:14px;z-index:9998;
+  width:240px;padding:10px 12px;border-radius:12px;
+  background:#1a0d0d;
+  border:2px solid #ef4444;
+  font-size:11.5px;display:none;line-height:1.6;
+  box-shadow:0 3px 0 #000,0 10px 30px rgba(0,0,0,.6);
+}
+#faultPanel.show{display:block;animation:faultIn .2s ease-out}
+@keyframes faultIn{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:translateX(0)}}
+#faultPanel .fh{
+  color:#fca5a5;letter-spacing:1.5px;
+  margin-bottom:6px;padding-bottom:6px;
+  border-bottom:2px solid rgba(239,68,68,.4);
+  font-weight:700;font-size:11px;
+  text-transform:uppercase;
+}
+.faultRow{display:flex;justify-content:space-between;padding:3px 0;color:#fbbf24;font-weight:600}
+.faultRow.sev3{color:#ef4444;animation:blink .5s infinite alternate;font-weight:700}
+.faultRow.sev1{color:#fbbf24}
+.faultRow .rst{color:#8ba3c0;font-size:10px;letter-spacing:1px;font-weight:500}
+
+#masterWarn{position:absolute;left:50%;top:200px;transform:translateX(-50%);display:none;gap:12px;pointer-events:none}
+#masterWarn.on{display:flex}
+#masterWarn>div{
+  padding:10px 20px;border-radius:10px;
+  font-weight:800;letter-spacing:2.5px;font-size:13px;
+  display:none;
+  border:2px solid #000;
+  box-shadow:0 3px 0 #000;
+  text-transform:uppercase;
+}
+#masterWarn>div.show{display:block;animation:pulse .4s infinite alternate}
+#masterWarn .mw{background:#b91c1c;color:#fff}
+#masterWarn .mc{background:#d97706;color:#fff}
+
+#faultTriggers{position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;flex-direction:column;align-items:flex-end;gap:8px;pointer-events:auto}
+#faultToggleBtn{
+  padding:10px 16px;border-radius:10px;
+  background:#1a0d0d;
+  border:2px solid #f97316;color:#fdba74;
+  font-family:inherit;
+  font-size:12px;font-weight:700;
+  cursor:pointer;letter-spacing:1.2px;
+  box-shadow:0 3px 0 #000;
+  transition:transform .08s,box-shadow .08s,filter .15s;
+}
+#faultToggleBtn:hover{filter:brightness(1.15);transform:translateY(-1px);box-shadow:0 4px 0 #000}
+#faultToggleBtn:active{transform:translateY(1px);box-shadow:0 2px 0 #000}
+
+#faultButtons{
+  max-height:72vh;overflow-y:auto;display:none;flex-direction:column;gap:5px;
+  padding:12px;border-radius:12px;
+  background:#0a0f1c;
+  border:2px solid #22d3ee;
+  min-width:210px;
+  box-shadow:0 4px 0 #000,0 16px 40px rgba(0,0,0,.7);
+}
+#faultButtons.show{display:flex;animation:faultIn .18s ease-out}
+.fgTitle{
+  font-size:10px;letter-spacing:1.5px;
+  color:#22d3ee;margin:3px 0 6px 2px;
+  font-weight:700;text-transform:uppercase;
+}
+.fgSep{height:2px;background:#263652;border-radius:1px;margin:7px 0}
+.faultBtn{
+  padding:8px 12px;border-radius:7px;
+  background:#111a2e;
+  border:2px solid #263652;color:#a5b8d0;
+  font-size:11.5px;font-family:inherit;font-weight:600;
+  cursor:pointer;letter-spacing:.3px;text-align:left;
+  transition:all .1s;
+}
+.faultBtn:hover{background:#1e2a44;border-color:#3a8dab;color:#e6edf6;transform:translateX(2px)}
+.faultBtn.active{background:#7f1d1d;border-color:#ef4444;color:#fecaca}
+.faultBtn.clear{background:#14532d;border-color:#22c55e;color:#bbf7d0}
+.faultBtn.clear:hover{background:#166534;border-color:#4ade80}
+.faultBtn.imgOn{background:#7c2d12;border-color:#f97316;color:#fed7aa}
+
+#tcas{right:20px;bottom:262px;width:200px;height:200px;padding:10px}
+#tcasCanvas{display:block;width:180px;height:180px;border-radius:8px}
+
+/* ============ TOUCH UI ============ */
+#touchUI{display:none;position:fixed;inset:0;z-index:30;pointer-events:none;user-select:none;-webkit-user-select:none;touch-action:none}
+body.mobile #touchUI{display:block}
+#touchUI>*{pointer-events:auto;touch-action:none}
+#joy{
+  position:absolute;left:20px;bottom:20px;width:140px;height:140px;border-radius:50%;
+  background:rgba(10,20,36,.7);
+  border:3px solid #22d3ee;
+  box-shadow:0 4px 0 #000,inset 0 0 24px rgba(34,211,238,.1);
+}
+#joyK{
+  position:absolute;left:49px;top:49px;width:42px;height:42px;border-radius:50%;
+  background:#22d3ee;
+  border:2px solid #000;
+  box-shadow:0 3px 0 #000;
+}
+#thr{
+  position:absolute;right:20px;bottom:20px;width:56px;height:180px;border-radius:12px;
+  background:rgba(10,20,36,.7);
+  border:3px solid #22d3ee;overflow:hidden;
+  box-shadow:0 4px 0 #000;
+}
+#thrF{position:absolute;left:0;bottom:0;width:100%;height:0;background:linear-gradient(0deg,#22c55e,#fbbf24,#ef4444);opacity:.9}
+#thrL{position:absolute;top:6px;left:0;width:100%;text-align:center;font-size:10px;color:#fff;letter-spacing:1.5px;font-weight:700}
+
+.tb{
+  position:absolute;min-width:52px;padding:10px 8px;
+  border-radius:8px;text-align:center;
+  font-family:inherit;font-size:11px;font-weight:700;letter-spacing:.5px;
+  color:#e6edf6;
+  background:#111a2e;
+  border:2px solid #263652;
+  box-shadow:0 3px 0 #000;
+  transition:all .08s;
+}
+.tb.dn{background:#22d3ee;color:#0b1220;border-color:#000;transform:translateY(2px);box-shadow:0 1px 0 #000}
+#tbRow{position:absolute;left:170px;right:96px;bottom:20px;display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+#tbRow .tb{position:static}
+#tbYL{left:170px;bottom:100px}
+#tbYR{left:230px;bottom:100px}
+
+body.mobile #infoBox,body.mobile #configPanel,body.mobile #compass,body.mobile #vsi,body.mobile #bootBadge{display:none!important}
+body.mobile #airspeed{left:8px!important;top:8px!important;bottom:auto!important;width:115px!important;padding:8px 10px!important}
+body.mobile #altitude{right:8px!important;top:8px!important;bottom:auto!important;width:125px!important;padding:8px 10px!important}
+body.mobile #airspeed .val,body.mobile #altitude .val{font-size:26px!important}
+body.mobile #attitude{bottom:auto!important;top:8px!important;transform:translateX(-50%) scale(.5)!important;transform-origin:top center}
+body.mobile #tcas{right:8px!important;bottom:auto!important;top:96px!important;transform:scale(.7);transform-origin:top right}
+body.mobile #camBadge{top:auto;bottom:160px;opacity:.8;font-size:11px;padding:7px 14px}
+body.mobile #msgBox{top:auto!important;bottom:200px!important;font-size:12px}
+body.mobile #stallWarn,body.mobile #windWarn,body.mobile #masterWarn{top:104px!important}
+body.mobile #faultTriggers{bottom:auto!important;top:160px;left:8px;right:auto;align-items:flex-start}
+body.mobile #faultToggleBtn{padding:8px 10px;font-size:10px}
+body.mobile #faultButtons{max-height:45vh}
+body.mobile #faultPanel{top:auto;bottom:210px;right:8px}
+
+#smokeHaze{position:fixed;inset:0;z-index:14;pointer-events:none;opacity:0;transition:opacity 2.5s;background:radial-gradient(ellipse at 50% 55%,rgba(90,90,92,.25),rgba(35,35,38,.8) 85%)}
+
+/* ============ FMS ============ */
+#fms{
+  position:fixed;left:14px;top:52px;z-index:9997;
+  width:min(400px,96vw);max-height:92vh;overflow:auto;display:none;
+  padding:14px;border-radius:12px;
+  background:#0a0f1c;
+  border:2px solid #22d3ee;font-size:11.5px;
+  box-shadow:0 4px 0 #000,0 16px 40px rgba(0,0,0,.7);
+}
+#fms.show{display:block;animation:faultIn .22s ease-out}
+#fms .fh{
+  display:flex;justify-content:space-between;align-items:center;
+  color:#22d3ee;letter-spacing:2px;font-weight:700;
+  margin-bottom:8px;font-size:12px;text-transform:uppercase;
+}
+#fms canvas{display:block;width:100%;aspect-ratio:6/5;border-radius:8px;border:2px solid #263652;touch-action:none;background:#050a14}
+#fms .row{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0;align-items:center;grid-template-columns:none}
+#fms button,#fmsBtn{
+  padding:8px 11px;border-radius:7px;
+  background:#111a2e;
+  border:2px solid #263652;color:#a5b8d0;
+  font-family:inherit;font-size:11px;font-weight:600;
+  cursor:pointer;transition:all .1s;
+}
+#fms button:hover,#fmsBtn:hover{background:#1e2a44;border-color:#3a8dab;color:#e6edf6}
+#fms button.on{background:#0e7490;border-color:#22d3ee;color:#a5f3fc}
+#fms button.mag{background:#4c1d95;border-color:#a855f7;color:#e9d5ff}
+#fms input,#fms select{
+  width:auto;padding:5px 8px;
+  background:#0a0f1c;border:2px solid #263652;
+  color:#e6edf6;border-radius:6px;
+  font-family:inherit;font-size:11.5px;font-weight:500;
+}
+#fms input:focus,#fms select:focus{outline:none;border-color:#22d3ee}
+#fms input[type=number]{width:68px}
+#fms .lbl{color:#22d3ee;letter-spacing:1.2px;font-size:10px;font-weight:700;text-transform:uppercase}
+#fms .wp{display:flex;justify-content:space-between;align-items:center;padding:5px 6px;border-bottom:1px solid #1e2a44;color:#a5b8d0;font-weight:500}
+#fms .wp.act{background:#0e7490;color:#a5f3fc;border-radius:5px}
+#fms .st{color:#fbbf24;margin:5px 0;min-height:14px;font-weight:600}
+#fmsBtn{
+  position:fixed;left:14px;top:10px;z-index:9996;
+  display:block;pointer-events:auto;padding:8px 12px;border-radius:8px;
+  box-shadow:0 3px 0 #000;
+}
+body.mobile #fmsBtn{top:auto;bottom:238px;left:8px}
+body.mobile #fms{top:8px;left:2vw}
+
+/* ============ ATC ============ */
+#atcBtn{
+  position:fixed;left:155px;top:10px;z-index:9996;
+  padding:8px 12px;border-radius:8px;
+  background:#111a2e;
+  border:2px solid #22c55e;color:#bbf7d0;
+  font-family:inherit;font-size:11px;font-weight:700;
+  cursor:pointer;box-shadow:0 3px 0 #000;
+  transition:all .1s;
+}
+#atcBtn:hover{filter:brightness(1.15)}
+#atc{
+  position:fixed;left:155px;top:52px;z-index:9997;
+  width:min(390px,96vw);display:none;
+  padding:14px;border-radius:12px;
+  background:#0a0f1c;
+  border:2px solid #22c55e;
+  font-size:11.5px;color:#a5b8d0;
+  box-shadow:0 4px 0 #000,0 16px 40px rgba(0,0,0,.7);
+}
+#atc.show{display:block;animation:faultIn .22s ease-out}
+#atc .fh{
+  display:flex;justify-content:space-between;
+  color:#22c55e;letter-spacing:2px;font-weight:700;
+  margin-bottom:8px;font-size:12px;text-transform:uppercase;
+}
+#atcLog{
+  height:200px;overflow:auto;
+  background:#050a14;
+  border:2px solid #263652;
+  border-radius:8px;padding:8px;
+  margin-bottom:8px;
+}
+#atcLog div{margin-bottom:4px;line-height:1.5;font-weight:500}
+#atcLog .p{color:#fbbf24;font-weight:600}
+#atcLog .a{color:#4ade80;font-weight:600}
+#atc .bt{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+#atc button{
+  padding:8px;border-radius:7px;
+  background:#111a2e;
+  border:2px solid #263652;color:#a5b8d0;
+  font-family:inherit;font-size:11px;font-weight:600;
+  cursor:pointer;transition:all .1s;
+}
+#atc button:hover{background:#1e2a44;border-color:#22c55e;color:#bbf7d0}
+body.mobile #atcBtn{top:auto;bottom:238px;left:135px}
+body.mobile #atc{top:8px;left:2vw}
+
+/* ============ CAREER / TYCOON LAYER ============ */
+#careerHud{
+  position:fixed;top:52px;left:50%;transform:translateX(-50%);
+  z-index:9998;display:flex;gap:6px;align-items:center;
+  padding:8px 10px;border-radius:12px;
+  background:#111a2e;
+  border:2px solid #263652;
+  box-shadow:0 3px 0 #000,0 10px 30px rgba(0,0,0,.5);
+  font-size:12px;font-weight:700;font-family:inherit;
+  color:#e6edf6;letter-spacing:.3px;
+  transition:opacity .3s;
+}
+body.cockpit #careerHud{opacity:.8}
+.chStat{
+  display:flex;gap:6px;align-items:center;
+  padding:5px 12px;
+  background:#0a1424;
+  border-radius:7px;
+  border:1px solid #263652;
+  transition:all .2s;
+}
+.chStat.pulse{animation:hudPulse .5s ease-out}
+@keyframes hudPulse{
+  0%{transform:scale(1)}
+  40%{transform:scale(1.06);background:#14532d;border-color:#22c55e}
+  100%{transform:scale(1)}
+}
+.chIco{font-size:13px;opacity:.85;filter:grayscale(.3)}
+#chMoney{color:#4ade80;font-weight:800}
+#chLvl{color:#fbbf24;font-weight:800}
+.chBtn{
+  padding:7px 14px;border-radius:7px;
+  background:#22d3ee;
+  border:2px solid #000;color:#0b1220;
+  font-family:inherit;font-size:11.5px;font-weight:800;
+  letter-spacing:.8px;cursor:pointer;
+  transition:transform .08s,box-shadow .08s,filter .15s;
+  box-shadow:0 3px 0 #000;
+  text-transform:uppercase;
+}
+.chBtn:hover{filter:brightness(1.1);transform:translateY(-1px);box-shadow:0 4px 0 #000}
+.chBtn:active{transform:translateY(1px);box-shadow:0 2px 0 #000}
+
+#contrPanel,#shopPanel{
+  position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+  z-index:99999;width:min(780px,94vw);max-height:88vh;overflow:auto;
+  padding:22px 26px;border-radius:14px;
+  background:#0f172a;
+  border:2px solid #22d3ee;
+  box-shadow:0 5px 0 #000,0 30px 80px rgba(0,0,0,.8);
+  font-family:inherit;color:#e6edf6;
+  display:none;
+}
+#contrPanel.show,#shopPanel.show{display:block;animation:popIn .22s ease-out}
+@keyframes popIn{from{transform:translate(-50%,-48%) scale(.96);opacity:0}to{transform:translate(-50%,-50%) scale(1);opacity:1}}
+.cpHead{
+  display:flex;justify-content:space-between;align-items:center;
+  font-size:14px;letter-spacing:2px;
+  color:#22d3ee;
+  padding-bottom:10px;border-bottom:2px solid #263652;
+  margin-bottom:14px;font-weight:800;
+  text-transform:uppercase;
+}
+.cpHead button{
+  background:#1a0d0d;
+  border:2px solid #ef4444;color:#fca5a5;
+  width:32px;height:32px;border-radius:7px;
+  cursor:pointer;font-size:14px;font-weight:700;
+  transition:all .1s;
+}
+.cpHead button:hover{background:#7f1d1d;color:#fff}
+
+.cpSub{
+  font-size:12px;color:#a5b8d0;
+  margin-bottom:14px;line-height:1.6;
+  padding:10px 14px;
+  background:#0a1424;
+  border-radius:8px;
+  border-left:3px solid #22d3ee;
+  font-weight:500;
+}
+
+.ctr{
+  display:grid;grid-template-columns:1fr auto;gap:12px;
+  padding:14px 16px;margin-bottom:10px;
+  border-radius:10px;
+  background:#0a1424;
+  border:2px solid #263652;
+  cursor:pointer;transition:all .15s;
+  box-shadow:0 3px 0 #000;
+}
+.ctr:hover{
+  border-color:#22d3ee;
+  transform:translateX(4px);
+  box-shadow:4px 3px 0 #000;
+}
+.ctr.sel{
+  background:#14532d;
+  border-color:#22c55e;
+  box-shadow:0 3px 0 #052e16;
+}
+.ctr-title{font-size:13px;color:#e6edf6;letter-spacing:.3px;margin-bottom:4px;font-weight:700}
+.ctr-desc{font-size:11px;color:#8ba3c0;line-height:1.5;font-weight:500}
+.ctr-reward{
+  text-align:right;font-size:18px;color:#4ade80;font-weight:800;
+  white-space:nowrap;
+}
+.ctr-reward small{
+  display:block;color:#fbbf24;font-size:11px;font-weight:700;
+  margin-top:3px;
+}
+.diff-HARD{color:#ef4444;font-weight:800}
+.diff-MED{color:#fbbf24;font-weight:800}
+.diff-EASY{color:#4ade80;font-weight:800}
+
+#spTabs{display:flex;gap:6px;margin-bottom:16px}
+.spTab{
+  padding:10px 18px;border-radius:8px;
+  background:#0a1424;
+  border:2px solid #263652;color:#8ba3c0;
+  font-family:inherit;font-size:11.5px;font-weight:700;
+  letter-spacing:1px;cursor:pointer;
+  transition:all .12s;
+  text-transform:uppercase;
+}
+.spTab:hover{color:#e6edf6;border-color:#3a4a68}
+.spTab.on{
+  background:#0e7490;
+  border-color:#22d3ee;color:#a5f3fc;
+}
+
+.spItem{
+  display:grid;grid-template-columns:1fr auto;gap:12px;
+  padding:14px 16px;margin-bottom:10px;
+  border-radius:10px;
+  background:#0a1424;
+  border:2px solid #263652;
+  box-shadow:0 3px 0 #000;
+  transition:border-color .15s;
+}
+.spItem.owned{
+  border-color:#22c55e;
+  background:#0f2417;
+  box-shadow:0 3px 0 #052e16;
+}
+.spItem.current{
+  border-color:#fbbf24;
+  background:#1f1505;
+  box-shadow:0 3px 0 #422006;
+}
+.spName{font-size:13px;color:#e6edf6;margin-bottom:3px;font-weight:700}
+.spDesc{font-size:11px;color:#8ba3c0;line-height:1.5;font-weight:500}
+
+.spBuy{
+  padding:10px 16px;border-radius:7px;
+  border:2px solid #000;
+  background:#4ade80;
+  color:#052e16;
+  font-family:inherit;font-size:11.5px;font-weight:800;
+  cursor:pointer;white-space:nowrap;align-self:center;
+  transition:transform .08s,box-shadow .08s,filter .15s;
+  letter-spacing:.5px;
+  box-shadow:0 3px 0 #000;
+  text-transform:uppercase;
+}
+.spBuy:hover:not(:disabled){filter:brightness(1.1);transform:translateY(-1px);box-shadow:0 4px 0 #000}
+.spBuy:active:not(:disabled){transform:translateY(1px);box-shadow:0 2px 0 #000}
+.spBuy:disabled{
+  background:#263652;color:#5a6d87;cursor:not-allowed;
+  box-shadow:0 3px 0 #000;
+}
+.spBuy.cur{
+  background:#fbbf24;color:#422006;cursor:default;
+}
+.spBuy.own{
+  background:#14532d;color:#bbf7d0;cursor:default;
+  border-color:#22c55e;
+}
+
+#summaryModal{
+  position:fixed;inset:0;z-index:100000;display:none;align-items:center;justify-content:center;
+  background:rgba(5,10,20,.85);
+}
+#summaryModal.show{display:flex}
+.sumCard{
+  width:min(540px,92vw);padding:32px 36px;border-radius:16px;
+  background:#0f172a;
+  border:2px solid #22d3ee;
+  box-shadow:0 5px 0 #000,0 30px 80px rgba(0,0,0,.8);
+  text-align:center;color:#e6edf6;font-family:inherit;
+  animation:sumIn .3s cubic-bezier(.34,1.4,.64,1);
+}
+@keyframes sumIn{from{transform:scale(.94);opacity:0}to{transform:scale(1);opacity:1}}
+.sumGrade{
+  font-size:88px;font-weight:900;line-height:1;margin:6px 0;
+  font-family:inherit;letter-spacing:-2px;
+}
+.sumGrade.S{color:#fbbf24}
+.sumGrade.A{color:#4ade80}
+.sumGrade.B{color:#22d3ee}
+.sumGrade.C{color:#f97316}
+.sumGrade.F{color:#ef4444}
+.sumTitle{font-size:11px;letter-spacing:4px;color:#8ba3c0;text-transform:uppercase;font-weight:700}
+.sumSubtitle{font-size:20px;letter-spacing:1.5px;margin:6px 0 20px;color:#e6edf6;font-weight:800;text-transform:uppercase}
+.sumRow{
+  display:flex;justify-content:space-between;padding:8px 0;
+  font-size:13px;border-bottom:1px solid #1e2a44;
+  font-weight:500;
+}
+.sumRow.final{
+  margin-top:12px;font-size:17px;font-weight:800;
+  padding-top:14px;border-top:2px solid #263652;
+  border-bottom:none;
+}
+.sumRow .lbl{color:#8ba3c0}
+.sumBtn{
+  margin-top:22px;padding:13px 34px;
+  border:2px solid #000;border-radius:8px;
+  background:#22d3ee;
+  color:#0b1220;
+  font-family:inherit;font-size:13px;font-weight:800;
+  letter-spacing:3px;cursor:pointer;
+  transition:transform .08s,box-shadow .08s,filter .15s;
+  box-shadow:0 4px 0 #000;
+  text-transform:uppercase;
+}
+.sumBtn:hover{filter:brightness(1.1);transform:translateY(-1px);box-shadow:0 5px 0 #000}
+.sumBtn:active{transform:translateY(2px);box-shadow:0 2px 0 #000}
+.sumLevelUp{
+  display:inline-block;padding:6px 16px;margin:12px 0 4px;
+  border-radius:6px;
+  background:#fbbf24;
+  border:2px solid #000;
+  color:#422006;
+  font-size:11px;font-weight:800;
+  letter-spacing:1.5px;
+  box-shadow:0 3px 0 #000;
+  text-transform:uppercase;
+  animation:lvlPulse 1.2s ease-in-out infinite alternate;
+}
+@keyframes lvlPulse{
+  from{box-shadow:0 3px 0 #000,0 0 0 rgba(251,191,36,.4)}
+  to{box-shadow:0 3px 0 #000,0 0 20px rgba(251,191,36,.6)}
+}
+  /* ============================================================ */
+/* HOME SCREEN REBUILD                                          */
+/* ============================================================ */
+
+/* Overlay: full-bleed scene, raised above in-flight HUD chrome */
+#overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(ellipse at 20% 10%, rgba(34,211,238,.12) 0%, transparent 45%),
+    radial-gradient(ellipse at 85% 90%, rgba(59,130,246,.10) 0%, transparent 45%),
+    linear-gradient(180deg, #0b1220 0%, #101d36 55%, #0a1428 100%);
+  overflow: auto;
+  padding: 24px;
+}
+#overlay.hidden { display: none; }
+
+/* Master card */
+.homeCard {
+  position: relative;
+  width: min(1080px, 96vw);
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+  background: #0f172a;
+  border: 2px solid #263652;
+  border-radius: 16px;
+  box-shadow: 0 6px 0 #000, 0 30px 80px rgba(0,0,0,.7);
+  overflow: hidden;
+}
+
+/* ---------- HERO ---------- */
+.homeHero {
+  position: relative;
+  padding: 26px 36px 22px;
+  text-align: center;
+  background: linear-gradient(180deg, #111a2e, #0f172a);
+  border-bottom: 2px solid #263652;
+  flex-shrink: 0;
+}
+.homeHero::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 20%; right: 20%; height: 2px;
+  background: linear-gradient(90deg, transparent, #22d3ee, transparent);
+}
+.homeEye {
+  font-size: 10px;
+  letter-spacing: 5px;
+  color: #22d3ee;
+  font-weight: 700;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+}
+.homeHero h1 {
+  font-size: 30px;
+  letter-spacing: 6px;
+  color: #e6edf6;
+  font-weight: 800;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+  line-height: 1.1;
+}
+.homeHero h1 span { color: #22d3ee; }
+.homeHero h2 {
+  font-size: 10.5px;
+  letter-spacing: 2px;
+  color: #8ba3c0;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+/* ---------- BODY (two-column) ---------- */
+.homeBody {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  grid-template-columns: 1.35fr 1fr;
+  align-content: start;
+}
+.homeCol { padding: 22px 28px 26px; }
+.homeMain { border-right: 2px solid #263652; }
+.homeSide { background: #0a1424; }
+
+.homeColHead {
+  font-size: 10.5px;
+  letter-spacing: 3px;
+  color: #22d3ee;
+  font-weight: 800;
+  margin-bottom: 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #1e2a44;
+  text-transform: uppercase;
+}
+.homeColHead:not(:first-child) { margin-top: 24px; }
+
+/* ---------- FIELDS ---------- */
+.field { margin-bottom: 14px; }
+.field:last-child { margin-bottom: 0; }
+.field label {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: #8ba3c0;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+.field label .opt {
+  color: #5a6d87;
+  font-weight: 500;
+  letter-spacing: 1px;
+}
+.field select, .field input {
+  width: 100%;
+  padding: 11px 13px;
+  background: #0a0f1c;
+  border: 2px solid #263652;
+  border-radius: 8px;
+  color: #e6edf6;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+.field select:focus, .field input:focus {
+  border-color: #22d3ee;
+  box-shadow: 0 0 0 3px rgba(34,211,238,.18);
+}
+.field select { cursor: pointer; }
+.field select option { background: #0a0f1c; color: #e6edf6; }
+
+.fieldRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.fieldRow .field { margin-bottom: 0; }
+
+/* Custom location sub-panel */
+#customRow {
+  margin-top: 12px;
+  padding: 14px;
+  background: #0a1424;
+  border: 2px solid #263652;
+  border-radius: 10px;
+}
+.customGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+}
+.customGrid .field { margin-bottom: 0; }
+
+/* Checkbox row */
+.checkRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: #0f172a;
+  border: 2px solid #263652;
+  border-radius: 8px;
+  cursor: pointer;
+  margin-bottom: 10px;
+  transition: border-color .15s;
+  user-select: none;
+}
+.checkRow:hover { border-color: #3a4a68; }
+.checkRow input[type="checkbox"] {
+  width: 18px; height: 18px;
+  accent-color: #22d3ee;
+  cursor: pointer;
+  margin: 0;
+  flex-shrink: 0;
+}
+.checkLabel {
+  font-size: 11.5px;
+  letter-spacing: 1px;
+  color: #e6edf6;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+/* Hint blocks */
+.hint {
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: #8ba3c0;
+  font-weight: 500;
+  padding: 10px 12px;
+  background: #0f172a;
+  border-left: 3px solid #22d3ee;
+  border-radius: 6px;
+  margin-bottom: 0;
+}
+.hint b { color: #e6edf6; font-weight: 700; }
+
+/* ---------- CONTROLS (full-width collapsible) ---------- */
+.homeControlsFull {
+  grid-column: span 2;
+  border-top: 2px solid #263652;
+  padding: 0 28px;
+}
+.controlsDetails summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 0;
+  font-size: 10.5px;
+  letter-spacing: 3px;
+  color: #8ba3c0;
+  font-weight: 800;
+  text-transform: uppercase;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.controlsDetails summary::-webkit-details-marker { display: none; }
+.controlsDetails summary::before {
+  content: '▸';
+  color: #22d3ee;
+  font-size: 12px;
+  display: inline-block;
+  transition: transform .2s;
+  flex-shrink: 0;
+}
+.controlsDetails[open] summary::before { transform: rotate(90deg); }
+.controlsDetails summary:hover,
+.controlsDetails[open] summary { color: #e6edf6; }
+.controlsDetails .keys {
+  display: grid;
+  grid-template-columns: auto 1fr auto 1fr;
+  gap: 6px 20px;
+  font-size: 11px;
+  color: #a5b8d0;
+  padding: 0 0 18px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  margin: 0;
+}
+.controlsDetails .keys b {
+  color: #e6edf6;
+  font-weight: 700;
+  font-size: 10.5px;
+  padding: 2px 8px;
+  background: #1e2a44;
+  border: 1px solid #3a4a68;
+  border-radius: 5px;
+  letter-spacing: .3px;
+  white-space: nowrap;
+  align-self: center;
+}
+
+/* ---------- FOOTER ---------- */
+.homeFoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px 28px;
+  border-top: 2px solid #263652;
+  background: #0a1424;
+  flex-shrink: 0;
+}
+#loadStatus {
+  font-size: 12px;
+  color: #22d3ee;
+  font-weight: 600;
+  letter-spacing: .5px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#startBtn {
+  padding: 15px 44px;
+  min-width: 260px;
+  border: 2px solid #000;
+  border-radius: 10px;
+  background: #22d3ee;
+  color: #0b1220;
+  font-family: inherit;
+  font-size: 14px;
+  letter-spacing: 4px;
+  font-weight: 800;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: 0 4px 0 #000;
+  transition: transform .08s, box-shadow .08s, filter .15s;
+}
+#startBtn:hover:not(:disabled) {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+  box-shadow: 0 5px 0 #000;
+}
+#startBtn:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 #000;
+}
+#startBtn:disabled {
+  opacity: .55;
+  cursor: wait;
+  filter: grayscale(.5);
+}
+
+/* ---------- CAREER HUD: reposition as account chip during home screen ---------- */
+#overlay:not(.hidden) ~ #careerHud {
+  z-index: 10000;
+  top: 16px;
+  left: 16px;
+  transform: none;
+}
+
+/* Hide in-flight chrome that would otherwise float above the home overlay
+   (fault/fms/atc buttons + camera & boot badges). Requires :has() — Chrome 105+,
+   Safari 15.4+, Firefox 121+. Older browsers fall through gracefully. */
+body:has(#overlay:not(.hidden)) #camBadge,
+body:has(#overlay:not(.hidden)) #bootBadge,
+body:has(#overlay:not(.hidden)) #faultTriggers,
+body:has(#overlay:not(.hidden)) #fmsBtn,
+body:has(#overlay:not(.hidden)) #atcBtn {
+  display: none !important;
+}
+
+/* ---------- RESPONSIVE ---------- */
+@media (max-width: 800px) {
+  #overlay { padding: 10px; align-items: flex-start; }
+  .homeCard { max-height: calc(100vh - 20px); border-radius: 12px; }
+  .homeHero { padding: 20px 18px 16px; }
+  .homeHero h1 { font-size: 20px; letter-spacing: 4px; }
+  .homeHero h2 { font-size: 9.5px; letter-spacing: 1.5px; }
+  .homeEye { font-size: 9px; letter-spacing: 3px; }
+  .homeBody { grid-template-columns: 1fr; }
+  .homeMain { border-right: none; border-bottom: 2px solid #263652; }
+  .homeCol { padding: 18px 18px 20px; }
+  .homeControlsFull { padding: 0 18px; }
+  .controlsDetails .keys { grid-template-columns: auto 1fr; }
+  .fieldRow { grid-template-columns: 1fr; }
+  .customGrid { grid-template-columns: 1fr; }
+  .homeFoot {
+    flex-direction: column-reverse;
+    padding: 14px 18px;
+    gap: 10px;
+    align-items: stretch;
+  }
+  #startBtn { width: 100%; min-width: 0; }
+  #loadStatus { text-align: center; }
+  #overlay:not(.hidden) ~ #careerHud {
+    top: auto;
+    bottom: 8px;
+    left: 8px;
+    transform: none;
+    font-size: 10px;
+  }
+}
+
+body.mobile #careerHud{top:auto;bottom:210px;left:8px;transform:none;flex-wrap:wrap;max-width:calc(100vw - 16px);font-size:11px;padding:5px 8px}
+body.mobile .chStat{padding:3px 8px}
+body.mobile .chBtn{padding:5px 9px;font-size:10px}
+  /* ============ MISSION OBJECTIVES HUD ============ */
+#objHud{
+  position:fixed;left:20px;top:250px;z-index:15;
+  width:250px;padding:10px 14px;
+  background:#111a2e;
+  border:2px solid #263652;
+  border-radius:10px;
+  box-shadow:0 3px 0 #000;
+  font-size:11.5px;color:#e6edf6;
+  display:none;
+  pointer-events:none;
+  font-family:inherit;
+}
+.objHead{
+  display:flex;justify-content:space-between;align-items:center;
+  font-size:10.5px;letter-spacing:1.5px;
+  color:#22d3ee;font-weight:800;
+  margin-bottom:8px;padding-bottom:6px;
+  border-bottom:1px solid #1e2a44;
+  text-transform:uppercase;
+}
+.objProg{color:#fbbf24;font-weight:800}
+.objList{display:flex;flex-direction:column;gap:4px}
+.obj{
+  display:flex;gap:8px;align-items:flex-start;
+  padding:3px 0;
+  color:#8ba3c0;
+  font-weight:500;font-size:11px;line-height:1.4;
+  transition:color .2s;
+}
+.obj.met{color:#4ade80}
+.objCheck{
+  flex-shrink:0;width:14px;text-align:center;
+  font-weight:800;color:#5a6d87;
+  transition:color .2s;
+}
+.obj.met .objCheck{color:#4ade80}
+.obj.lesson{color:#c4b5fd}
+.obj.lesson.met{color:#a5f3fc}
+.objEndBtn{
+  pointer-events:auto;width:100%;margin-top:10px;padding:8px 0;
+  border:2px solid #263652;border-radius:7px;background:#1a2438;
+  color:#5a6d87;font-weight:800;font-size:11px;letter-spacing:1px;
+  text-transform:uppercase;cursor:not-allowed;transition:all .2s;font-family:inherit;
+}
+.objEndBtn.ready{
+  border-color:#22c55e;background:#14532d;color:#86efac;cursor:pointer;
+  box-shadow:0 0 12px rgba(34,197,94,.35);animation:objReadyPulse 1.4s ease-in-out infinite;
+}
+.objEndBtn.ready:hover{background:#16653a;color:#bbf7d0}
+@keyframes objReadyPulse{0%,100%{box-shadow:0 0 6px rgba(34,197,94,.25)}50%{box-shadow:0 0 16px rgba(34,197,94,.55)}}
+
+/* ============ DISPATCH PANEL: LESSONS + CONTRACTS ============ */
+.cpSection{margin-bottom:18px}
+.cpSection:last-of-type{margin-bottom:10px}
+.cpSectionHead{
+  font-size:10.5px;letter-spacing:2px;
+  color:#8ba3c0;font-weight:800;
+  margin-bottom:10px;padding-bottom:6px;
+  border-bottom:1px solid #1e2a44;
+  text-transform:uppercase;
+}
+.cpRefresh{
+  width:100%;padding:10px;margin-top:8px;
+  border:2px solid #263652;
+  border-radius:8px;
+  background:#0a1424;
+  color:#8ba3c0;
+  font-family:inherit;font-weight:700;
+  letter-spacing:1px;font-size:11px;
+  cursor:pointer;text-transform:uppercase;
+  transition:all .15s;
+}
+.cpRefresh:hover{border-color:#22d3ee;color:#22d3ee;background:#0f172a}
+.cpRefresh:active{transform:translateY(1px)}
+
+/* lesson cards */
+.ctr.lesson{
+  background:#150f28;
+  border-color:#4c1d95;
+}
+.ctr.lesson:hover{
+  border-color:#a855f7;
+  box-shadow:4px 3px 0 #000,0 0 20px rgba(139,92,246,.25);
+}
+.ctr.lesson.sel{
+  background:#4c1d95;
+  border-color:#a855f7;
+  box-shadow:0 3px 0 #2e1065,0 0 25px rgba(168,85,247,.35);
+}
+.ctr.lesson.locked{opacity:.42;cursor:not-allowed}
+.ctr.lesson.locked:hover{
+  transform:none;
+  border-color:#4c1d95;
+  box-shadow:0 3px 0 #000;
+}
+.ctr.lesson.done::after{
+  content:'✓';
+  position:absolute;top:8px;right:8px;
+  color:#4ade80;font-weight:800;font-size:14px;
+}
+.ctr.lesson .ctr-title{color:#e9d5ff}
+.ctr.lesson .ctr-desc{color:#a78bfa}
+.ctr.lesson .ctr-reward{color:#a855f7}
+.ctr.lesson .ctr-reward small{color:#22d3ee}
+.ctr.lesson .lessonTag{
+  display:inline-block;
+  padding:1px 6px;
+  border-radius:4px;
+  background:#4c1d95;
+  color:#c4b5fd;
+  font-size:9px;font-weight:800;letter-spacing:.5px;
+  margin-left:6px;
+  vertical-align:middle;
+}
+
+/* success flash on contract log */
+#contrPanel .cpHead{position:relative}
+
+/* Mobile objectives HUD */
+@media (max-width:800px){
+  #objHud{left:8px;top:auto;bottom:270px;width:210px;font-size:10px;padding:8px 10px}
+  .obj{font-size:10px}
+  .objHead{font-size:9.5px}
+}
+  /* ============ FLEET BADGE in career HUD ============ */
+#chPax::after{content:attr(data-ac);font-size:9px;opacity:.6;margin-left:4px;font-weight:500}
+
+/* ============ Fleet shop: locked/next tiers ============ */
+.spItem.locked{opacity:.55}
+.spItem.locked .spName{color:#8ba3c0}
+
+/* ============ Objective HUD: extra hint for lessons on small aircraft ============ */
+.obj.hint{color:#5a6d87;font-style:italic;font-weight:400;font-size:10px;padding-left:22px}
+  body.pfd-hidden #attitude,
+body.pfd-hidden #airspeed,
+body.pfd-hidden #altitude,
+body.pfd-hidden #vsi,
+body.pfd-hidden #compass {
+  opacity: 0 !important;
+  transition: opacity .25s ease;
+}
+</style>
+</head>
+<body>
+<canvas id="renderCanvas"></canvas>
+<div id="errorBanner"></div>
+<div id="bootBadge">BOOT · init</div>
+<div id="camBadge">CAM · CHASE</div>
+<div id="wxFlash"></div><div id="smokeHaze"></div>
+
+<div id="hud">
+  <div class="panelBox" id="infoBox">
+    <div class="lbl">BOEING 737-800</div>
+    <div class="sub" id="hdgTxt">HDG 000°</div>
+    <div class="sub" id="posTxt">--</div>
+    <div class="sub" id="fpsTxt">-- FPS</div>
+    <div class="sub" id="srcTxt">ESRI</div>
+    <div class="sub" id="apTxt">AP OFF</div>
+    <div class="sub" id="engTxt">ENG OFF</div>
+    <div class="sub" id="aoaTxt">AOA 0.0°</div>
+    <div class="sub" id="wxTxt">WX CLEAR</div>
+    <div class="sub" id="senTxt" style="color:#ff8060"></div>
+  </div>
+
+  <div class="panelBox" id="airspeed">
+    <div class="lbl">AIRSPEED · KIAS</div>
+    <div class="val"><span id="spdVal">0</span></div>
+    <div class="sub"><span>M <span id="machVal">0.00</span></span><span id="spdState">GS 0 kt</span></div>
+    <div class="bar"><div class="fill" id="spdBar" style="width:0%"></div><div class="mark" id="spdMark" style="left:0%"></div></div>
+  </div>
+
+  <div class="panelBox" id="altitude">
+    <div class="lbl">ALTITUDE · FT MSL</div>
+    <div class="val"><span id="altVal">0</span></div>
+    <div class="sub"><span id="altState">AGL 0</span><span>STD 1013</span></div>
+    <div class="bar"><div class="fill" id="altBar" style="width:0%"></div></div>
+  </div>
+
+  <div class="panelBox" id="vsi">
+    <div class="lbl">VERT SPEED · FPM</div>
+    <div class="val" id="vsVal">0</div>
+    <div class="sub">G <span id="gVal">1.0</span> · VS <span id="vsState">LVL</span></div>
+  </div>
+
+  <div class="panelBox" id="tcas"><canvas id="tcasCanvas" width="170" height="170"></canvas></div>
+  <div class="panelBox" id="attitude"><canvas id="attitudeCanvas" width="220" height="220"></canvas></div>
+  <div class="panelBox" id="compass"><canvas id="compassCanvas" width="680" height="104"></canvas></div>
+  <div id="configPanel">
+    <div class="cfgChip" id="chipFlaps">FLAPS 0</div>
+    <div class="cfgChip" id="chipGear">GEAR UP</div>
+    <div class="cfgChip" id="chipSpoiler">SPLR OFF</div>
+    <div class="cfgChip" id="chipRev">REV OFF</div>
+    <div class="cfgChip" id="chipBrake">BRK OFF</div>
+    <div class="cfgChip" id="chipCam">CHASE</div>
+    <div class="cfgChip" id="chipEng">ENG START</div>
+    <div class="cfgChip" id="chipWx">WX CLEAR</div>
+  </div>
+  <div class="panelBox" id="msgBox">MESSAGE</div>
+  <div id="stallWarn">⚠ STALL</div>
+  <div id="windWarn">⚠ WIND SHEAR / TURBULENCE</div>
+  <div id="faultPanel"><div class="fh">FAULT LIST</div><div id="faultList"></div></div>
+  <div id="masterWarn">
+    <div class="mw" id="mwWarn">MASTER WARNING</div>
+    <div class="mc" id="mwCaution">MASTER CAUTION</div>
+  </div>
+</div>
+
+<div id="faultTriggers">
+  <button id="faultToggleBtn">⚠ INJECT FAULT</button>
+  <div id="faultButtons">
+    <div class="fgTitle">Inject Fault</div>
+    <button class="faultBtn" data-inject="ENG_FIRE_L">ENG 1 FIRE</button>
+    <button class="faultBtn" data-inject="ENG_FIRE_R">ENG 2 FIRE</button>
+    <button class="faultBtn" data-inject="HYD_LOSS">HYD PRESS LO</button>
+    <button class="faultBtn" data-inject="ELEC_BUS">ELEC BUS OFF</button>
+    <button class="faultBtn" data-inject="ADC_FAULT">AIR DATA FAULT</button>
+    <button class="faultBtn" data-inject="FUEL_LEAK">FUEL LEAK</button>
+    <button class="faultBtn" data-inject="GEAR_FAULT">GEAR DISAGREE</button>
+    <button class="faultBtn" data-inject="BIRD_STRIKE">BIRD STRIKE</button>
+    <button class="faultBtn" data-inject="FLAMEOUT">ENG 1 FLAMEOUT</button>
+    <button class="faultBtn" data-inject="TRIM_RUNAWAY">TRIM RUNAWAY</button>
+    <button class="faultBtn" data-inject="RUDDER_JAM">RUDDER JAM</button>
+    <button class="faultBtn" data-inject="AIL_JAM">AILERON JAM</button>
+    <button class="faultBtn" data-inject="TIRE_BURST">TIRE BURST</button>
+    <div class="fgSep"></div>
+    <div class="fgTitle">More Systems</div>
+    <button class="faultBtn" data-inject="FLAP_JAM">FLAPS JAMMED</button>
+    <button class="faultBtn" data-inject="SPOILER_JAM">SPOILERS STUCK</button>
+    <button class="faultBtn" data-inject="ELEV_JAM">ELEVATOR JAM</button>
+    <button class="faultBtn" data-inject="ICING">WING ICING</button>
+    <button class="faultBtn" data-inject="OIL_PRESS">ENG 2 OIL PRESS LO</button>
+    <button class="faultBtn" data-inject="ENG_SURGE">ENG 1 SURGE</button>
+    <button class="faultBtn" data-inject="BRAKE_FAIL">BRAKES INOP</button>
+    <button class="faultBtn" data-inject="CABIN_ALT">CABIN ALTITUDE</button>
+    <button class="faultBtn" data-inject="GEN_FAIL">GENERATOR 1 FAIL</button>
+    <div class="fgSep"></div>
+    <div class="fgTitle">Sensor Failures</div>
+    <button class="faultBtn" data-inject="PITOT_BLOCK">PITOT BLOCKED (IAS)</button>
+    <button class="faultBtn" data-inject="STATIC_BLOCK">STATIC BLOCKED (ALT/VS)</button>
+    <button class="faultBtn" data-inject="AOA_FAIL">AOA SENSOR FAIL</button>
+    <button class="faultBtn" data-inject="ATT_FAIL">ATTITUDE GYRO FAIL</button>
+    <button class="faultBtn" data-inject="HDG_FAIL">COMPASS FAIL</button>
+    <button class="faultBtn" data-inject="FUEL_QTY">FUEL QTY SENSOR</button>
+    <button class="faultBtn" data-inject="ENG_SENSOR">ENG 1 SENSOR FAIL</button>
+    <button class="faultBtn" data-inject="RADALT_FAIL">RADIO ALT FAIL</button>
+    <button class="faultBtn" data-inject="COCKPIT_SMOKE">COCKPIT SMOKE</button>
+    <button class="faultBtn" data-inject="MICROBURST">MICROBURST</button>
+    <button class="faultBtn" data-inject="LIGHTNING">LIGHTNING STRIKE</button>
+    <button class="faultBtn" data-inject="ASH">VOLCANIC ASH</button>
+    <button class="faultBtn" data-inject="FUEL_IMBAL">FUEL IMBALANCE</button>
+    <button class="faultBtn" data-inject="DUAL_ENG">DUAL ENGINE FAILURE</button>
+    <button class="faultBtn" data-inject="THR_STUCK">THROTTLE STUCK</button>
+    <button class="faultBtn" data-inject="DECOMP">RAPID DECOMPRESSION</button>
+    <button class="faultBtn" data-inject="CHAOS">CHAOS MODE (RANDOM)</button>
+    <button class="faultBtn" data-inject="COLLISION">COLLISION COURSE (TCAS)</button>
+    <div class="fgSep"></div>
+    <button class="faultBtn clear" data-clear="all">CLEAR ALL FAULTS</button>
+    <div class="fgSep"></div>
+    <div class="fgTitle">Imagery Source</div>
+    <button class="faultBtn" id="imgToggle">🌍 GLOBAL · ESRI</button>
+  </div>
+</div>
+<div id="overlay">
+  <div class="homeCard">
+    <div class="homeHero">
+      <div class="homeEye">Flight Deck · Game Mode</div>
+      <h1>BABYLON <span>FLIGHT 737</span></h1>
+      <h2>Full Cockpit · Sensors · Weather · Custom Locations · Faults</h2>
+    </div>
+
+    <div class="homeBody">
+      <section class="homeCol homeMain">
+        <div class="homeColHead">Flight Setup</div>
+
+        <div class="field">
+          <label>Departure Airport</label>
+          <select id="locSelect">
+            <option value="47.4647,8.5492,432,LSZH">Zurich (LSZH)</option>
+            <option value="51.4700,-0.4543,25,EGLL">London Heathrow (EGLL)</option>
+            <option value="40.6413,-73.7781,4,KJFK">New York JFK (KJFK)</option>
+            <option value="25.2532,55.3657,19,OMDB">Dubai Intl (OMDB)</option>
+            <option value="35.5494,139.7798,6,RJTT">Tokyo Haneda (RJTT)</option>
+            <option value="-33.9399,151.1753,6,YSSY">Sydney (YSSY)</option>
+            <option value="37.619002,-122.375727,4,KSFO">San Francisco (KSFO) · 4 runways</option>
+            <option value="48.9969,2.5483,119,LFPG">Paris CDG (LFPG)</option>
+            <option value="52.3105,4.7683,-3,EHAM">Amsterdam (EHAM)</option>
+            <option value="52.1333,-106.6667,480,CYXE">Saskatoon (CYXE)</option>
+            <option value="50.4319,-104.6177,577,CYQR">Regina (CYQR)</option>
+            <option value="46.5000,7.9000,3600,ALPS">Swiss Alps (Scenic)</option>
+            <option value="27.9881,86.9250,5300,EVEREST">Mount Everest (Scenic)</option>
+            <option value="35.9524,-112.1470,2000,GRANDCANYON">Grand Canyon (Scenic)</option>
+            <option value="45.9763,7.6586,4300,MATTERHORN">Matterhorn (Scenic)</option>
+            <option value="35.3606,138.7274,3700,FUJI">Mount Fuji (Scenic)</option>
+            <option value="37.7456,-119.5936,1200,YOSEMITE">Yosemite Valley (Canyon)</option>
+            <option value="37.2982,-113.0263,1300,ZION">Zion Canyon (Canyon)</option>
+            <option value="36.9980,-110.0985,1700,MONUMENT">Monument Valley (Canyon)</option>
+            <option value="62.1049,7.2058,0,GEIRANGER">Geirangerfjord (Fjord)</option>
+            <option value="CUSTOM">— Custom Location —</option>
+          </select>
+          <div id="customRow" style="display:none">
+            <div class="customGrid">
+              <div class="field">
+                <label>Latitude (deg N)</label>
+                <input id="customLat" type="number" step="0.0001" placeholder="40.6413">
+              </div>
+              <div class="field">
+                <label>Longitude (deg E)</label>
+                <input id="customLon" type="number" step="0.0001" placeholder="-73.7781">
+              </div>
+              <div class="field">
+                <label>Airport Code</label>
+                <input id="customCode" type="text" placeholder="KJFK" maxlength="8">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="fieldRow">
+          <div class="field">
+            <label>Time of Day</label>
+            <select id="todSelect">
+              <option value="noon">Midday</option>
+              <option value="morning">Morning</option>
+              <option value="golden">Golden hour</option>
+              <option value="dusk">Dusk</option>
+              <option value="night">Night</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Weather</label>
+            <select id="wxSelect">
+              <option value="clear">Clear skies</option>
+              <option value="cloudy">Cloudy</option>
+              <option value="rain">Light rain</option>
+              <option value="storm">Thunderstorm</option>
+              <option value="fog">Dense fog</option>
+              <option value="snow">Snow</option>
+              <option value="windy">Strong crosswind</option>
+              <option value="turbulent">Severe turbulence</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="fieldRow">
+          <div class="field">
+            <label>Start State</label>
+            <select id="startSel">
+              <option value="cruise">Cruise (airborne)</option>
+              <option value="takeoff">Takeoff (on runway, flaps 5)</option>
+              <option value="final">Short final (gear down, flaps 30)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Livery</label>
+            <select id="liverySel"></select>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Google Maps API Key <span class="opt">(optional)</span></label>
+          <input id="keyInput" type="password" placeholder="AIzaSy..." autocomplete="off">
+        </div>
+      </section>
+
+      <aside class="homeCol homeSide">
+        <div class="homeColHead">Options</div>
+
+        <label class="checkRow">
+          <input type="checkbox" id="mobChk">
+          <span class="checkLabel">Mobile / Touch Mode</span>
+        </label>
+        <div class="hint">On-screen joystick &amp; buttons. Auto-enables on touch devices under 900px.</div>
+
+        <div class="homeColHead">Notes</div>
+        <div class="hint">
+          Click <b>⚠ Inject Fault</b> in flight (bottom right) to trigger failures.
+          Sensor failures corrupt the matching HUD. Watch fire &amp; smoke from the
+          <b>Chase</b> or <b>Wing</b> camera. Land with gear up = belly scrape.
+        </div>
+      </aside>
+
+      <div class="homeControlsFull">
+        <details class="controlsDetails">
+          <summary>Controls &amp; Key Bindings</summary>
+          <div class="keys">
+            <b>W / S</b><span>Pitch (nose down / nose up)</span><b>A / D</b><span>Roll left / right</span>
+            <b>Q / E</b><span>Rudder</span><b>Shift / Ctrl</b><span>Throttle up / down</span>
+            <b>N</b><span>Toggle reversers (ground)</span><b>Space</b><span>Wheel brakes</span>
+            <b>↑ / ↓</b><span>Pitch trim</span><b>← / →</b><span>Aileron trim</span>
+            <b>Z / X</b><span>Rudder trim</span><b>F / G / B</b><span>Flaps / Gear / Spoilers</span>
+            <b>C or V</b><span>Camera</span><b>I</b><span>Start engines</span>
+            <b>R</b><span>Respawn</span><b>RMB</b><span>Look around (cockpit)</span>
+            <b>1-5</b><span>Flap detents</span><b>P</b><span>Autopilot</span>
+            <b>[ / ]</b><span>HDG bug</span><b>PgUp/PgDn</b><span>ALT bug</span>
+            <b>L</b><span>Cycle livery</span><b>T</b><span>Autothrottle</span><b>M</b><span>Mute audio</span>
+          </div>
+        </details>
+      </div>
+    </div>
+
+    <div class="homeFoot">
+      <div id="loadStatus">Ready</div>
+      <button id="startBtn">Start Flight</button>
+    </div>
+  </div>
+</div>
+
+<div id="crashOverlay">
+  <div class="card">
+    <h1>CRASHED</h1>
+    <h2 id="crashReason">Impact</h2>
+    <button id="respawnBtn">Respawn</button>
+    <button id="replayBtn" style="margin-top:10px;background:#1e3a5f;color:#dbeafe;border:0;border-radius:10px;padding:10px 22px;font-weight:700;cursor:pointer;display:block;margin-left:auto;margin-right:auto">Watch replay (F9)</button>
+  </div>
+</div>
+
+<div id="touchUI">
+  <div id="joy"><div id="joyK"></div></div>
+  <div class="tb" id="tbYL" data-hold="KeyQ">◀ RUD</div><div class="tb" id="tbYR" data-hold="KeyE">RUD ▶</div>
+  <div id="tbRow">
+    <div class="tb" data-tap="KeyG">GEAR</div><div class="tb" data-tap="KeyF">FLAPS</div><div class="tb" data-tap="KeyB">SPLR</div>
+    <div class="tb" data-hold="Space">BRAKE</div><div class="tb" data-tap="KeyN">REV</div>
+    <div class="tb" data-tap="KeyC">CAM</div><div class="tb" data-tap="KeyP">AP</div><div class="tb" data-tap="KeyT">A/THR</div>
+    <div class="tb" data-tap="KeyM">ABRK</div><div class="tb" data-tap="KeyL">LDG LT</div><div class="tb" data-tap="KeyI">ENG</div><div class="tb" data-tap="KeyR">RESET</div>
+  </div>
+  <div id="thr"><div id="thrF"></div><div id="thrL">THR</div></div>
+</div>
+<script src="https://cdn.babylonjs.com/babylon.js"></script>
+<script src="https://cdn.babylonjs.com/materials/babylonjs.materials.min.js"></script>
+<script src="game.js"></script>
+
+
+
+ 
+</body>
+</html>
