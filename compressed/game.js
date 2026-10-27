@@ -6586,7 +6586,7 @@ void main(){
     showMsg('',1);
   }
   setInterval(()=>{
-    if(activeModelId!=='wonderful'){if(_wActive)_wonderStop();return;}
+    if(window._activeModelId!=='wonderful'){if(_wActive)_wonderStop();return;}
     if(plane.crashed){_wonderStop();return;}
     const anyWASD=keys['KeyW']||keys['KeyA']||keys['KeyS']||keys['KeyD'];
     if(anyWASD){_wonderStart();
