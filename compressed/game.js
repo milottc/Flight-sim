@@ -830,18 +830,51 @@ intBox('wsr',.06,.95,.15,1.5,.55,15.7,-.15,frameMat);
 intBox('wsc_l',.04,.85,.13,-.55,.55,15.72,-.15,frameMat);
 intBox('wsc_r',.04,.85,.13,.55,.55,15.72,-.15,frameMat);
 intBox('swf',3.2,.08,.15,0,.95,15.4,-.35,frameMat);
-function glassPane(name,w,h,x,y,z,rx,ry){
+/* Better windshield glass – tinted, slightly reflective, visible */
+M.windshieldGlass=new BABYLON.PBRMaterial('wsGlassM',scene);
+M.windshieldGlass.albedoColor=new BABYLON.Color3(.05,.13,.12);
+M.windshieldGlass.metallic=.0;M.windshieldGlass.roughness=.03;
+M.windshieldGlass.alpha=.13;
+M.windshieldGlass.transparencyMode=BABYLON.PBRMaterial.PBRMATERIAL_ALPHABLEND;
+M.windshieldGlass.backFaceCulling=false;
+M.windshieldGlass.clearCoat.isEnabled=true;M.windshieldGlass.clearCoat.intensity=1;M.windshieldGlass.clearCoat.roughness=.02;
+M.windshieldGlass.environmentIntensity=.18;
+M.sideGlass=new BABYLON.PBRMaterial('sgM',scene);
+M.sideGlass.albedoColor=new BABYLON.Color3(.04,.1,.09);
+M.sideGlass.metallic=0;M.sideGlass.roughness=.04;M.sideGlass.alpha=.18;
+M.sideGlass.transparencyMode=BABYLON.PBRMaterial.PBRMATERIAL_ALPHABLEND;
+M.sideGlass.backFaceCulling=false;M.sideGlass.environmentIntensity=.12;
+function glassPane(name,w,h,x,y,z,rx,ry,mat){
   const p=BABYLON.MeshBuilder.CreatePlane(name,{width:w,height:h,sideOrientation:BABYLON.Mesh.DOUBLESIDE},scene);
   p.position.set(x,y,z);p.rotation.x=rx;if(ry)p.rotation.y=ry;
-  p.material=M.glass;p.parent=interiorRoot;p.isPickable=false;p.isVisible=false;
+  p.material=mat||M.windshieldGlass;p.parent=interiorRoot;p.isPickable=false;p.isVisible=true;
   return p;
 }
-glassPane('gl1',.55,.8,-.75,.55,15.7,-.15,0);
-glassPane('gl2',.55,.8,-.2,.55,15.7,-.15,0);
-glassPane('gl3',.55,.8,.2,.55,15.7,-.15,0);
-glassPane('gl4',.55,.8,.75,.55,15.7,-.15,0);
-glassPane('gsl',.35,.55,-1.55,.5,15.2,-.1,-Math.PI/2.2);
-glassPane('gsr',.35,.55,1.55,.5,15.2,-.1,Math.PI/2.2);
+/* 4 main windshield panes */
+glassPane('gl1',.54,.82,-.75,.56,15.70,-.15,0);
+glassPane('gl2',.54,.82,-.20,.56,15.70,-.15,0);
+glassPane('gl3',.54,.82,.20,.56,15.70,-.15,0);
+glassPane('gl4',.54,.82,.75,.56,15.70,-.15,0);
+/* Side quarter-windows */
+glassPane('gsl',.38,.58,-1.52,.52,15.18,-.10,-Math.PI/2.2,M.sideGlass);
+glassPane('gsr',.38,.58,1.52,.52,15.18,-.10,Math.PI/2.2,M.sideGlass);
+/* Window frame depth strips – give the windshield frames visible thickness */
+(function(){
+  const fm=M.bezel;
+  // top frame bar above all 4 panes
+  intBox('wsFrameTop',2.42,.06,.06,0,.97,15.67,-.15,fm);
+  // bottom frame bar
+  intBox('wsFrameBot',2.42,.06,.06,0,.12,15.72,-.15,fm);
+  // center divider post
+  intBox('wsFrameMid',.06,.85,.06,0,.54,15.70,-.15,fm);
+  // outer left/right posts
+  intBox('wsFrameL',.06,.85,.06,-.75,.54,15.70,-.15,fm);
+  intBox('wsFrameR',.06,.85,.06,.75,.54,15.70,-.15,fm);
+  // glareshield top lip – gives cockpit that Boeing visor look
+  intBox('wsVisorL',.04,.025,.34,-1.05,.99,15.54,-.3,fm);
+  intBox('wsVisorR',.04,.025,.34,1.05,.99,15.54,-.3,fm);
+  intBox('wsVisorC',2.0,.025,.34,0,.99,15.54,-.3,fm);
+})();
 
 const panelW=1.55,panelH=.45;
 const panelTex=new BABYLON.DynamicTexture('panelTex',{width:1024,height:297},scene,true);
@@ -995,13 +1028,39 @@ function setPanelCategory(analog){
 intBox('glare',panelW+.2,.05,.35,0,.1,15.15,-.2,M.bezel);
 intBox('ped',.55,.5,2.0,0,-.55,14.3,0,M.cockpitPanel);
 intBox('pedTop',.55,.05,2.0,0,-.32,14.3,0,M.cockpitPanel);
-intBox('thrQ',.5,.12,.7,0,-.28,14.75,0,M.dark);
+/* Throttle quadrant – wider, more realistic Boeing-style */
+intBox('thrQ',.52,.14,.72,0,-.275,14.75,0,M.dark);
+intBox('thrQSide1',.03,.22,.72,-.265,-.22,14.75,0,M.cockpitPanel);
+intBox('thrQSide2',.03,.22,.72,.265,-.22,14.75,0,M.cockpitPanel);
+/* TOGA detent marks on the quadrant */
+(function(){
+  const togaTex=new BABYLON.DynamicTexture('togaTex',{width:128,height:32},scene,true);
+  const tc=togaTex.getContext();tc.fillStyle='#111';tc.fillRect(0,0,128,32);
+  tc.fillStyle='#ff6020';tc.fillRect(0,14,128,4);
+  tc.fillStyle='#999';tc.font='bold 10px sans-serif';tc.textAlign='center';tc.fillText('TOGA',64,11);
+  togaTex.update(true);
+  const tm=new BABYLON.StandardMaterial('togaM',scene);tm.emissiveTexture=togaTex;tm.diffuseTexture=togaTex;
+  tm.emissiveColor=new BABYLON.Color3(1,1,1);tm.backFaceCulling=false;
+  const tp=BABYLON.MeshBuilder.CreatePlane('togaP',{width:.5,height:.08,sideOrientation:BABYLON.Mesh.DOUBLESIDE},scene);
+  tp.position.set(0,-.19,14.42);tp.rotation.x=Math.PI/2;tp.parent=interiorRoot;tp.material=tm;tp.isPickable=false;
+})();
 const throttleLevers=[];
 for(let i=0;i<2;i++){
-  const t=BABYLON.MeshBuilder.CreateCylinder('thrLv'+i,{height:.22,diameter:.055,tessellation:12},scene);
-  t.position.set(-.13+i*.13,-.08,14.78);t.rotation.x=-.3;t.material=M.metal;t.parent=interiorRoot;
-  const knob=BABYLON.MeshBuilder.CreateSphere('thrK'+i,{diameter:.08},scene);
-  knob.position.set(-.13+i*.13,.12,14.6);knob.material=M.throttleKnob;knob.parent=interiorRoot;
+  const xOff=-.13+i*.13;
+  /* lever body – flat rectangular bar like Boeing 737 throttle */
+  const t=BABYLON.MeshBuilder.CreateBox('thrLv'+i,{width:.055,height:.22,depth:.038},scene);
+  t.position.set(xOff,-.08,14.78);t.rotation.x=-.3;t.material=M.metal;t.parent=interiorRoot;
+  /* Boeing-style flat rectangular handle at top */
+  const knob=BABYLON.MeshBuilder.CreateBox('thrK'+i,{width:.085,height:.06,depth:.055},scene);
+  knob.position.set(xOff,.12,14.60);knob.material=M.throttleKnob;knob.parent=interiorRoot;
+  /* Grip texture on handle */
+  const gripTex=new BABYLON.DynamicTexture('thrGrip'+i,{width:64,height:64},scene,true);
+  const gc=gripTex.getContext();gc.fillStyle='#8a0a0a';gc.fillRect(0,0,64,64);
+  for(let g=0;g<5;g++){gc.fillStyle='rgba(0,0,0,.3)';gc.fillRect(0,8+g*12,64,6);}
+  gc.fillStyle='#fff';gc.font='bold 9px monospace';gc.textAlign='center';gc.fillText(i===0?'1':'2',32,36);
+  gripTex.update(true);
+  const gm=new BABYLON.StandardMaterial('thrGM'+i,scene);gm.diffuseTexture=gripTex;gm.emissiveTexture=gripTex;gm.emissiveColor=new BABYLON.Color3(.8,.8,.8);gm.backFaceCulling=false;
+  knob.material=gm;
   throttleLevers.push({lever:t,knob:knob});
 }
 const sbLever=BABYLON.MeshBuilder.CreateCylinder('sbLv',{height:.2,diameter:.05,tessellation:12},scene);
@@ -1059,32 +1118,131 @@ for(const sgn of [1,-1]){
   top.actionManager.registerAction(new BABYLON.ExecuteCodeAction(BABYLON.ActionManager.OnPickTrigger,()=>{toggleFireHandle(key);}));
 }
 
+/* --- Improved Yokes --- */
 const yokes={};
-for(const sgn of [-1,1]){
-  const key=sgn<0?'L':'R';
-  const grp=new BABYLON.TransformNode('yoke'+key,scene);
-  grp.parent=interiorRoot;grp.position.set(sgn*.6,-.3,14.6);
-  const col=BABYLON.MeshBuilder.CreateCylinder('col'+key,{height:.35,diameter:.07,tessellation:12},scene);
-  col.position.y=-.18;col.material=M.dark;col.parent=grp;
-  const hub=BABYLON.MeshBuilder.CreateBox('hub'+key,{width:.16,height:.08,depth:.08},scene);
-  hub.position.y=.05;hub.material=M.dark;hub.parent=grp;
-  const hornL=BABYLON.MeshBuilder.CreateBox('hL'+key,{width:.06,height:.15,depth:.07},scene);
-  hornL.position.set(-.16,.13,.02);hornL.rotation.z=.25;hornL.material=M.dark;hornL.parent=grp;
-  const hornR=BABYLON.MeshBuilder.CreateBox('hR'+key,{width:.06,height:.15,depth:.07},scene);
-  hornR.position.set(.16,.13,.02);hornR.rotation.z=-.25;hornR.material=M.dark;hornR.parent=grp;
-  const gripL=BABYLON.MeshBuilder.CreateSphere('gL'+key,{diameter:.06},scene);
-  gripL.position.set(-.19,.19,.02);gripL.material=M.rubber;gripL.parent=grp;
-  const gripR=BABYLON.MeshBuilder.CreateSphere('gR'+key,{diameter:.06},scene);
-  gripR.position.set(.19,.19,.02);gripR.material=M.rubber;gripR.parent=grp;
-  yokes[key]=grp;
-}
+(function(){
+  /* Grip rubber material with ridged texture */
+  const yokeGripTex=new BABYLON.DynamicTexture('yokeGripTex',{width:64,height:128},scene,true);
+  const ygt=yokeGripTex.getContext();ygt.fillStyle='#0d0e0f';ygt.fillRect(0,0,64,128);
+  for(let g=0;g<8;g++){ygt.fillStyle='rgba(255,255,255,.07)';ygt.fillRect(0,8+g*15,64,7);}
+  yokeGripTex.update(true);
+  const yokeGripMat=new BABYLON.PBRMaterial('yokeGripM',scene);
+  yokeGripMat.albedoTexture=yokeGripTex;yokeGripMat.metallic=0;yokeGripMat.roughness=1;
+  yokeGripMat.albedoColor=new BABYLON.Color3(.07,.07,.08);
 
-for(const sgn of [-1,1]){
-  intBox('seat'+sgn,.55,.14,.6,sgn*.6,-.75,13.2,0,M.seat);
-  intBox('seatB'+sgn,.55,.9,.15,sgn*.6,-.3,12.9,-.05,M.seat);
-  intBox('seatH'+sgn,.42,.28,.16,sgn*.6,.28,12.85,-.05,M.seat);
-  intBox('seatA'+sgn,.08,.1,.4,sgn*.9,-.55,13.1,0,M.dark);
-}
+  /* Yoke button material */
+  const yokeBtnMat=new BABYLON.PBRMaterial('yokeBtnM',scene);
+  yokeBtnMat.albedoColor=new BABYLON.Color3(.8,.82,.85);yokeBtnMat.metallic=.3;yokeBtnMat.roughness=.5;
+
+  for(const sgn of [-1,1]){
+    const key=sgn<0?'L':'R';
+    const grp=new BABYLON.TransformNode('yoke'+key,scene);
+    grp.parent=interiorRoot;grp.position.set(sgn*.62,-.28,14.58);
+
+    /* Column – thicker, tapered look */
+    const col=BABYLON.MeshBuilder.CreateCylinder('col'+key,{height:.38,diameter:.09,diameterTop:.07,tessellation:14},scene);
+    col.position.y=-.19;col.material=M.dark;col.parent=grp;
+
+    /* Column boot/base where it goes into instrument panel */
+    const boot=BABYLON.MeshBuilder.CreateCylinder('boot'+key,{height:.055,diameter:.13,tessellation:14},scene);
+    boot.position.y=-.38;boot.material=M.cockpitPanel;boot.parent=grp;
+
+    /* Center hub */
+    const hub=BABYLON.MeshBuilder.CreateCylinder('hub'+key,{height:.07,diameter:.12,tessellation:14},scene);
+    hub.position.y=.035;hub.rotation.x=Math.PI/2;hub.material=M.dark;hub.parent=grp;
+
+    /* Left horn arm */
+    const hornL=BABYLON.MeshBuilder.CreateCylinder('hL'+key,{height:.28,diameter:.045,tessellation:10},scene);
+    hornL.position.set(-.14,.13,.01);hornL.rotation.z=.32;hornL.material=M.dark;hornL.parent=grp;
+
+    /* Right horn arm */
+    const hornR=BABYLON.MeshBuilder.CreateCylinder('hR'+key,{height:.28,diameter:.045,tessellation:10},scene);
+    hornR.position.set(.14,.13,.01);hornR.rotation.z=-.32;hornR.material=M.dark;hornR.parent=grp;
+
+    /* Left grip (cylindrical, textured) */
+    const gripL=BABYLON.MeshBuilder.CreateCylinder('gL'+key,{height:.16,diameter:.055,tessellation:12},scene);
+    gripL.position.set(-.235,.24,.01);gripL.material=yokeGripMat;gripL.parent=grp;
+
+    /* Right grip */
+    const gripR=BABYLON.MeshBuilder.CreateCylinder('gR'+key,{height:.16,diameter:.055,tessellation:12},scene);
+    gripR.position.set(.235,.24,.01);gripR.material=yokeGripMat;gripR.parent=grp;
+
+    /* AP disconnect button on each grip (red) */
+    const apBtn=BABYLON.MeshBuilder.CreateCylinder('apBtn'+key,{height:.015,diameter:.025,tessellation:8},scene);
+    apBtn.position.set(sgn<0?-.235:.235,.29,-0.03);apBtn.rotation.x=-Math.PI/4;
+    apBtn.material=M.fireHandle;apBtn.parent=grp;
+
+    /* Crossbar (horizontal tube connecting both horn tips) */
+    const xbar=BABYLON.MeshBuilder.CreateCylinder('xbar'+key,{height:.5,diameter:.04,tessellation:10},scene);
+    xbar.position.set(0,.24,.01);xbar.rotation.z=Math.PI/2;xbar.material=M.dark;xbar.parent=grp;
+
+    yokes[key]=grp;
+  }
+})();
+
+/* --- Improved Seats with headrests, lumbar, armrests --- */
+(function(){
+  const seatCushionMat=new BABYLON.PBRMaterial('seatCushM',scene);
+  seatCushionMat.albedoColor=new BABYLON.Color3(.12,.12,.14);seatCushionMat.metallic=0;seatCushionMat.roughness=.95;
+  const seatFabricMat=new BABYLON.PBRMaterial('seatFabM',scene);
+  seatFabricMat.albedoColor=new BABYLON.Color3(.18,.20,.24);seatFabricMat.metallic=0;seatFabricMat.roughness=1;
+  const metalFrameMat=M.metal;
+
+  for(const sgn of [-1,1]){
+    /* Seat cushion */
+    intBox('seat'+sgn,.55,.10,.62,sgn*.62,-.76,13.22,0,seatCushionMat);
+    /* Seat cushion edge bolsters */
+    intBox('seatBolL'+sgn,.08,.12,.62,sgn*.62-sgn*.235,-.73,13.22,0,seatFabricMat);
+    intBox('seatBolR'+sgn,.08,.12,.62,sgn*.62+sgn*.235,-.73,13.22,0,seatFabricMat);
+    /* Seat back */
+    intBox('seatB'+sgn,.55,.95,.14,sgn*.62,-.27,12.89,-.06,seatCushionMat);
+    /* Lumbar support roll */
+    const lumb=BABYLON.MeshBuilder.CreateCylinder('lumb'+sgn,{height:.46,diameter:.095,tessellation:12},scene);
+    lumb.position.set(sgn*.62,-.52,12.87);lumb.rotation.x=Math.PI/2;lumb.rotation.z=-.06;lumb.material=seatFabricMat;lumb.parent=interiorRoot;lumb.isPickable=false;
+    /* Headrest */
+    intBox('seatH'+sgn,.42,.22,.14,sgn*.62,.30,12.84,-.05,seatCushionMat);
+    /* Headrest side wings */
+    intBox('seatHwL'+sgn,.10,.22,.10,sgn*.62-.20,.30,12.87,-.05,seatFabricMat);
+    intBox('seatHwR'+sgn,.10,.22,.10,sgn*.62+.20,.30,12.87,-.05,seatFabricMat);
+    /* Seat back shoulder bolsters */
+    intBox('seatSBL'+sgn,.08,.8,.09,sgn*.62-.235,-.27,12.87,-.04,seatFabricMat);
+    intBox('seatSBR'+sgn,.08,.8,.09,sgn*.62+.235,-.27,12.87,-.04,seatFabricMat);
+    /* Armrests – left and right */
+    intBox('seatA'+sgn,.075,.055,.38,sgn*.62-sgn*.35,-.55,13.14,0,M.dark);
+    intBox('seatAR'+sgn,.075,.055,.38,sgn*.62+sgn*.35,-.55,13.14,0,M.dark);
+    /* Seat post / rail */
+    intBox('seatPost'+sgn,.06,.28,.06,sgn*.62,-.9,13.22,0,metalFrameMat);
+    intBox('seatRail'+sgn,.50,.04,.22,sgn*.62,-1.04,13.22,0,metalFrameMat);
+  }
+
+  /* Rudder pedals */
+  (function(){
+    const pedalMat=new BABYLON.PBRMaterial('pedalM',scene);
+    pedalMat.albedoColor=new BABYLON.Color3(.38,.40,.42);pedalMat.metallic=.7;pedalMat.roughness=.55;
+    /* Tread texture on pedal face */
+    const pedTex=new BABYLON.DynamicTexture('pedTex',{width:64,height:64},scene,true);
+    const ptc=pedTex.getContext();ptc.fillStyle='#444';ptc.fillRect(0,0,64,64);
+    for(let r=0;r<5;r++)for(let c=0;c<5;c++){ptc.fillStyle='#333';ptc.fillRect(2+c*13,2+r*13,9,9);}
+    pedTex.update(true);
+    const pedFaceMat=new BABYLON.StandardMaterial('pedFaceM',scene);pedFaceMat.diffuseTexture=pedTex;pedFaceMat.emissiveTexture=pedTex;pedFaceMat.emissiveColor=new BABYLON.Color3(.4,.4,.4);pedFaceMat.backFaceCulling=false;
+
+    for(const sgn of [-1,1]){  /* captain(L) / F/O(R) */
+      const px=sgn*.62;
+      for(const fp of [-1,1]){  /* left/right pedal of each set */
+        const pz=15.2+fp*.09;
+        /* pedal arm */
+        const arm=BABYLON.MeshBuilder.CreateBox('pedArm'+sgn+fp,{width:.035,height:.28,depth:.035},scene);
+        arm.position.set(px+fp*.12,-.82,pz-.05);arm.rotation.x=-.18;arm.material=pedalMat;arm.parent=interiorRoot;arm.isPickable=false;
+        /* pedal face */
+        const face=BABYLON.MeshBuilder.CreateBox('pedFace'+sgn+fp,{width:.12,height:.055,depth:.16},scene);
+        face.position.set(px+fp*.12,-.68,pz);face.rotation.x=-.22;face.material=pedFaceMat;face.parent=interiorRoot;face.isPickable=false;
+      }
+      /* cross bar between pedals */
+      const xbar=BABYLON.MeshBuilder.CreateBox('pedXbar'+sgn,{width:.28,height:.03,depth:.03},scene);
+      xbar.position.set(px,-.84,15.18);xbar.material=pedalMat;xbar.parent=interiorRoot;xbar.isPickable=false;
+    }
+  })();
+})();
 
 const ohpTex=new BABYLON.DynamicTexture('ohpTex',{width:1024,height:256},scene,true);
 (function drawOHP(){
@@ -1677,7 +1835,8 @@ function updateSurfaceVisuals(){
     for(let i=0;i<2;i++){
       const y=-.33+plane.throttle*.06;
       throttleLevers[i].lever.position.y=y;
-      throttleLevers[i].knob.position.y=y+.105;throttleLevers[i].knob.position.z=14.747;
+      /* handle moves with the lever */
+      throttleLevers[i].knob.position.y=y+.105;
     }
   }
   if(sbLever&&sbKnob){
@@ -1691,8 +1850,22 @@ function updateSurfaceVisuals(){
   }
   if(cockpitLight.isEnabled()){
     const nt=(typeof nightMode!=='undefined')&&nightMode;
-    cockpitLight.intensity=nt?2.3:1.7;cockpitLight.range=12;
-    cockpitLight2.intensity=nt?1.7:1.1;cockpitLight2.range=9;
+    /* N1-reactive instrument glow – panel gets slightly brighter at high thrust */
+    const n1avg=((ENG.L.n1||0)+(ENG.R.n1||0))*0.5;
+    const thrustGlow=n1avg>20?Math.min(.35,(n1avg-20)/250):0;
+    if(nt){
+      /* Night: warm amber for main, soft red for instruments */
+      cockpitLight.diffuse=new BABYLON.Color3(1,.72,.35);
+      cockpitLight.intensity=2.4+thrustGlow;cockpitLight.range=13;
+      cockpitLight2.diffuse=new BABYLON.Color3(.9,.22,.05);
+      cockpitLight2.intensity=1.0+thrustGlow*.5;cockpitLight2.range=7;
+    }else{
+      /* Day: neutral white-cool */
+      cockpitLight.diffuse=new BABYLON.Color3(1,.97,.92);
+      cockpitLight.intensity=1.9+thrustGlow;cockpitLight.range=13;
+      cockpitLight2.diffuse=new BABYLON.Color3(.8,.92,1);
+      cockpitLight2.intensity=1.2+thrustGlow*.4;cockpitLight2.range=9;
+    }
   }
 }
 
@@ -1772,13 +1945,15 @@ window.addEventListener('keyup',e=>{keys[e.code]=false;});
 window.addEventListener('blur',()=>{for(const k in keys)keys[k]=false;});
 
 let mouseDown=false,mX=0,mY=0,mPitch=0,mRoll=0;
+let mouseInvert=false;try{mouseInvert=localStorage.getItem('bf737_mouse_inv')==='1';}catch(e){}
+{const ms=document.getElementById('mouseSel');if(ms){ms.value=mouseInvert?'inv':'std';ms.addEventListener('change',()=>{mouseInvert=ms.value==='inv';try{localStorage.setItem('bf737_mouse_inv',mouseInvert?'1':'0');}catch(e){}});}}
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
 canvas.addEventListener('mousedown',e=>{if(e.button===2){mouseDown=true;mX=e.clientX;mY=e.clientY;}});
 window.addEventListener('mouseup',e=>{if(e.button===2){mouseDown=false;mPitch=0;mRoll=0;}});
 window.addEventListener('mousemove',e=>{
   if(!mouseDown)return;
   mRoll=BABYLON.Scalar.Clamp((e.clientX-mX)/420,-1,1);
-  mPitch=BABYLON.Scalar.Clamp((e.clientY-mY)/420,-1,1);
+  mPitch=BABYLON.Scalar.Clamp((e.clientY-mY)/420*(mouseInvert?-1:1),-1,1);
 });
 
 function readInput(dt){
@@ -2228,7 +2403,7 @@ window.addEventListener('mousemove',e=>{
   const dx=e.clientX-camState.rmx,dy=e.clientY-camState.rmy;
   camState.rmx=e.clientX;camState.rmy=e.clientY;
   camState.targetHeadYaw=BABYLON.Scalar.Clamp(camState.targetHeadYaw-dx*.0035,-1.6,1.6);
-  camState.targetHeadPitch=BABYLON.Scalar.Clamp(camState.targetHeadPitch+dy*.0035,-1.2,1.2);
+  camState.targetHeadPitch=BABYLON.Scalar.Clamp(camState.targetHeadPitch+dy*.0035*(mouseInvert?-1:1),-1.2,1.2);
 });
 
 const _camTarget={pos:new BABYLON.Vector3(),quat:BABYLON.Quaternion.Identity(),fov:.78,lerpRate:12};
@@ -2310,7 +2485,7 @@ function computeCamTarget(dt,out){
         return computeCamTarget(dt,out);
       }
       camState.cinemaTimer=camState.cinemaTimer||6;
-      camMode=4;computeCamTarget(dt,out);camMode=6;break;
+      {const prevMode=camMode;camMode=4;try{computeCamTarget(dt,out);}finally{camMode=prevMode;}}break;
     }
   }
 }
@@ -2606,7 +2781,18 @@ function drawPFD(ctx,W,H,hdg,pitch,bank){
   const S=Math.min(W,H),u=S/100,cx=W/2;
   const spd=DV.spd,alt=DV.alt,vs=DV.vs;
   const WT='#fff',YL='#ffd400';
-  ctx.fillStyle='#050608';ctx.fillRect(0,0,W,H);
+  /* PFD background – dark blue-grey instead of pure black */
+  ctx.fillStyle='#070a10';ctx.fillRect(0,0,W,H);
+  /* subtle scan-line pattern for realism */
+  ctx.globalAlpha=.025;for(let sl=0;sl<H;sl+=2){ctx.fillStyle='#000';ctx.fillRect(0,sl,W,1);}ctx.globalAlpha=1;
+  /* AP status bar at top */
+  ctx.fillStyle='#0c1018';ctx.fillRect(0,0,W,u*8);
+  const apColor=AP&&AP.master?'#00e860':'#888';
+  const athrColor=AP&&AP.athr?'#00e860':'#888';
+  ctx.font='bold '+(u*3.8)+'px monospace';ctx.textAlign='center';
+  ctx.fillStyle=apColor;ctx.fillText(AP&&AP.master?'A/P ON':'A/P',W*.25,u*6);
+  ctx.fillStyle=athrColor;ctx.fillText(AP&&AP.athr?'A/THR ON':'A/THR',W*.5,u*6);
+  ctx.fillStyle=plane.stall?'#ff2020':'#666';ctx.fillText(plane.stall?'!STALL!':'STAB',W*.75,u*6);
   const ay=H*.5,aw=u*27,ah=u*35,ppd=u*1.3;
   ctx.save();ctx.beginPath();ctx.rect(cx-aw,ay-ah,aw*2,ah*2);ctx.clip();
   ctx.translate(cx,ay);ctx.rotate(-bank*Math.PI/180);ctx.translate(0,pitch*ppd);
@@ -2732,14 +2918,27 @@ function drawEICAS(ctx,W,H){
     ctx.fillStyle='#7fc7ff';ctx.font=Math.round(H*.02)+'px monospace';ctx.textAlign='left';
     ctx.fillText('ENG '+(i+1),W*.06,y+H*.033);
   }
-  ctx.fillStyle='#00ff88';ctx.font=Math.round(H*.022)+'px monospace';ctx.textAlign='left';
-  ctx.fillText('FUEL',W*.06,H*.92);
+  /* Fuel bar with colour */
+  const fuelPct=Math.max(0,Math.min(1,DV.fuel/18000));
+  ctx.fillStyle='#111';ctx.fillRect(W*.22,H*.84,W*.7,H*.042);
+  ctx.fillStyle=fuelPct<.15?'#ff3020':fuelPct<.3?'#ffb000':'#00e860';
+  ctx.fillRect(W*.22,H*.84,W*.7*fuelPct,H*.042);
+  ctx.fillStyle='#7fc7ff';ctx.font=Math.round(H*.022)+'px monospace';ctx.textAlign='left';
+  ctx.fillText('FUEL',W*.06,H*.865);
   ctx.font='bold '+Math.round(H*.03)+'px monospace';ctx.textAlign='right';
-  ctx.fillText((DV.flags.fuel?'XXXX':Math.round(DV.fuel))+' KG',W*.94,H*.92);
-  ctx.font=Math.round(H*.02)+'px monospace';ctx.textAlign='left';
+  ctx.fillStyle=DV.flags.fuel?'#ff3020':'#00ff88';
+  ctx.fillText((DV.flags.fuel?'XXXX':Math.round(DV.fuel))+' KG',W*.94,H*.865);
+  /* FF combined */
+  ctx.fillStyle='#6ea8de';ctx.font=Math.round(H*.02)+'px monospace';ctx.textAlign='left';
+  const ff=((ENG.L.ff||0)+(ENG.R.ff||0)).toFixed(0);
+  ctx.fillText('FF '+ff+' KG/H',W*.06,H*.92);
+  /* FLAPS & GEAR */
+  ctx.fillStyle='#7fc7ff';ctx.font=Math.round(H*.02)+'px monospace';ctx.textAlign='left';
   ctx.fillText('FLAPS '+FLAPS[plane.flaps].name,W*.06,H*.97);
   ctx.textAlign='right';
-  ctx.fillText('GEAR '+(plane.gearPos>0.9?'DN':(plane.gearPos<0.1?'UP':'TRANSIT')),W*.94,H*.97);
+  const gearTxt=plane.gearPos>0.9?'DN':(plane.gearPos<0.1?'UP':'TRANSIT');
+  ctx.fillStyle=gearTxt==='TRANSIT'?'#ffb000':'#00ff88';
+  ctx.fillText('GEAR '+gearTxt,W*.94,H*.97);
 }
 let _screenAccum=0;
 function drawScreens(hdg,pitch,bank){
@@ -2939,7 +3138,7 @@ function applyLivery(i){
 const liverySel=document.getElementById('liverySel');
 LIVS.forEach((L,i)=>{const o=document.createElement('option');o.value=i;o.textContent=L.n;liverySel.appendChild(o);});
 liverySel.addEventListener('change',()=>applyLivery(+liverySel.value));
-window.addEventListener('keydown',e=>{if(e.code==='KeyL'&&overlay.classList.contains('hidden')){applyLivery(curLiv+1);liverySel.value=curLiv;showMsg('LIVERY · '+LIVS[curLiv].n,2000);}});
+window.addEventListener('keydown',e=>{if(e.code==='KeyL'&&e.shiftKey&&overlay.classList.contains('hidden')){applyLivery(curLiv+1);liverySel.value=curLiv;showMsg('LIVERY · '+LIVS[curLiv].n,2000);}});
 applyLivery(0);
   status('terrain');
 const N=CFG.terrainGrid,E=CFG.terrainExtent,step=E/(N-1);
@@ -3584,7 +3783,7 @@ const MAPV={mpp:70,follow:true,cx:0,cz:0,tap:true};
   const $=id=>document.getElementById(id);
   const toggle=()=>{fms.classList.toggle('show');if(fms.classList.contains('show'))renderFMS();};
   fb.addEventListener('click',toggle);$('fmsX').addEventListener('click',toggle);
-  window.addEventListener('keydown',e=>{if(e.code==='KeyJ'&&!/INPUT|SELECT/.test((e.target||{}).tagName||''))toggle();});
+  window.addEventListener('keydown',e=>{if(e.code==='KeyJ'&&!e.shiftKey&&!/INPUT|SELECT/.test((e.target||{}).tagName||''))toggle();});
   fms.addEventListener('keydown',e=>e.stopPropagation());fms.addEventListener('keyup',e=>e.stopPropagation());
   const sel=$('apSel');for(const k in LOCS){const o=document.createElement('option');o.value=k;o.textContent=k;sel.appendChild(o);}
   $('apAdd').addEventListener('click',()=>{const L=LOCS[sel.value];if(L)addWaypoint(L.lat,L.lon,sel.value,null);});
@@ -4145,7 +4344,7 @@ let landingOn=true;const llights=[];
   const setLL=on=>{landingOn=on;llights.forEach(l=>{l.setEnabled(on);l._glare.setEnabled(on);l._cone.setEnabled(on&&nightMode!==false);l._coneInner.setEnabled(on&&nightMode!==false);});};
   scene.materials.forEach(m=>m.maxSimultaneousLights=8);scene.onNewMaterialAddedObservable.add(m=>m.maxSimultaneousLights=8);
   scene.textures.forEach(t=>{try{t.anisotropicFilteringLevel=16;}catch(e){}});scene.onNewTextureAddedObservable.add(t=>{try{t.anisotropicFilteringLevel=16;}catch(e){}});
-  window.addEventListener('keydown',e=>{if(e.code==='KeyL'&&!/INPUT|SELECT/.test((e.target||{}).tagName||'')){setLL(!landingOn);showMsg('LANDING LIGHTS '+(landingOn?'ON':'OFF'));}});
+  window.addEventListener('keydown',e=>{if(e.code==='KeyL'&&!e.shiftKey&&!/INPUT|SELECT/.test((e.target||{}).tagName||'')){setLL(!landingOn);showMsg('LANDING LIGHTS '+(landingOn?'ON':'OFF'));}});
   scene.registerBeforeRender(()=>{const agl=plane.pos.y-sampleSurface(plane.pos.x,plane.pos.z);const night=(typeof nightMode!=='undefined')?nightMode:false;
     llights.forEach(l=>{
       l._cone.setEnabled(landingOn&&night);l._coneInner.setEnabled(landingOn&&night);l._glare.setEnabled(landingOn&&night);
@@ -4193,7 +4392,7 @@ let landingOn=true;const llights=[];
     if(BABYLON.SSAO2RenderingPipeline&&BABYLON.SSAO2RenderingPipeline.IsSupported){
       window._mkSSAO=()=>{const ss=new BABYLON.SSAO2RenderingPipeline('ssao',scene,{ssaoRatio:.5,blurRatio:.5},[camera]);
         ss.radius=1.6;ss.totalStrength=1.1;ss.base=.12;ss.samples=12;ss.maxZ=220;ss.minZDistance=.05;ss.expensiveBlur=true;return ss;};
-      window.addEventListener('keydown',e=>{if(e.code==='KeyJ'&&!/INPUT|SELECT|TEXTAREA/.test((e.target||{}).tagName||'')){
+      window.addEventListener('keydown',e=>{if(e.code==='KeyJ'&&e.shiftKey&&!/INPUT|SELECT|TEXTAREA/.test((e.target||{}).tagName||'')){
         const on=!window._ssaoOff;window._ssaoOff=on;
         if(on)scene.postProcessRenderPipelineManager.detachCamerasFromRenderPipeline('ssao',[camera]);
         else scene.postProcessRenderPipelineManager.attachCamerasToRenderPipeline('ssao',[camera]);
@@ -4835,7 +5034,7 @@ updateSurfaceVisuals();updateChips();
 setCamMode(0);
 status('ready');
 startBtn.addEventListener('click',async()=>{
-  startBtn.disabled=true;overlay.classList.add('hidden');
+  startBtn.disabled=true;window._userStarted=true;overlay.classList.add('hidden');
   let lat,lon,elev,code;
   if(locSel.value==='CUSTOM'){
     lat=parseFloat(customLat.value);
@@ -4861,6 +5060,12 @@ startBtn.addEventListener('click',async()=>{
   setTOD(document.getElementById('todSelect').value);
   applyLivery(+liverySel.value);
   currentWeather=WEATHER[wxSel.value]||WEATHER.clear;
+  /* Apply turbulence intensity override from selector */
+  {const ts=document.getElementById('turbSel');
+   if(ts){const tv=parseInt(ts.value)||1;
+     const turbMap=[0,0.5,1.5,3.5];
+     currentWeather=Object.assign({},currentWeather,{turb:turbMap[tv]||0});
+   }}
   applyEnvironment();
   applyWeatherVisuals();
   currentLocation={lat,lon,elev,code,start:document.getElementById('startSel').value};
@@ -4924,7 +5129,6 @@ startBtn.addEventListener('click',async()=>{
   plane.hold=false;loadEl.textContent='Ready';status('flying');
 });
 respawnBtn.addEventListener('click',respawn);
-setTimeout(()=>{if(overlay&&!overlay.classList.contains('hidden'))overlay.classList.add('hidden');},20000);
   /* ================================================================== */
 /* ===== TYCOON / CAREER GAMIFICATION LAYER (self-contained) ======== */
 /* ================================================================== */
@@ -6026,7 +6230,7 @@ NJ.forEach(p=>{if(p.analog)ANALOG_SET.add(p.id);if(p.brand==='airbus')AIRBUS_SET
       objectives:c.objectives.map(o=>({id:o.id,label:o.label,check:o.check,met:false}))};
   }
   function startFlightIfNeeded(){
-    if(currentFlight||careerBlockAutoStart||plane.hold||plane.crashed)return;
+    if(!window._userStarted||currentFlight||careerBlockAutoStart||plane.hold||plane.crashed)return;
     const ov=document.getElementById('overlay');
     if(!ov||!ov.classList.contains('hidden'))return;
     const c=pendingContract;pendingContract=null;
