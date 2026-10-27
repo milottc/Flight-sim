@@ -2952,7 +2952,7 @@ const idxArr=(()=>{const a=new Uint32Array((N-1)*(N-1)*6);let p=0;
   for(let j=0;j<N-1;j++)for(let i=0;i<N-1;i++){const k=j*N+i,k1=k+1,k2=k+N,k3=k2+1;
     a[p++]=k;a[p++]=k2;a[p++]=k1;a[p++]=k1;a[p++]=k2;a[p++]=k3;}return a;})();
 
-const terrainTex=new BABYLON.DynamicTexture('terrainTex',{width:CFG.texSize,height:CFG.texSize},scene,true);
+let terrainTex=new BABYLON.DynamicTexture('terrainTex',{width:CFG.texSize,height:CFG.texSize},scene,true);
 terrainTex.wrapU=BABYLON.Texture.CLAMP_ADDRESSMODE;terrainTex.wrapV=BABYLON.Texture.CLAMP_ADDRESSMODE;
 terrainTex.anisotropicFilteringLevel=16;
 const terrainMat=new BABYLON.PBRMaterial('terrainMat',scene);
@@ -2967,7 +2967,7 @@ let terrainCenter={x:0,z:0};
 
 async function buildTerrainTexture(cx,cz){
   const nw=worldToLL(cx-E/2,cz-E/2),se=worldToLL(cx+E/2,cz+E/2);
-let z=Math.min(Imagery.maxZoom,13),r;
+let z=Math.min(Imagery.maxZoom,19),r;
   while(z>5){r=tileRange(nw,se,z);if((r.x1-r.x0+1)*(r.y1-r.y0+1)<=CFG.maxImageryTiles)break;z--;}
   const jobs=[],coords=[];
   for(let tx=r.x0;tx<=r.x1;tx++)for(let ty=r.y0;ty<=r.y1;ty++){
@@ -4866,6 +4866,29 @@ startBtn.addEventListener('click',async()=>{
   createRunway(currentLocation.code);
   resetAircraft(currentLocation.lat,currentLocation.lon,currentLocation.elev);
   terrainCenter={x:0,z:0};plane.hold=true;
+    // --- RESOLUTION SETTINGS ---
+  const RES_SETTINGS = {
+    low:   { tex: 1024, tiles: 48,  zoom: 16 },
+    med:   { tex: 2048, tiles: 96,  zoom: 17 },
+    high:  { tex: 4096, tiles: 144, zoom: 18 },
+    ultra: { tex: 4096, tiles: 288, zoom: 19 }
+  };
+  const resVal = document.getElementById('resSelect').value || 'med';
+  const r = RES_SETTINGS[resVal];
+  
+  CFG.texSize = r.tex;
+  CFG.maxImageryTiles = r.tiles;
+  Imagery.maxZoom = r.zoom;
+
+  if(terrainTex.getSize().width !== CFG.texSize) {
+      terrainTex.dispose();
+      terrainTex = new BABYLON.DynamicTexture('terrainTex', {width: CFG.texSize, height: CFG.texSize}, scene, true);
+      terrainTex.wrapU = BABYLON.Texture.CLAMP_ADDRESSMODE;
+      terrainTex.wrapV = BABYLON.Texture.CLAMP_ADDRESSMODE;
+      terrainTex.anisotropicFilteringLevel = 16;
+      terrainMat.albedoTexture = terrainTex;
+  }
+  // ---------------------------
   const key=keyInput.value.trim();
   if(key)localStorage.setItem('gmapsKey',key);else localStorage.removeItem('gmapsKey');
   try{loadEl.textContent='Authenticating imagery…';await Imagery.init(key);el.src.textContent=Imagery.mode==='google'?'GOOGLE':'ESRI';}catch(e){}
