@@ -4,7 +4,7 @@
 <meta charset="utf-8">
   <link rel="preconnect" href="https://server.arcgisonline.com" crossorigin>
 <link rel="preconnect" href="https://s3.amazonaws.com" crossorigin>
-<link rel="preconnect" href="https://cdn.babylonjs.com" crossorigin>
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
 <title>Babylon Flight 737 · Pro</title>
 <style>
@@ -1516,12 +1516,37 @@ body.pfd-hidden #compass {
           <span class="checkLabel">Mobile / Touch Mode</span>
         </label>
         <div class="hint">On-screen joystick &amp; buttons. Auto-enables on touch devices under 900px.</div>
+        <div class="field">
+          <label>Mouse pitch (right-drag)</label>
+          <select id="mouseSel">
+            <option value="std">Standard (mouse up = nose up)</option>
+            <option value="inv">Inverted (mouse up = nose down)</option>
+          </select>
+        </div>
+
+        <div class="homeColHead">Turbulence</div>
+        <div class="field">
+          <label>Intensity</label>
+          <select id="turbSel">
+            <option value="0">Calm (none)</option>
+            <option value="1" selected>Light chop</option>
+            <option value="2">Moderate</option>
+            <option value="3">Severe 🌩️</option>
+          </select>
+        </div>
+
+        <div class="homeColHead">Challenges</div>
+        <div class="field" style="flex-direction:column;gap:8px;align-items:stretch">
+          <button id="cwChallengeBtn" onclick="window._crosswindChallenge&&window._crosswindChallenge(this._cw=!this._cw);this.textContent=this._cw?'🌬️ Challenge: ON ✓':'🌬️ Crosswind Challenge';this.style.background=this._cw?'#132808':'#0b1a2e'" style="background:#0b1a2e;color:#7cf;border:1px solid #1e4a7a;border-radius:7px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;width:100%;letter-spacing:.04em">🌬️ Crosswind Challenge</button>
+          <div style="font-size:11px;color:#445;line-height:1.4">28-kt crosswind. Graded by centreline deviation on touchdown.</div>
+        </div>
 
         <div class="homeColHead">Notes</div>
         <div class="hint">
           Click <b>⚠ Inject Fault</b> in flight (bottom right) to trigger failures.
           Sensor failures corrupt the matching HUD. Watch fire &amp; smoke from the
           <b>Chase</b> or <b>Wing</b> camera. Land with gear up = belly scrape.
+          New cockpit view shows animated yokes, throttle levers &amp; rudder pedals.
         </div>
       </aside>
 
@@ -1538,7 +1563,7 @@ body.pfd-hidden #compass {
             <b>R</b><span>Respawn</span><b>RMB</b><span>Look around (cockpit)</span>
             <b>1-5</b><span>Flap detents</span><b>P</b><span>Autopilot</span>
             <b>[ / ]</b><span>HDG bug</span><b>PgUp/PgDn</b><span>ALT bug</span>
-            <b>L</b><span>Cycle livery</span><b>T</b><span>Autothrottle</span><b>M</b><span>Mute audio</span>
+            <b>Shift+L</b><span>Cycle livery</span><b>T</b><span>Autothrottle</span><b>M</b><span>Mute audio</span>
           </div>
         </details>
       </div>
@@ -1552,11 +1577,15 @@ body.pfd-hidden #compass {
 </div>
 
 <div id="crashOverlay">
-  <div class="card">
-    <h1>CRASHED</h1>
-    <h2 id="crashReason">Impact</h2>
-    <button id="respawnBtn">Respawn</button>
-    <button id="replayBtn" style="margin-top:10px;background:#1e3a5f;color:#dbeafe;border:0;border-radius:10px;padding:10px 22px;font-weight:700;cursor:pointer;display:block;margin-left:auto;margin-right:auto">Watch replay (F9)</button>
+  <div class="card" style="max-width:400px;text-align:center">
+    <h1 id="crashTitle">CRASHED</h1>
+    <h2 id="crashReason" style="font-size:15px;color:#f87171;font-weight:700;letter-spacing:.04em;margin:6px 0 4px">Impact</h2>
+    <div id="crashDetails" style="font-size:11px;color:#8aabcc;font-family:monospace;margin:6px 0 10px;line-height:1.7;min-height:28px"></div>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:6px">
+      <button id="respawnBtn">Respawn</button>
+      <button id="replayBtn" style="background:#1e3a5f;color:#dbeafe;border:0;border-radius:10px;padding:10px 22px;font-weight:700;cursor:pointer">🎬 Replay (F9)</button>
+    </div>
+    <div style="margin-top:12px;font-size:10px;color:#4a6a8a;font-family:monospace">SPACE pause · ←→ scrub · Q cycle cam · F10 speed</div>
   </div>
 </div>
 
@@ -1573,8 +1602,8 @@ body.pfd-hidden #compass {
 </div>
 
 <!-- THE 3 SCRIPT SRCS -->
-<script src="https://cdn.babylonjs.com/babylon.js"></script>
-<script src="https://cdn.babylonjs.com/materials/babylonjs.materials.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babylonjs/7.31.0/babylon.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babylonjs/7.31.0/babylonjs.materials.min.js"></script>
 <script src="game.js"></script>
 
 </body>
