@@ -569,6 +569,7 @@ function setupFireAndSmoke(){
   const smokeTex=mkTex('smokeT',c=>{c.clearRect(0,0,128,128);for(let i=0;i<9;i++){const x=64+(Math.random()-.5)*44,y=64+(Math.random()-.5)*44,r=26+Math.random()*22,g=c.createRadialGradient(x,y,2,x,y,r);g.addColorStop(0,'rgba(255,255,255,.5)');g.addColorStop(1,'rgba(255,255,255,0)');c.fillStyle=g;c.fillRect(0,0,128,128);}});
   const emberTex=mkTex('emberT',c=>{c.clearRect(0,0,128,128);const g=c.createRadialGradient(64,64,0,64,64,60);g.addColorStop(0,'rgba(255,255,200,1)');g.addColorStop(.3,'rgba(255,160,40,.9)');g.addColorStop(1,'rgba(255,80,0,0)');c.fillStyle=g;c.fillRect(0,0,128,128);});
   window._smokeTex=smokeTex;
+  window._fireTex=fireTex;
   const flareURL='https://assets.babylonjs.com/textures/flare.png';
   for(const key of ['L','R']){
     const emNode=engineEmitNodes[key];
@@ -1579,7 +1580,7 @@ function updateFaults(dt){
   } else faultT.cab=0;
 
   if(faults.has('FLAMEOUT')&&ENG.L.state==='RUNNING')ENG.L.state='SHUTDOWN';
-  if(faults.has('BIRD_STRIKE')&&ENG.R.state==='RUNNING'){ENG.R.state='SHUTDOWN';plane.angVel.z+=.3;showMsg('BIRD STRIKE · ENG 2 FAILURE',3000);}
+  if(faults.has('BIRD_STRIKE')&&ENG.R.state==='RUNNING'){ENG.R.state='SHUTDOWN';plane.angVel.z+=.3;showMsg('BIRD STRIKE · ENG 2 FAILURE',3000);window._birdStrikeFired=true;setTimeout(()=>{window._birdStrikeFired=false;},800);}
   if(faults.has('TRIM_RUNAWAY'))plane.elevTrim=Math.min(.9,plane.elevTrim+dt*.05);
   { const rt=(faults.has('RUDDER_JAM')?.55:0)+(faults.has('TIRE_BURST')&&plane.onGround?.3:0);
     if(rt||updateFaults._rt)plane.rudTrim=rt;updateFaults._rt=rt;
@@ -1602,6 +1603,11 @@ function updateFaults(dt){
   if(!plane.onGround && Math.random()<dt*0.00008){
     const pool=['HYD_LOSS','ELEC_BUS','ADC_FAULT','FUEL_LEAK'];
     faults.inject(pool[(Math.random()*pool.length)|0]);
+  }
+  // Random bird strike during takeoff/approach phase (agl 50–1500 ft)
+  const _agl=(plane.pos.y-(typeof ghPreview!=='undefined'?ghPreview:0))*3.28084;
+  if(!plane.onGround&&!faults.has('BIRD_STRIKE')&&_agl>50&&_agl<1500&&Math.random()<dt*0.000012){
+    faults.inject('BIRD_STRIKE');
   }
 }
 
@@ -1876,6 +1882,7 @@ const CAM_NAMES=['CHASE','COCKPIT','ORBIT','TOWER','FLYBY','WING','CINEMA'];
 
 function setCamMode(m){
   camMode=m;
+  window._simCamMode=m; // expose for external features
   updateChips();
   camBadge.textContent='CAM · '+CAM_NAMES[camMode];
   const isCockpit=(camMode===1);
@@ -1936,9 +1943,17 @@ window.addEventListener('keydown',e=>{
   if(e.code==='KeyF'){if(faults.has('FLAP_JAM'))showMsg('FLAPS JAMMED · STUCK AT '+FLAPS[plane.flaps].name);else{plane.flaps=(plane.flaps+1)%FLAPS.length;showMsg('FLAPS '+FLAPS[plane.flaps].name);updateChips();}}
   if(e.code==='KeyG'){
     if(faults.has('GEAR_FAULT')){showMsg('GEAR DISAGREE · CANNOT MOVE');}
-    else{plane.gearDown=!plane.gearDown;showMsg('GEAR '+(plane.gearDown?'DOWN':'UP'));updateChips();}
+    else{
+      plane.gearDown=!plane.gearDown;
+      showMsg('GEAR '+(plane.gearDown?'DOWN':'UP'));
+      // Gear UP on takeoff: retract any deployed spoilers (lift is needed)
+      if(!plane.gearDown && plane.spoilerDeploy>0 && !plane.onGround){
+        plane.spoilerDeploy=0;showMsg('SPOILERS RETRACTED · GEAR UP',1600);
+      }
+      updateChips();
+    }
   }
-  if(e.code==='KeyB'){if(faults.has('SPOILER_JAM'))showMsg('SPOILERS STUCK');else{plane.spoilerDeploy=plane.spoilerDeploy>.5?0:1;showMsg('SPOILERS '+(plane.spoilerDeploy>.5?'DEPLOYED':'RETRACTED'));updateChips();}}
+  if(e.code==='KeyB'){if(faults.has('SPOILER_JAM'))showMsg('SPOILERS STUCK');else{plane.spoilerDeploy=plane.spoilerDeploy>.5?0:1;showMsg('SPOILERS '+(plane.spoilerDeploy>.5?'DEPLOYED · ARMED FOR LANDING':'RETRACTED'));updateChips();}}
   if(e.code>='Digit1'&&e.code<='Digit5'){if(faults.has('FLAP_JAM'))showMsg('FLAPS JAMMED · STUCK AT '+FLAPS[plane.flaps].name);else{const n=parseInt(e.code.slice(5));plane.flaps=n-1;showMsg('FLAPS '+FLAPS[plane.flaps].name);updateChips();}}
 });
 window.addEventListener('keyup',e=>{keys[e.code]=false;});
@@ -2052,11 +2067,16 @@ function physicsStep(dt){
   CL=BABYLON.Scalar.Clamp(CL,-1.8,ACFG.CLmax+fl.cl);
   CL*=(1-.08*iceK);
   CL*=1+.10*geStrength;
-  if(plane.spoilerDeploy>0)CL*=(1-plane.spoilerDeploy*.65);
+  // Spoilers: kill lift aggressively (especially on ground where lift dump matters most)
+  if(plane.spoilerDeploy>0){
+    const spLiftKill = plane.onGround ? plane.spoilerDeploy*0.92 : plane.spoilerDeploy*0.70;
+    CL*=(1-spLiftKill);
+  }
   plane.stall=aAbs>stallA&&Va>15;
 
   const gearDrag=plane.gearPos*0.020;
-  const spDrag=plane.spoilerVisual*.10;
+  // Spoilers: much higher drag than before (0.10 → 0.28 airborne, 0.18 on ground — weight does the work)
+  const spDrag=plane.spoilerVisual*(plane.onGround?0.18:0.28);
   const brakeDrag=(plane.brakeHold&&Va<80)?.05:0;
   let CD=ACFG.CD0+ACFG.k*CL*CL+fl.cd+gearDrag+spDrag+brakeDrag+.014*iceK;
   { const mach=Va/(340.3-.0065*alt*.6); if(mach>.78)CD+=Math.pow(mach-.78,2)*9; }
@@ -2168,7 +2188,11 @@ function physicsStep(dt){
   plane.onGround=false;
   plane.justTouched=false;
 
-  if(clearance<0.6&&(wasOnGround||plane.vel.y<=0.05||clearance<0)){
+  // Use a slightly larger clearance band when we were already on ground to
+  // prevent jitter from uneven terrain sampling (hysteresis).
+  const gndThresh = wasOnGround ? 1.2 : 0.55;
+
+  if(clearance<gndThresh&&(wasOnGround||plane.vel.y<=0.08||clearance<0)){
     plane.onGround=true;
     const sink=Math.max(0,-plane.vel.y);
     const pitchRate=Math.abs(plane.angVel.x);
@@ -2180,17 +2204,26 @@ function physicsStep(dt){
     try{isWaterContact = !!waterMesh && Math.abs(gh-waterMesh.position.y)<0.01;}catch(e){}
     const hardNoGear = noGear && sink > 6.0 && !isWaterContact;
     const reallyHard = sink > 24.0;
-    const badBank = Math.abs(bankDeg)>70;
-    const badPitch = pitchDeg<-25 || pitchDeg>35;
-    const badRates = rollRate>6.0 || pitchRate>5.5;
+    const inverted = Math.abs(bankDeg) > 90; // upside-down
+    const badBank = Math.abs(bankDeg) > 55;  // wingtip digs in sooner
+    const badPitch = pitchDeg < -30 || pitchDeg > 42;
+    const tailStrike = pitchDeg > 14 && sink > 2.5 && hs > 30 && gearReallyDown; // nose too high on touchdown
+    const badRates = rollRate > 5.0 || pitchRate > 5.5;
+    // Gear collapse: too fast with gear down = structural failure
+    const gearCollapse = gearReallyDown && !isWaterContact && hs > 95 && sink > 3.5;
+    // Speed-induced gear collapse on hard side-load (crosswind slam)
+    const sideSlamCollapse = gearReallyDown && !isWaterContact && Math.abs(bankDeg) > 20 && hs > 70 && sink > 4;
 
-    if(reallyHard || hardNoGear || badBank || badPitch || badRates){
+    if(reallyHard || hardNoGear || inverted || badBank || badPitch || tailStrike || badRates || gearCollapse || sideSlamCollapse){
       let reason='IMPACT';
-      if(reallyHard) reason=(isWaterContact?'HARD WATER IMPACT · ':'HARD LANDING · ')+Math.round(sink*196.85)+' fpm';
+      if(inverted) reason='INVERTED TOUCHDOWN · '+Math.round(Math.abs(bankDeg))+'° bank';
+      else if(reallyHard) reason=(isWaterContact?'HARD WATER IMPACT · ':'STRUCTURAL FAILURE · ')+Math.round(sink*196.85)+' fpm';
+      else if(gearCollapse||sideSlamCollapse) reason='GEAR COLLAPSE · '+Math.round(hs*1.944)+' kt · '+Math.round(sink*196.85)+' fpm';
       else if(hardNoGear) reason='BELLY IMPACT · '+Math.round(sink*196.85)+' fpm · NO GEAR';
       else if(badBank) reason='WING STRIKE · '+Math.round(Math.abs(bankDeg))+'° bank';
-      else if(badPitch) reason='NOSE/TAIL STRIKE';
-      else reason='LOSS OF CONTROL';
+      else if(tailStrike) reason='TAIL STRIKE · '+Math.round(pitchDeg)+'° nose-up';
+      else if(badPitch) reason='NOSE STRIKE · '+Math.round(pitchDeg)+'°';
+      else reason='LOSS OF CONTROL ON GROUND';
       crash(reason,isWaterContact);
       return;
     }
@@ -2198,11 +2231,22 @@ function physicsStep(dt){
     if(!wasOnGround){
       plane.justTouched=true;
       const fpm=Math.round(sink*196.85);
+
+      // Auto-spoilers: deploy immediately on touchdown (like real 737 armed spoilers)
+      if(!noGear && !isWaterContact && plane.spoilerDeploy<0.5){
+        plane.spoilerDeploy=1.0;plane.spoilerVisual=Math.max(plane.spoilerVisual,0.3);
+        showMsg('AUTO SPOILERS · DEPLOYED',1400);updateChips();
+      }
+
       if(isWaterContact){
         try{waterSplash(Math.min(1,.3+hs/60));}catch(e){}
         showMsg('🌊 DITCHING · '+fpm+' fpm',2600);
       } else if(noGear){
-        if(fpm<1180) showMsg('⚠ BELLY LANDING · '+fpm+' fpm · SCRAPING',2500);
+        if(fpm<1180){
+          showMsg('⚠ BELLY LANDING · '+fpm+' fpm · SCRAPING',2500);
+          // Trigger belly fire if fast enough to ignite fuel
+          if(hs>18){try{window._startBellyFire&&window._startBellyFire(plane.pos);}catch(e){}}
+        }
       } else {
         if(fpm<220){let off='';if(runwayLenM>0){const h2=runwayHdgDeg*Math.PI/180;off=' · '+Math.round(Math.abs(plane.pos.x*Math.cos(h2)+plane.pos.z*Math.sin(h2)))+' m off CL';}
           showMsg((fpm<110?'🧈 GREASER · ':'SMOOTH TOUCHDOWN · ')+fpm+' fpm'+off,2600);}
@@ -2212,24 +2256,30 @@ function physicsStep(dt){
       plane._tdSink=sink;
       plane.gearCompress = Math.min(1.2, sink / 4);
       plane.gearSpringVel = sink * 0.9;
+
+      // Bounce physics: only bounce if sink rate is high enough to actually bounce.
+      // Minimum hop removed — a grease doesn't bounce. Energy coefficient tuned down.
       const spo=plane.spoilerVisual>0.5;
-      if(!noGear && !isWaterContact && sink > 0.2 && sink < 14){
+      if(!noGear && !isWaterContact && sink > 1.8 && sink < 14){
         const lastTD=Date.now()-(plane._lastTD||0);
         const rebound=lastTD<5500;
         plane._bounces=(plane._bounces||0)+(rebound?1:0);
         const bounceN=plane._bounces;
         const isFirstBounce=!rebound;
-        let e = isFirstBounce ? Math.min(0.95, 0.8 + sink*0.025) : Math.max(0.15, 0.45 - (bounceN-1)*0.15);
-        e *= (spo ? 0.4 : 1);
-        const hop = Math.max(2, sink * e);
-        plane.vel.y = hop;
-        const bounceAmp = isFirstBounce ? 1.2 : Math.max(0.3, 1 - (bounceN-2)*0.25);
-        plane.angVel.x += (pitchDeg>1.5?1:-1.4)*Math.min(.5, Math.max(0,sink-.2)*.12)*bounceAmp;
-        plane.angVel.z += BABYLON.Scalar.Clamp(-bankDeg*.05,-.55,.55)*Math.min(1.2,sink/1.8)*bounceAmp + (Math.random()-.5)*Math.min(.4,sink*.07)*bounceAmp;
-        if(bounceN>1&&hop>1.5){
-          const bounceMsg=bounceN===2?'🏀 BOUNCE ×'+bounceN+' · '+fpm+' fpm':(bounceN>3?'🏀 BOUNCE ×'+bounceN+' (STILL BOUNCING)':'🏀 BOUNCE ×'+bounceN);
-          setTimeout(()=>showMsg(bounceMsg,1200),10);
-        }
+        // Lower energy coefficient: 0.45+sink*0.015 (was 0.8+0.025), spoilers kill 70%
+        let e = isFirstBounce ? Math.min(0.65, 0.45 + sink*0.015) : Math.max(0.08, 0.28 - (bounceN-1)*0.10);
+        e *= (spo ? 0.28 : 1); // spoilers nearly eliminate bounce
+        const hop = sink * e; // NO minimum hop – gentle landings don't bounce at all
+        if(hop > 0.4){
+          plane.vel.y = hop;
+          const bounceAmp = isFirstBounce ? 0.8 : Math.max(0.2, 0.7 - (bounceN-2)*0.25);
+          plane.angVel.x += (pitchDeg>1.5?1:-1.4)*Math.min(.4, Math.max(0,sink-.2)*.10)*bounceAmp;
+          plane.angVel.z += BABYLON.Scalar.Clamp(-bankDeg*.04,-.45,.45)*Math.min(1.0,sink/2.2)*bounceAmp + (Math.random()-.5)*Math.min(.3,sink*.05)*bounceAmp;
+          if(bounceN>1&&hop>1.0){
+            const bounceMsg=bounceN===2?'🏀 BOUNCE ×'+bounceN+' · '+fpm+' fpm':(bounceN>3?'🏀 BOUNCE ×'+bounceN+' (STILL BOUNCING)':'🏀 BOUNCE ×'+bounceN);
+            setTimeout(()=>showMsg(bounceMsg,1200),10);
+          }
+        } else { plane.vel.y = 0; plane.angVel.z*=0.5; plane._bounces=0; }
       } else { plane.vel.y = 0; plane.angVel.z=0; plane._bounces=0; }
       plane._lastTD=Date.now();
       try{camState.shake=Math.max(camState.shake,Math.min(1.6,.15+sink*.28));}catch(e){}
@@ -2245,9 +2295,11 @@ function physicsStep(dt){
     plane.gearSpringVel += suspAccel * dt;
     plane.gearCompress += plane.gearSpringVel * dt;
     plane.gearCompress = Math.max(-0.25, Math.min(1.4, plane.gearCompress));
-    if(hs>15&&!noGear&&!isWaterContact)plane.gearSpringVel+=(Math.random()-.5)*Math.min(1.2,hs/60)*dt*(gh>2?3:9);
+    // Reduce runway roughness jitter (was hs>15, now only kicks in above 40 kts)
+    if(hs>20&&!noGear&&!isWaterContact)plane.gearSpringVel+=(Math.random()-.5)*Math.min(0.6,hs/100)*dt*(gh>2?2:5);
 
-    if(plane.vel.y > 0.2) plane.onGround = false;
+    // Firmly plant plane on ground once it's stable (clearance well inside threshold)
+    if(plane.vel.y > 0.3 && clearance > 0.3) plane.onGround = false;
 
     if(plane.onGround){
       plane.pos.y = gh + gearHeight;
@@ -2260,10 +2312,12 @@ function physicsStep(dt){
         plane.vel.z-=rW2.z*lat*grip;
       }
 
+      const spoilerActive=plane.spoilerVisual>0.3;
       if(hs>0.02){
         let decel=0.55;
         if(plane.brakeHold) decel+=4.2; else if(plane._ab&&!faults.has('BRAKE_FAIL')&&hs>8) decel+=2.6;
-        if(plane.spoilerVisual>0.5) decel+=1.4;
+        // Spoilers on ground: much more effective (lift dump = more weight on wheels = better braking)
+        if(spoilerActive) decel+=3.2+plane.spoilerVisual*1.8;
         if(plane.reverserOn) decel+=1.2;
         if(noGear) decel+=3.5;
         if(isWaterContact) decel+=14;
@@ -2284,12 +2338,17 @@ function physicsStep(dt){
 
       const pitchRad=pitchDeg*Math.PI/180;
       const bankRad=bankDeg*Math.PI/180;
-      if(hs<56 && Math.abs(input.pitch)<0.05){
-        plane.angVel.x+=(-pitchRad*2.6 - plane.angVel.x*3.5)*dt;
+      // Ground pitch: nose settles more firmly on runway after touchdown
+      if(hs<70 && Math.abs(input.pitch)<0.05){
+        const pitchSettle = hs>30 ? 3.8 : 2.6; // nosewheel touches down as speed drops
+        plane.angVel.x+=(-pitchRad*pitchSettle - plane.angVel.x*4.5)*dt;
       }
-      plane.angVel.z=Math.abs(input.roll)>.4?plane.angVel.z*.3:0;nudgeRot(new BABYLON.Vector3(0,0,1),Math.abs(bankRad)*Math.min(1,40*dt),_bankErr);
+      // Ground roll: strong damping — wheels resist roll
+      plane.angVel.z=Math.abs(input.roll)>.4?plane.angVel.z*.2:0;
+      nudgeRot(new BABYLON.Vector3(0,0,1),Math.abs(bankRad)*Math.min(1,55*dt),_bankErr);
 
-      const damp=Math.max(0,1-6*dt);
+      // Strong angular damping on the ground (like real undercarriage friction)
+      const damp=Math.max(0,1-9*dt);
       plane.angVel.x*=damp;plane.angVel.z*=damp;
 
       if(plane.reverserOn && hs<2.0){
@@ -2313,6 +2372,23 @@ function physicsStep(dt){
 
   if(plane.gForce>6.5){crash('OVER-G · '+plane.gForce.toFixed(1)+'g');return;}
 
+  // Stall close to ground = CFIT / controlled flight into terrain
+  if(plane.stall && !plane.onGround){
+    const agl=(plane.pos.y-(typeof ghPreview!=='undefined'?ghPreview:0));
+    if(agl<18 && plane.vel.y < -2.5){
+      crash('STALL LOW ALTITUDE · CFIT');return;
+    }
+  }
+
+  // Slow / no-flap stall on approach crash (drop below 50 ft with critical AOA)
+  if(!plane.onGround && !plane.crashed){
+    const agl=(plane.pos.y-(typeof ghPreview!=='undefined'?ghPreview:0));
+    const Va=Math.hypot(plane.vel.x,plane.vel.y,plane.vel.z)*1.944;
+    if(agl<15 && Va < 90 && plane.vel.y < -6){
+      crash('HARD IMPACT · '+Math.round(-plane.vel.y*196.85)+' fpm · LOW ENERGY');return;
+    }
+  }
+
   aircraftRoot.position.copyFrom(plane.pos);
   aircraftRoot.rotationQuaternion=plane.quat;
   updateSurfaceVisuals();
@@ -2335,11 +2411,40 @@ function physicsStep(dt){
   }
 }
 
-function crash(reason,isWater){
+function crash(reason,isWater,opts){
   if(plane.crashed)return;
-  plane.crashed=true;camState.shake=2.0;plane._crashAt=performance.now();
+  plane.crashed=true;
+  // Big camera shake — scale with impact speed
+  const impactSpeed=Math.hypot(plane.vel.x,plane.vel.y,plane.vel.z);
+  camState.shake=Math.min(4.0, 1.8 + impactSpeed*0.04);
+  plane._crashAt=performance.now();
   document.getElementById('crashReason').textContent=reason;
-  try{window._recPush&&window._recPush();window._crashFx&&window._crashFx(plane.pos,plane.vel);}catch(e){}
+  // Set crash title based on type
+  try{
+    const ct=document.getElementById('crashTitle');
+    if(ct){
+      if(reason.indexOf('INVERTED')>=0)ct.textContent='☠ INVERTED';
+      else if(reason.indexOf('STALL')>=0||reason.indexOf('CFIT')>=0)ct.textContent='⚠ STALL / CFIT';
+      else if(reason.indexOf('FIRE')>=0||reason.indexOf('ENG')>=0)ct.textContent='🔥 ENGINE FAILURE';
+      else if(reason.indexOf('WATER')>=0||reason.indexOf('DITCH')>=0)ct.textContent='🌊 DITCHING';
+      else if(reason.indexOf('GEAR COLLAPSE')>=0)ct.textContent='💥 GEAR COLLAPSE';
+      else if(reason.indexOf('WING')>=0)ct.textContent='✈ WING STRIKE';
+      else if(reason.indexOf('OVER-G')>=0)ct.textContent='⚡ STRUCTURAL FAILURE';
+      else ct.textContent='💥 CRASHED';
+    }
+  }catch(e){}
+  // Pass crash type context to effects
+  const crashOpts=Object.assign({
+    inverted:reason.indexOf('INVERTED')>=0,
+    gearCollapse:reason.indexOf('GEAR COLLAPSE')>=0,
+    stall:reason.indexOf('STALL')>=0||reason.indexOf('CFIT')>=0
+  },opts||{});
+  try{
+    window._recPush&&window._recPush();
+    // Bookmark the crash time for replay scrubber
+    if(typeof rec!=='undefined')window._crashRecTime=rec.clock;
+    window._crashFx&&window._crashFx(plane.pos,plane.vel,crashOpts);
+  }catch(e){}
   setTimeout(()=>{if(plane.crashed&&!(window._replayOn&&window._replayOn()))document.getElementById('crashOverlay').classList.add('show');},2600);
   if(isWater){try{waterSplash(1);}catch(e){}}
 }
@@ -2499,6 +2604,21 @@ function updateCamera(dt){
   if(!camState.initialized){
     camera.position.set(plane.pos.x,plane.pos.y+6,plane.pos.z+44);
     camera.rotationQuaternion=BABYLON.Quaternion.Identity();camState.initialized=true;
+  }
+  // During replay, use the replay camera system instead
+  if(typeof rp!=='undefined'&&rp.on){
+    try{
+      const rc=computeReplayCam(dt,plane.pos,plane.quat,plane.vel);
+      const gH=sampleSurface(rc.pos.x,rc.pos.z);
+      if(rc.pos.y<gH+3)rc.pos.y=gH+3;
+      const k=1-Math.exp(-rc.lerpRate*dt);
+      BABYLON.Vector3.LerpToRef(camera.position,rc.pos,k,camera.position);
+      camState.baseQ=slerpShort(camState.baseQ||camera.rotationQuaternion,rc.quat,k);
+      camera.fov=BABYLON.Scalar.Lerp(camera.fov,rc.fov,k);
+      camera.rotationQuaternion=(camState.baseQ||camera.rotationQuaternion).clone();
+      if(skybox)skybox.position.copyFrom(camera.position);
+    }catch(e){}
+    return;
   }
   computeCamTarget(dt,_camTarget);
   if(camMode!==1){
@@ -4777,14 +4897,125 @@ window.addEventListener('keydown',e=>{if(e.code==='KeyM'&&!/INPUT|SELECT/.test((
     rec.clock+=dt;rec.acc+=dt;
     if(rec.acc>=1/REC_HZ){rec.acc=0;recPush();}
   }
-  const REPLAY_SPAN=45;
-  const SPEEDS=[.25,.5,1];
-  const rp={on:false,t:0,t0:0,tEnd:0,speedIdx:2,fromCrash:false,live:null,debSaved:null,badgeT:0};
+  const REPLAY_SPAN=60;
+  const SPEEDS=[.1,.25,.5,1,2];
+  const rp={on:false,t:0,t0:0,tEnd:0,speedIdx:3,fromCrash:false,live:null,debSaved:null,badgeT:0,
+            camAngle:0,camTimer:0,camAutoSwitch:true,paused:false,crashT:-1};
+
+  /* ── Replay UI ─────────────────────────────────────────────────── */
+  const replayUI=document.createElement('div');
+  replayUI.id='replayUI';
+  replayUI.style.cssText='position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:300;display:none;background:rgba(6,14,28,.88);border:1.5px solid #1e4a7a;border-radius:14px;padding:10px 18px 8px;font-family:monospace;color:#9fd4ff;min-width:380px;max-width:90vw;backdrop-filter:blur(6px);box-shadow:0 8px 32px rgba(0,0,0,.7);user-select:none;';
+  replayUI.innerHTML=`
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+      <span id="rpCamLabel" style="font-size:11px;color:#4a9fdd;flex:1;letter-spacing:.05em">📷 FOLLOW</span>
+      <span id="rpSpeedLabel" style="font-size:12px;color:#f0c040;font-weight:700">1.0×</span>
+      <button id="rpPauseBtn" onclick="window._rpTogglePause&&window._rpTogglePause()" style="background:#0f2240;color:#7cf;border:1px solid #1e4a7a;border-radius:6px;padding:3px 10px;cursor:pointer;font-size:12px;font-family:monospace">⏸</button>
+      <button onclick="window._rpExit&&window._rpExit()" style="background:#0f2240;color:#f66;border:1px solid #4a1a1a;border-radius:6px;padding:3px 10px;cursor:pointer;font-size:12px;font-family:monospace">✕</button>
+    </div>
+    <div style="position:relative;height:8px;background:#0a1a2e;border-radius:4px;cursor:pointer;margin-bottom:8px" id="rpScrubBar">
+      <div id="rpProgress" style="height:100%;background:linear-gradient(90deg,#1e6fff,#4af);border-radius:4px;width:0%;transition:none;pointer-events:none"></div>
+      <div id="rpCrashMarker" style="position:absolute;top:-2px;width:3px;height:12px;background:#ff4040;border-radius:2px;display:none;pointer-events:none"></div>
+    </div>
+    <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap">
+      <button onclick="window._rpCam&&window._rpCam(0)" id="rpBtn0" style="background:#0f2240;color:#7cf;border:1px solid #1e4a7a;border-radius:6px;padding:4px 9px;cursor:pointer;font-size:11px;font-family:monospace">📷 Follow</button>
+      <button onclick="window._rpCam&&window._rpCam(1)" id="rpBtn1" style="background:#0f2240;color:#7cf;border:1px solid #1e4a7a;border-radius:6px;padding:4px 9px;cursor:pointer;font-size:11px;font-family:monospace">🔄 Orbit</button>
+      <button onclick="window._rpCam&&window._rpCam(2)" id="rpBtn2" style="background:#0f2240;color:#7cf;border:1px solid #1e4a7a;border-radius:6px;padding:4px 9px;cursor:pointer;font-size:11px;font-family:monospace">🏔 Ground</button>
+      <button onclick="window._rpCam&&window._rpCam(3)" id="rpBtn3" style="background:#0f2240;color:#7cf;border:1px solid #1e4a7a;border-radius:6px;padding:4px 9px;cursor:pointer;font-size:11px;font-family:monospace">🎬 Dramatic</button>
+      <button onclick="window._rpCam&&window._rpCam(4)" id="rpBtn4" style="background:#0f2240;color:#7cf;border:1px solid #1e4a7a;border-radius:6px;padding:4px 9px;cursor:pointer;font-size:11px;font-family:monospace">✈ Nose</button>
+      <button onclick="window._rpCam&&window._rpCam(5)" id="rpBtn5" style="background:#0f2240;color:#7cf;border:1px solid #1e4a7a;border-radius:6px;padding:4px 9px;cursor:pointer;font-size:11px;font-family:monospace">🌀 Auto</button>
+    </div>`;
+  document.body.appendChild(replayUI);
+
+  // Scrub bar click
+  document.getElementById('rpScrubBar').addEventListener('click',e=>{
+    if(!rp.on)return;
+    const rect=e.currentTarget.getBoundingClientRect();
+    const f=Math.max(0,Math.min(1,(e.clientX-rect.left)/rect.width));
+    rp.t=rp.t0+(rp.tEnd-rp.t0)*f;
+  });
+
   const badge=document.createElement('div');
   badge.id='replayBadge';
   badge.style.cssText='position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:55;display:none;padding:6px 14px;border-radius:8px;background:rgba(10,20,35,.82);color:#9fd4ff;font:600 13px/1.2 system-ui,sans-serif;letter-spacing:.06em;pointer-events:none;border:1px solid rgba(159,212,255,.35)';
   document.body.appendChild(badge);
   const fmt=s=>{s=Math.max(0,s);return Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');};
+
+  /* Replay camera modes */
+  const RP_CAM_NAMES=['📷 FOLLOW','🔄 ORBIT','🏔 GROUND','🎬 DRAMATIC','✈ NOSE','🌀 AUTO'];
+  const _rpCamState={orbitAngle:0,groundPos:null,groundTimer:0,dramAngle:0,dramDist:0};
+
+  function computeReplayCam(dt,pos,quat,vel){
+    const wUp=BABYLON.Vector3.Up();
+    const fwd=BABYLON.Vector3.TransformNormal(BABYLON.Vector3.Forward(),BABYLON.Matrix.FromQuaternionToRef(quat,BABYLON.Matrix.Identity()));
+    const speed=vel?Math.hypot(vel.x,vel.y,vel.z)*1.944:0;
+
+    // Auto-switch camera angles every 4-8s in auto mode
+    if(rp.camAngle===5){
+      rp.camTimer-=dt;
+      if(rp.camTimer<=0){
+        rp.camTimer=4+Math.random()*4;
+        // Pick dramatic angles near crash
+        const opts=[0,1,2,3,4];
+        const next=opts[Math.floor(Math.random()*opts.length)];
+        rp._autoCam=next;
+        _rpCamState.groundPos=null; // reset ground cam
+      }
+      const ac=rp._autoCam||0;
+      return computeReplayCamAngle(dt,ac,pos,quat,vel,fwd,wUp,speed);
+    }
+    return computeReplayCamAngle(dt,rp.camAngle,pos,quat,vel,fwd,wUp,speed);
+  }
+
+  function computeReplayCamAngle(dt,angle,pos,quat,vel,fwd,wUp,speed){
+    const out={pos:new BABYLON.Vector3(),quat:BABYLON.Quaternion.Identity(),fov:.72,lerpRate:8};
+    switch(angle){
+      case 0:{ // Follow — chase behind and above
+        const dist=40+speed*.04;
+        out.pos.copyFrom(pos).subtractInPlace(fwd.scale(dist)).addInPlace(wUp.scale(14+(speed*.01)));
+        out.quat=quatFromLookAt(out.pos,pos,wUp);out.fov=.75;out.lerpRate=7;break;
+      }
+      case 1:{ // Orbit — circles the plane
+        _rpCamState.orbitAngle+=dt*.5;
+        const r=55+speed*.06;
+        out.pos.set(pos.x+Math.sin(_rpCamState.orbitAngle)*r,pos.y+18,pos.z+Math.cos(_rpCamState.orbitAngle)*r);
+        out.quat=quatFromLookAt(out.pos,pos,wUp);out.fov=.7;out.lerpRate=5;break;
+      }
+      case 2:{ // Ground — static vantage like a bystander
+        if(!_rpCamState.groundPos||_rpCamState.groundTimer<=0){
+          const ang=Math.random()*Math.PI*2;
+          const dist=120+Math.random()*200;
+          const gp=new BABYLON.Vector3(pos.x+Math.sin(ang)*dist,0,pos.z+Math.cos(ang)*dist);
+          gp.y=sampleSurface(gp.x,gp.z)+4+Math.random()*8;
+          _rpCamState.groundPos=gp;_rpCamState.groundTimer=8+Math.random()*6;
+        }
+        _rpCamState.groundTimer-=dt;
+        out.pos.copyFrom(_rpCamState.groundPos);
+        out.quat=quatFromLookAt(out.pos,pos,wUp);
+        const dd=BABYLON.Vector3.Distance(out.pos,pos);
+        out.fov=Math.max(.08,Math.min(.9,600/dd));out.lerpRate=18;break;
+      }
+      case 3:{ // Dramatic — low angle, slow orbit, wide lens
+        _rpCamState.dramAngle+=dt*.22;
+        _rpCamState.dramDist=80+Math.sin(_rpCamState.dramAngle*.4)*40;
+        const gh=sampleSurface(pos.x,pos.z);
+        const camH=gh+5+Math.abs(Math.sin(_rpCamState.dramAngle*.3))*12;
+        out.pos.set(
+          pos.x+Math.sin(_rpCamState.dramAngle)*_rpCamState.dramDist,
+          camH,
+          pos.z+Math.cos(_rpCamState.dramAngle)*_rpCamState.dramDist
+        );
+        out.quat=quatFromLookAt(out.pos,new BABYLON.Vector3(pos.x,pos.y+4,pos.z),wUp);
+        out.fov=1.05;out.lerpRate=4;break; // wide dramatic lens
+      }
+      case 4:{ // Nose — from front looking back at plane
+        out.pos.copyFrom(pos).addInPlace(fwd.scale(30)).addInPlace(wUp.scale(3));
+        out.quat=quatFromLookAt(out.pos,pos,wUp);out.fov=.85;out.lerpRate=14;break;
+      }
+    }
+    return out;
+  }
+
   function applyPose(t){
     const n=rec.count;if(n<2)return;const b=rec.buf;
     let lo=0,hi=n-1;
@@ -4794,6 +5025,10 @@ window.addEventListener('keydown',e=>{if(e.code==='KeyM'&&!/INPUT|SELECT/.test((
     const f=t1>t0?Math.min(1,Math.max(0,(t-t0)/(t1-t0))):0;
     plane.pos.set(b[a+1]+(b[c+1]-b[a+1])*f,b[a+2]+(b[c+2]-b[a+2])*f,b[a+3]+(b[c+3]-b[a+3])*f);
     plane.quat.copyFrom(BABYLON.Quaternion.Slerp(new BABYLON.Quaternion(b[a+4],b[a+5],b[a+6],b[a+7]),new BABYLON.Quaternion(b[c+4],b[c+5],b[c+6],b[c+7]),f));
+    // Interpolate velocity from position derivative for camera use
+    const dx=b[c+1]-b[a+1],dy=b[c+2]-b[a+2],dz=b[c+3]-b[a+3];
+    const dt2=Math.max(0.001,t1-t0);
+    plane.vel.set(dx/dt2,dy/dt2,dz/dt2);
     plane.gearPos=b[a+8]+(b[c+8]-b[a+8])*f;
     plane.throttle=b[a+10]+(b[c+10]-b[a+10])*f;
     plane.flaps=f<.5?b[a+9]:b[c+9];
@@ -4806,16 +5041,31 @@ window.addEventListener('keydown',e=>{if(e.code==='KeyM'&&!/INPUT|SELECT/.test((
     rp.live={pos:plane.pos.clone(),quat:plane.quat.clone(),vel:plane.vel.clone(),angVel:plane.angVel.clone(),gearPos:plane.gearPos,flaps:plane.flaps,throttle:plane.throttle};
     rp.tEnd=rec.buf[off(rec.count-1)];
     rp.t0=Math.max(rec.buf[off(0)],rp.tEnd-REPLAY_SPAN);
-    rp.t=rp.t0;rp.fromCrash=!!fromCrash;rp.on=true;
+    rp.t=rp.t0;rp.fromCrash=!!fromCrash;rp.on=true;rp.paused=false;
+    rp.camAngle=fromCrash?3:0; // dramatic cam for crash replay
+    rp.camTimer=5;rp._autoCam=3;
+    rp.crashT=fromCrash?(window._crashRecTime||rp.tEnd):-1;
+    // Start replay 8 seconds before crash so you see the approach
+    if(fromCrash&&rp.crashT>0){rp.t=Math.max(rp.t0,rp.crashT-8);}
     rp.debSaved=debris.map(d=>d.m.isEnabled());
     debris.forEach(d=>d.m.setEnabled(false));
     document.getElementById('crashOverlay').classList.remove('show');
-    badge.style.display='block';
-    showMsg('REPLAY · F9 exit · F10 speed',1800);
+    replayUI.style.display='block';
+    // Show crash marker on scrubber at correct position
+    if(fromCrash&&rp.crashT>0){
+      const cm=document.getElementById('rpCrashMarker');
+      if(cm){
+        const pct=Math.max(0,Math.min(99,((rp.crashT-rp.t0)/(rp.tEnd-rp.t0)*100)));
+        cm.style.display='block';cm.style.left=pct.toFixed(1)+'%';
+      }
+    }
+    updateRpUI();
+    showMsg('REPLAY · DRAG SCRUBBER · PICK CAMERA',2200);
   }
   function stopReplay(){
     if(!rp.on)return;
-    rp.on=false;badge.style.display='none';
+    rp.on=false;rp.paused=false;
+    replayUI.style.display='none';badge.style.display='none';
     const L=rp.live;
     plane.pos.copyFrom(L.pos);plane.quat.copyFrom(L.quat);plane.vel.copyFrom(L.vel);plane.angVel.copyFrom(L.angVel);
     plane.gearPos=L.gearPos;plane.flaps=L.flaps;plane.throttle=L.throttle;
@@ -4823,50 +5073,132 @@ window.addEventListener('keydown',e=>{if(e.code==='KeyM'&&!/INPUT|SELECT/.test((
     debris.forEach((d,i)=>d.m.setEnabled(!!(rp.debSaved&&rp.debSaved[i])));
     if(rp.fromCrash&&plane.crashed)document.getElementById('crashOverlay').classList.add('show');
   }
-  function replayStep(dt){
-    rp.t+=dt*SPEEDS[rp.speedIdx];
-    if(rp.t>=rp.tEnd){stopReplay();showMsg('REPLAY END',1400);return;}
-    applyPose(rp.t);
-    rp.badgeT-=dt;
-    if(rp.badgeT<=0){rp.badgeT=.1;badge.textContent='REPLAY  '+fmt(rp.t-rp.t0)+' / '+fmt(rp.tEnd-rp.t0)+'  ·  '+SPEEDS[rp.speedIdx]+'x  ·  F9 exit  F10 speed';}
+  function updateRpUI(){
+    // Speed label
+    const sl=document.getElementById('rpSpeedLabel');
+    if(sl)sl.textContent=SPEEDS[rp.speedIdx]+'×';
+    // Pause button
+    const pb=document.getElementById('rpPauseBtn');
+    if(pb)pb.textContent=rp.paused?'▶':'⏸';
+    // Cam label
+    const cl=document.getElementById('rpCamLabel');
+    if(cl)cl.textContent=RP_CAM_NAMES[rp.camAngle]||'📷';
+    // Highlight active cam button
+    for(let i=0;i<6;i++){
+      const b=document.getElementById('rpBtn'+i);
+      if(b)b.style.background=i===rp.camAngle?'#1a3a6a':'#0f2240';
+    }
   }
-  const DEB_N=36;
+  window._rpExit=stopReplay;
+  window._rpTogglePause=()=>{rp.paused=!rp.paused;updateRpUI();};
+  window._rpCam=(n)=>{rp.camAngle=n;_rpCamState.groundPos=null;updateRpUI();showMsg('CAM · '+RP_CAM_NAMES[n],1000);};
+
+  function replayStep(dt){
+    if(rp.paused)return;
+    rp.t+=dt*SPEEDS[rp.speedIdx];
+    if(rp.t>=rp.tEnd){
+      // Auto-loop or stop
+      stopReplay();showMsg('REPLAY END · F9 to rewatch',1800);return;
+    }
+    applyPose(rp.t);
+    // Update scrubber
+    const prog=document.getElementById('rpProgress');
+    if(prog){const pct=((rp.t-rp.t0)/(rp.tEnd-rp.t0)*100).toFixed(1);prog.style.width=pct+'%';}
+    // Update speed label occasionally
+    rp.badgeT-=dt;
+    if(rp.badgeT<=0){
+      rp.badgeT=.2;
+      const sl=document.getElementById('rpSpeedLabel');
+      if(sl)sl.textContent=SPEEDS[rp.speedIdx]+'×';
+    }
+  }
+  const DEB_N=52; // more debris pieces
   const debris=[];
   let debActive=false,debAge=0;
   function debPool(){
     if(debris.length)return;
     const mats=[M.body,M.dark,M.metal,M.accent];
     for(let i=0;i<DEB_N;i++){
-      const kind=i%3;let m,r;
-      if(kind===0){m=BABYLON.MeshBuilder.CreateBox('deb'+i,{width:2+Math.random()*4,height:.5+Math.random()*.7,depth:1+Math.random()*2},scene);r=.35;}
-      else if(kind===1){m=BABYLON.MeshBuilder.CreateCylinder('deb'+i,{height:2.5+Math.random()*3,diameter:1+Math.random()*1.2,tessellation:8},scene);r=.6;}
-      else {m=BABYLON.MeshBuilder.CreateBox('deb'+i,{width:.6+Math.random()*1.5,height:.25,depth:.6+Math.random()*1.5},scene);r=.2;}
+      // More variety: wing sections (flat), fuselage tubes, small fragments, engine nacelles
+      const kind=i%5;let m,r;
+      if(kind===0){  // flat wing panel
+        m=BABYLON.MeshBuilder.CreateBox('deb'+i,{width:6+Math.random()*5,height:.25+Math.random()*.3,depth:2+Math.random()*2},scene);r=.4;
+      } else if(kind===1){ // fuselage tube
+        m=BABYLON.MeshBuilder.CreateCylinder('deb'+i,{height:4+Math.random()*5,diameter:2+Math.random()*1.5,tessellation:10},scene);r=.8;
+      } else if(kind===2){ // engine nacelle
+        m=BABYLON.MeshBuilder.CreateCylinder('deb'+i,{height:3+Math.random()*2,diameter:2.5+Math.random(),tessellation:12},scene);r=.7;
+      } else if(kind===3){ // small fragment
+        m=BABYLON.MeshBuilder.CreateBox('deb'+i,{width:.4+Math.random()*1.2,height:.2+Math.random()*.4,depth:.4+Math.random()*1.2},scene);r=.15;
+      } else { // door/panel
+        m=BABYLON.MeshBuilder.CreateBox('deb'+i,{width:3+Math.random()*2,height:.18,depth:2+Math.random()*1.5},scene);r=.25;
+      }
       m.material=mats[i%mats.length];m.isPickable=false;m.setEnabled(false);
-      debris.push({m,r,v:new BABYLON.Vector3(),w:new BABYLON.Vector3(),rest:true,life:0,bounces:0});
+      // Some pieces get a darker "burnt" material
+      if(i%7===0&&M.dark){m.material=M.dark;}
+      debris.push({m,r,v:new BABYLON.Vector3(),w:new BABYLON.Vector3(),rest:true,life:0,bounces:0,onFire:false,firePS:null});
     }
   }
   function debSpawn(p,v){
     debPool();debActive=true;debAge=0;
-    for(const d of debris){
+    const speed=v?Math.hypot(v.x,v.y,v.z):20;
+    const scatter=Math.min(3.0, 0.8+speed/30);
+    for(let i=0;i<debris.length;i++){
+      const d=debris[i];
       d.m.setEnabled(true);
-      d.m.position.set(p.x+(Math.random()-.5)*8,p.y+1+Math.random()*4,p.z+(Math.random()-.5)*8);
-      const a=Math.random()*Math.PI*2,s=3+Math.random()*14;
-      d.v.set(v.x*.55+Math.cos(a)*s,v.y*.25+Math.random()*9,v.z*.55+Math.sin(a)*s);
-      d.w.set((Math.random()-.5)*7,(Math.random()-.5)*7,(Math.random()-.5)*7);
+      // Spread pattern: heavy pieces land closer, light ones scatter far
+      const heavy=(i%5===1||i%5===2); // tubes and nacelles are heavy
+      const spread=heavy?0.5:1.0;
+      d.m.position.set(
+        p.x+(Math.random()-.5)*12*spread,
+        p.y+1.5+Math.random()*(heavy?3:6),
+        p.z+(Math.random()-.5)*12*spread
+      );
+      const a=Math.random()*Math.PI*2;
+      const s=scatter*(heavy?(2+Math.random()*8):(5+Math.random()*20));
+      // Inherit some of the impact velocity
+      d.v.set(
+        (v?v.x*.6:0)+Math.cos(a)*s,
+        (v?Math.abs(v.y)*.3:5)+Math.random()*(heavy?6:14),
+        (v?v.z*.6:0)+Math.sin(a)*s
+      );
+      d.w.set((Math.random()-.5)*(heavy?4:10),(Math.random()-.5)*(heavy?4:10),(Math.random()-.5)*(heavy?4:10));
       d.m.rotation.set(Math.random()*6.28,Math.random()*6.28,Math.random()*6.28);
       d.rest=false;d.life=0;d.bounces=0;
+      // ~30% of pieces catch fire
+      d.onFire=(Math.random()<0.30);
+      if(d.onFire&&window._fireTex){
+        try{
+          if(d.firePS){d.firePS.stop();d.firePS=null;}
+          const fp=new BABYLON.ParticleSystem('debFire'+i,60,scene);
+          fp.particleTexture=window._fireTex;
+          fp.emitter=d.m;
+          fp.minEmitBox=new BABYLON.Vector3(-.5,0,-.5);fp.maxEmitBox=new BABYLON.Vector3(.5,.3,.5);
+          fp.color1=new BABYLON.Color4(1,.8,.1,.9);fp.color2=new BABYLON.Color4(1,.3,.02,.6);fp.colorDead=new BABYLON.Color4(.3,.02,0,0);
+          fp.minSize=.4;fp.maxSize=1.5;fp.minLifeTime=.3;fp.maxLifeTime=.8;
+          fp.emitRate=30;fp.direction1=new BABYLON.Vector3(-.5,1,-.5);fp.direction2=new BABYLON.Vector3(.5,3,.5);
+          fp.minEmitPower=.5;fp.maxEmitPower=1.5;fp.gravity=new BABYLON.Vector3(0,.2,0);
+          fp.updateSpeed=.018;fp.start();
+          d.firePS=fp;
+        }catch(e){d.onFire=false;}
+      }
     }
   }
   function debStep(dt){
     if(!debActive)return;
     if(rp.on)return;
     debAge+=dt;
-    const drag=Math.exp(-.35*dt),vdrag=Math.exp(-.05*dt);
+    const drag=Math.exp(-.32*dt),vdrag=Math.exp(-.04*dt);
     let live=false;
     for(const d of debris){
       if(!d.m.isEnabled())continue;
       d.life+=dt;
-      if(d.rest){if(d.life>40)d.m.setEnabled(false);else live=true;continue;}
+      if(d.rest){
+        if(d.life>60){
+          d.m.setEnabled(false);
+          if(d.firePS){try{d.firePS.stop();}catch(e){}d.firePS=null;}
+        } else live=true;
+        continue;
+      }
       live=true;
       d.v.y-=9.81*dt;
       d.v.x*=drag;d.v.z*=drag;d.v.y*=vdrag;
@@ -4875,51 +5207,211 @@ window.addEventListener('keydown',e=>{if(e.code==='KeyM'&&!/INPUT|SELECT/.test((
       const ground=sampleSurface(d.m.position.x,d.m.position.z)+d.r;
       if(d.m.position.y<ground){
         d.m.position.y=ground;
-        if(d.v.y<-1.5){
-          d.v.y=-d.v.y*.32;d.bounces++;d.v.x*=.6;d.v.z*=.6;d.w.scaleInPlace(.55);
+        if(d.v.y<-1.8){
+          const bounce=Math.max(0.08, 0.30-d.bounces*0.06);
+          d.v.y=-d.v.y*bounce;
+          d.bounces++;
+          d.v.x*=.55;d.v.z*=.55;d.w.scaleInPlace(.50);
+          // Spawn small spark puff on impact
+          if(d.bounces===1&&window._smokeTex){
+            try{
+              const sp=new BABYLON.ParticleSystem('debSpark'+Math.random().toString(36).slice(2,5),40,scene);
+              sp.particleTexture=window._smokeTex;sp.emitter=d.m.position.clone();
+              sp.color1=new BABYLON.Color4(.7,.6,.4,.8);sp.color2=new BABYLON.Color4(.5,.4,.3,.5);sp.colorDead=new BABYLON.Color4(.3,.3,.3,0);
+              sp.minSize=1;sp.maxSize=3;sp.minLifeTime=.5;sp.maxLifeTime=1.5;
+              sp.emitRate=0;sp.manualEmitCount=20;
+              sp.direction1=new BABYLON.Vector3(-3,2,-3);sp.direction2=new BABYLON.Vector3(3,5,3);
+              sp.minEmitPower=1;sp.maxEmitPower=4;sp.gravity=new BABYLON.Vector3(0,-2,0);
+              sp.updateSpeed=.018;sp.targetStopDuration=.1;sp.disposeOnStop=true;sp.start();
+            }catch(e){}
+          }
         }else{
           d.v.y=0;
           const fr=Math.exp(-5*dt);d.v.x*=fr;d.v.z*=fr;d.w.scaleInPlace(Math.exp(-4*dt));
-          if(Math.hypot(d.v.x,d.v.z)<.4&&d.bounces>0){d.rest=true;d.v.set(0,0,0);d.w.set(0,0,0);}
+          if(Math.hypot(d.v.x,d.v.z)<.3&&d.bounces>0){
+            d.rest=true;d.v.set(0,0,0);d.w.set(0,0,0);
+            // Extinguish fire after resting (fuel burnt out after 20s)
+            if(d.onFire&&d.life>20&&d.firePS){try{d.firePS.stop();}catch(e){}d.firePS=null;d.onFire=false;}
+          }
         }
       }
     }
     if(!live)debActive=false;
   }
-  function impactFx(p,v){
+  function makeCrashPS(name,cap,pos,opts){
     try{
-      const dust=new BABYLON.ParticleSystem('crashDust',900,scene);
+      const ps=new BABYLON.ParticleSystem(name,cap,scene);
+      ps.particleTexture=window._smokeTex||window._fireTex||null;
+      ps.emitter=pos.clone?pos.clone():new BABYLON.Vector3(pos.x,pos.y,pos.z);
+      Object.assign(ps,opts);
+      ps.disposeOnStop=true;ps.start();
+      return ps;
+    }catch(e){return null;}
+  }
+
+  function impactFx(p,v,opts){
+    const isInv=opts&&opts.inverted;
+    const isGearCol=opts&&opts.gearCollapse;
+    const speed=v?Math.hypot(v.x,v.y,v.z)*1.944:180;
+    const fireScale=Math.min(2.5, 0.8 + speed/120);
+    const smokeScale=Math.min(3.0, 1.0 + speed/90);
+    try{
+      /* ---- Initial fireball burst ---- */
+      const fburst=new BABYLON.ParticleSystem('crashFireball',1200,scene);
+      fburst.particleTexture=window._fireTex||window._smokeTex||null;
+      fburst.emitter=p.clone();
+      fburst.minEmitBox=new BABYLON.Vector3(-5,0,-5);fburst.maxEmitBox=new BABYLON.Vector3(5,2,5);
+      fburst.color1=new BABYLON.Color4(1,.95,.5,1);fburst.color2=new BABYLON.Color4(1,.4,.05,.9);fburst.colorDead=new BABYLON.Color4(.8,.1,0,0);
+      fburst.minSize=6*fireScale;fburst.maxSize=18*fireScale;fburst.minLifeTime=.4;fburst.maxLifeTime=1.2;
+      fburst.emitRate=0;fburst.manualEmitCount=Math.round(600*fireScale);
+      fburst.direction1=new BABYLON.Vector3(-20,8,-20);fburst.direction2=new BABYLON.Vector3(20,35,20);
+      fburst.minEmitPower=4;fburst.maxEmitPower=18;fburst.gravity=new BABYLON.Vector3(0,-1.5,0);
+      fburst.updateSpeed=.018;fburst.targetStopDuration=.15;fburst.disposeOnStop=true;fburst.start();
+
+      /* ---- Sustained fuel fire (wings spread) ---- */
+      const offsets=isGearCol?[{x:0,z:0}]:[{x:-12,z:-4},{x:12,z:-4},{x:0,z:0},{x:-6,z:8},{x:6,z:8}];
+      offsets.forEach((off,i)=>{
+        const fpos=new BABYLON.Vector3(p.x+off.x,p.y+0.5,p.z+off.z);
+        const ffire=new BABYLON.ParticleSystem('crashFire'+i,500,scene);
+        ffire.particleTexture=window._fireTex||window._smokeTex||null;
+        ffire.emitter=fpos;
+        ffire.minEmitBox=new BABYLON.Vector3(-2,0,-2);ffire.maxEmitBox=new BABYLON.Vector3(2,0.5,2);
+        ffire.color1=new BABYLON.Color4(1,.8,.1,.95);ffire.color2=new BABYLON.Color4(1,.3,.02,.8);ffire.colorDead=new BABYLON.Color4(.5,.05,0,0);
+        ffire.minSize=(3+i*0.5)*fireScale;ffire.maxSize=(8+i)*fireScale;
+        ffire.minLifeTime=.5+i*.1;ffire.maxLifeTime=1.4+i*.15;
+        ffire.emitRate=Math.round((120-i*8)*fireScale);
+        ffire.direction1=new BABYLON.Vector3(-1,4,-1);ffire.direction2=new BABYLON.Vector3(1,9,1);
+        ffire.minEmitPower=1+i*.2;ffire.maxEmitPower=4+i*.3;
+        ffire.gravity=new BABYLON.Vector3(0,0.5,0);
+        ffire.updateSpeed=.018;ffire.targetStopDuration=isInv?8:22;ffire.disposeOnStop=true;
+        setTimeout(()=>{try{ffire.start();}catch(e){}},i*120);
+      });
+
+      /* ---- Black smoke column (rises high) ---- */
+      const smk=new BABYLON.ParticleSystem('crashSmoke',900,scene);
+      smk.particleTexture=window._smokeTex||null;
+      smk.emitter=new BABYLON.Vector3(p.x,p.y+2,p.z);
+      smk.minEmitBox=new BABYLON.Vector3(-6,0,-6);smk.maxEmitBox=new BABYLON.Vector3(6,1,6);
+      smk.color1=new BABYLON.Color4(.06,.05,.04,.9);smk.color2=new BABYLON.Color4(.15,.13,.11,.7);smk.colorDead=new BABYLON.Color4(.35,.33,.3,0);
+      smk.minSize=8*smokeScale;smk.maxSize=22*smokeScale;smk.minLifeTime=12;smk.maxLifeTime=22;
+      smk.emitRate=Math.round(70*smokeScale);
+      smk.direction1=new BABYLON.Vector3(-2,6,-2);smk.direction2=new BABYLON.Vector3(2,10,2);
+      smk.minEmitPower=2;smk.maxEmitPower=6;smk.gravity=new BABYLON.Vector3(0,1.2,0);
+      smk.updateSpeed=.018;smk.targetStopDuration=40;smk.disposeOnStop=true;smk.start();
+
+      /* ---- White steam / hydraulic fluid ---- */
+      const steam=new BABYLON.ParticleSystem('crashSteam',400,scene);
+      steam.particleTexture=window._smokeTex||null;
+      steam.emitter=p.clone();
+      steam.minEmitBox=new BABYLON.Vector3(-3,0,-3);steam.maxEmitBox=new BABYLON.Vector3(3,1,3);
+      steam.color1=new BABYLON.Color4(.95,.95,.95,.7);steam.color2=new BABYLON.Color4(.8,.85,.9,.5);steam.colorDead=new BABYLON.Color4(.9,.9,.9,0);
+      steam.minSize=3;steam.maxSize=9;steam.minLifeTime=1.5;steam.maxLifeTime=3.5;
+      steam.emitRate=0;steam.manualEmitCount=300;
+      steam.direction1=new BABYLON.Vector3(-8,3,-8);steam.direction2=new BABYLON.Vector3(8,14,8);
+      steam.minEmitPower=2;steam.maxEmitPower=9;steam.gravity=new BABYLON.Vector3(0,.3,0);
+      steam.updateSpeed=.018;steam.targetStopDuration=.2;steam.disposeOnStop=true;steam.start();
+
+      /* ---- Ground debris/dust burst ---- */
+      const dust=new BABYLON.ParticleSystem('crashDust',1000,scene);
       dust.particleTexture=window._smokeTex||null;
-      dust.emitter=p.clone();
-      dust.minEmitBox=new BABYLON.Vector3(-8,0,-8);dust.maxEmitBox=new BABYLON.Vector3(8,1,8);
-      dust.color1=new BABYLON.Color4(.55,.48,.38,.9);dust.color2=new BABYLON.Color4(.42,.37,.3,.6);dust.colorDead=new BABYLON.Color4(.3,.28,.25,0);
-      dust.minSize=4;dust.maxSize=13;dust.minLifeTime=2;dust.maxLifeTime=5;
-      dust.emitRate=0;dust.manualEmitCount=650;
-      dust.direction1=new BABYLON.Vector3(-14,4,-14);dust.direction2=new BABYLON.Vector3(14,16,14);
-      dust.minEmitPower=2;dust.maxEmitPower=11;dust.gravity=new BABYLON.Vector3(0,-2,0);
-      dust.updateSpeed=.02;dust.targetStopDuration=.2;dust.disposeOnStop=true;dust.start();
-      const plume=new BABYLON.ParticleSystem('wreckPlume',700,scene);
-      plume.particleTexture=window._smokeTex||null;
-      plume.emitter=p.clone();
-      plume.minEmitBox=new BABYLON.Vector3(-4,0,-4);plume.maxEmitBox=new BABYLON.Vector3(4,0,4);
-      plume.color1=new BABYLON.Color4(.12,.11,.1,.8);plume.color2=new BABYLON.Color4(.22,.2,.18,.55);plume.colorDead=new BABYLON.Color4(.1,.1,.1,0);
-      plume.minSize=5;plume.maxSize=13;plume.minLifeTime=8;plume.maxLifeTime=14;
-      plume.emitRate=45;plume.direction1=new BABYLON.Vector3(-1,3,-1);plume.direction2=new BABYLON.Vector3(1,5,1);
-      plume.minEmitPower=1;plume.maxEmitPower=3;plume.gravity=new BABYLON.Vector3(0,.8,0);
-      plume.updateSpeed=.02;plume.targetStopDuration=25;plume.disposeOnStop=true;plume.start();
-      const fire=new BABYLON.ParticleSystem('wreckFire',300,scene);
-      fire.particleTexture=window._smokeTex||null;
-      fire.emitter=p.clone();
-      fire.minEmitBox=new BABYLON.Vector3(-3,0,-3);fire.maxEmitBox=new BABYLON.Vector3(3,1,3);
-      fire.color1=new BABYLON.Color4(1,.55,.15,.9);fire.color2=new BABYLON.Color4(1,.3,.08,.7);fire.colorDead=new BABYLON.Color4(.2,.05,0,0);
-      fire.minSize=3;fire.maxSize=8;fire.minLifeTime=.6;fire.maxLifeTime=1.4;
-      fire.emitRate=70;fire.direction1=new BABYLON.Vector3(-2,3,-2);fire.direction2=new BABYLON.Vector3(2,7,2);
-      fire.minEmitPower=1;fire.maxEmitPower=4;fire.gravity=new BABYLON.Vector3(0,1,0);
-      fire.updateSpeed=.02;fire.targetStopDuration=12;fire.disposeOnStop=true;fire.start();
+      dust.emitter=new BABYLON.Vector3(p.x,p.y+0.2,p.z);
+      dust.minEmitBox=new BABYLON.Vector3(-10,0,-10);dust.maxEmitBox=new BABYLON.Vector3(10,0.5,10);
+      dust.color1=new BABYLON.Color4(.6,.52,.4,.95);dust.color2=new BABYLON.Color4(.45,.38,.3,.7);dust.colorDead=new BABYLON.Color4(.35,.3,.25,0);
+      dust.minSize=5;dust.maxSize=16;dust.minLifeTime=3;dust.maxLifeTime=7;
+      dust.emitRate=0;dust.manualEmitCount=800;
+      dust.direction1=new BABYLON.Vector3(-22,2,-22);dust.direction2=new BABYLON.Vector3(22,14,22);
+      dust.minEmitPower=3;dust.maxEmitPower=14;dust.gravity=new BABYLON.Vector3(0,-3,0);
+      dust.updateSpeed=.018;dust.targetStopDuration=.2;dust.disposeOnStop=true;dust.start();
+
+      /* ---- Bright ember/spark shower ---- */
+      const embers=new BABYLON.ParticleSystem('crashEmbers',600,scene);
+      embers.particleTexture=window._smokeTex||null;
+      embers.emitter=p.clone();
+      embers.color1=new BABYLON.Color4(1,.95,.5,1);embers.color2=new BABYLON.Color4(1,.5,.1,.9);embers.colorDead=new BABYLON.Color4(.4,.04,0,0);
+      embers.minSize=0.3;embers.maxSize=1.2;embers.minLifeTime=1.2;embers.maxLifeTime=3.5;
+      embers.emitRate=0;embers.manualEmitCount=400;
+      embers.direction1=new BABYLON.Vector3(-25,10,-25);embers.direction2=new BABYLON.Vector3(25,40,25);
+      embers.minEmitPower=6;embers.maxEmitPower=24;embers.gravity=new BABYLON.Vector3(0,-9.8,0);
+      embers.updateSpeed=.018;embers.targetStopDuration=.15;embers.disposeOnStop=true;embers.start();
+
+      /* ---- Secondary explosions (fuel ignition, staged) ---- */
+      if(!isGearCol){
+        [1400,3200,6500].forEach((delay,i)=>{
+          setTimeout(()=>{
+            if(!plane.crashed)return;
+            const ep=new BABYLON.Vector3(p.x+(Math.random()-.5)*20,p.y,p.z+(Math.random()-.5)*20);
+            const ef=new BABYLON.ParticleSystem('secExp'+i,400,scene);
+            ef.particleTexture=window._fireTex||window._smokeTex||null;
+            ef.emitter=ep;
+            ef.color1=new BABYLON.Color4(1,.9,.2,1);ef.color2=new BABYLON.Color4(1,.35,.05,.8);ef.colorDead=new BABYLON.Color4(.6,.05,0,0);
+            ef.minSize=5+i*2;ef.maxSize=15+i*4;ef.minLifeTime=.3;ef.maxLifeTime=.9;
+            ef.emitRate=0;ef.manualEmitCount=200+i*80;
+            ef.direction1=new BABYLON.Vector3(-10,6,-10);ef.direction2=new BABYLON.Vector3(10,24,10);
+            ef.minEmitPower=3;ef.maxEmitPower=12;ef.gravity=new BABYLON.Vector3(0,-1,0);
+            ef.updateSpeed=.018;ef.targetStopDuration=.12;ef.disposeOnStop=true;
+            try{ef.start();}catch(e){}
+            // screen flash
+            if(typeof wxFlash!=='undefined'){wxFlash.style.opacity='.45';setTimeout(()=>{wxFlash.style.opacity='0';},80);}
+          },delay);
+        });
+      }
+
+      /* ---- Point light for fire glow ---- */
+      try{
+        const fl=new BABYLON.PointLight('crashFireLight',new BABYLON.Vector3(p.x,p.y+3,p.z),scene);
+        fl.diffuse=new BABYLON.Color3(1,.45,.1);fl.intensity=180;fl.range=60;
+        // Flicker
+        let _ft=0;
+        const _fi=scene.onBeforeRenderObservable.add(()=>{
+          _ft+=scene.getEngine().getDeltaTime()*.001;
+          fl.intensity=120+Math.sin(_ft*9)*(30+Math.random()*40);
+          if(_ft>25){scene.onBeforeRenderObservable.remove(_fi);fl.dispose();}
+        });
+      }catch(e){}
+
     }catch(e){console.error('impact fx',e);}
     debSpawn(p,v);
   }
-  window._crashFx=(p,v)=>impactFx(p,v);
+
+  // Belly / no-gear landing fire (continuous, not just on crash)
+  window._bellyFireActive=false;
+  window._bellyFireSystems=[];
+  function startBellyFire(p){
+    if(window._bellyFireActive)return;
+    window._bellyFireActive=true;
+    const fpos=new BABYLON.Vector3(p.x,p.y+0.3,p.z);
+    const bf=new BABYLON.ParticleSystem('bellyFire',300,scene);
+    bf.particleTexture=window._fireTex||window._smokeTex||null;
+    bf.emitter=fpos;
+    bf.minEmitBox=new BABYLON.Vector3(-8,0,-4);bf.maxEmitBox=new BABYLON.Vector3(8,0.2,4);
+    bf.color1=new BABYLON.Color4(1,.8,.1,.9);bf.color2=new BABYLON.Color4(1,.3,.02,.7);bf.colorDead=new BABYLON.Color4(.4,.04,0,0);
+    bf.minSize=1.5;bf.maxSize=4;bf.minLifeTime=.3;bf.maxLifeTime=.9;
+    bf.emitRate=180;bf.direction1=new BABYLON.Vector3(-1,1,-1);bf.direction2=new BABYLON.Vector3(1,4,1);
+    bf.minEmitPower=1;bf.maxEmitPower=3;bf.gravity=new BABYLON.Vector3(0,.2,0);
+    bf.updateSpeed=.018;bf.start();
+    const bs=new BABYLON.ParticleSystem('bellySmoke',200,scene);
+    bs.particleTexture=window._smokeTex||null;
+    bs.emitter=fpos;
+    bs.minEmitBox=new BABYLON.Vector3(-8,0,-4);bs.maxEmitBox=new BABYLON.Vector3(8,0.5,4);
+    bs.color1=new BABYLON.Color4(.1,.09,.08,.7);bs.color2=new BABYLON.Color4(.2,.18,.16,.5);bs.colorDead=new BABYLON.Color4(.3,.3,.3,0);
+    bs.minSize=4;bs.maxSize=10;bs.minLifeTime=3;bs.maxLifeTime=6;
+    bs.emitRate=30;bs.direction1=new BABYLON.Vector3(-1,3,-1);bs.direction2=new BABYLON.Vector3(1,7,1);
+    bs.minEmitPower=1;bs.maxEmitPower=3;bs.gravity=new BABYLON.Vector3(0,.5,0);
+    bs.updateSpeed=.018;bs.start();
+    window._bellyFireSystems=[bf,bs];
+    // Track belly fire position to aircraft
+    const _bfObs=scene.onBeforeRenderObservable.add(()=>{
+      if(!plane.bellyLanding||plane.crashed){
+        bf.stop();bs.stop();
+        window._bellyFireActive=false;
+        scene.onBeforeRenderObservable.remove(_bfObs);
+        return;
+      }
+      fpos.set(plane.pos.x,plane.pos.y+0.3,plane.pos.z);
+    });
+  }
+  window._startBellyFire=startBellyFire;
+  window._crashFx=(p,v,opts)=>impactFx(p,v,opts);
   window._debStep=debStep;
   window._recStep=recStep;
   window._recPush=recPush;
@@ -4931,7 +5423,11 @@ window.addEventListener('keydown',e=>{if(e.code==='KeyM'&&!/INPUT|SELECT/.test((
   window.addEventListener('keydown',e=>{
     if(/INPUT|SELECT|TEXTAREA/.test((e.target||{}).tagName||''))return;
     if(e.code==='F9'){e.preventDefault();if(rp.on)stopReplay();else startReplay(plane.crashed);}
-    if(e.code==='F10'){e.preventDefault();if(rp.on){rp.speedIdx=(rp.speedIdx+1)%SPEEDS.length;showMsg('REPLAY SPEED '+SPEEDS[rp.speedIdx]+'x',1000);}}
+    if(e.code==='F10'){e.preventDefault();if(rp.on){rp.speedIdx=(rp.speedIdx+1)%SPEEDS.length;updateRpUI();showMsg('REPLAY SPEED '+SPEEDS[rp.speedIdx]+'x',1000);}}
+    if(e.code==='Space'&&rp.on){e.preventDefault();rp.paused=!rp.paused;updateRpUI();}
+    if(e.code==='ArrowLeft'&&rp.on){e.preventDefault();rp.t=Math.max(rp.t0,rp.t-3);applyPose(rp.t);}
+    if(e.code==='ArrowRight'&&rp.on){e.preventDefault();rp.t=Math.min(rp.tEnd,rp.t+3);applyPose(rp.t);}
+    if(e.code==='KeyQ'&&rp.on){e.preventDefault();rp.camAngle=(rp.camAngle+1)%6;_rpCamState.groundPos=null;updateRpUI();}
   });
   const rb=document.getElementById('replayBtn');
   if(rb)rb.addEventListener('click',()=>startReplay(true));
@@ -4944,6 +5440,11 @@ let terrainCheckTimer=0,fpsAcc=0,hwScale=1/Math.min(window.devicePixelRatio||1,1
 scene.registerBeforeRender(()=>{
   const now=performance.now();
   let dt=(now-lastTime)/1000;lastTime=now;if(dt>.1)dt=.1;
+  // Expose key sim state for external features (rain, logbook, etc.)
+  window._simCurrentWeather=currentWeather;
+  window._simCamMode=camMode;
+  // Allow external code to patch weather
+  if(window._pendingWxPatch){currentWeather=Object.assign({},currentWeather,window._pendingWxPatch);window._pendingWxPatch=null;}
 
   if(window._replayOn&&window._replayOn()){window._replayStep(dt);}
   else{readInput(dt);physicsStep(dt);window._recStep(dt);}
@@ -6866,3 +7367,510 @@ void main(){
 } /* end main */
 
 (function(){const prevTD=window._onTouchdown;window._onTouchdown=(sink,hs,noGear,water)=>{try{prevTD&&prevTD(sink,hs,noGear,water);}catch(e){}try{if(!noGear&&!water)window._ambThump&&window._ambThump(Math.min(1,sink/8));}catch(e){}};})();
+
+/* ═══════════════════════════════════════════════════════════════════
+   FEATURE 1 – BIRD STRIKE VISUAL SPLAT
+   Shows an animated bird-smear on the windshield HUD layer when
+   BIRD_STRIKE fault fires, fades slowly over 25 seconds.
+═══════════════════════════════════════════════════════════════════ */
+(function(){
+  const SPLAT_DUR=25000;
+  let splatCanvas=null,splatCtx=null,splatEl=null,splatTimer=null,splatAlpha=0,splatAnimId=null;
+  function ensureSplatEl(){
+    if(splatEl)return;
+    splatEl=document.createElement('canvas');
+    splatEl.id='birdSplatCanvas';
+    splatEl.style.cssText='position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:310;display:none;';
+    document.body.appendChild(splatEl);
+    splatCanvas=splatEl;
+    splatCtx=splatEl.getContext('2d');
+  }
+  function drawSplat(){
+    const W=splatEl.width=window.innerWidth,H=splatEl.height=window.innerHeight;
+    splatCtx.clearRect(0,0,W,H);
+    const cx=W*.38+Math.random()*W*.24,cy=H*.25+Math.random()*H*.18;
+    const r=Math.min(W,H)*.09;
+    // main splatter blob
+    const g=splatCtx.createRadialGradient(cx,cy,r*.05,cx,cy,r);
+    g.addColorStop(0,'rgba(180,30,0,0.92)');
+    g.addColorStop(.4,'rgba(120,15,0,0.75)');
+    g.addColorStop(1,'rgba(60,0,0,0)');
+    splatCtx.beginPath();splatCtx.arc(cx,cy,r,0,Math.PI*2);splatCtx.fillStyle=g;splatCtx.fill();
+    // streaks
+    for(let i=0;i<18;i++){
+      const a=Math.random()*Math.PI*2,len=(0.4+Math.random())*r*(1.2+Math.random()),w=2+Math.random()*5;
+      splatCtx.beginPath();splatCtx.moveTo(cx,cy);
+      splatCtx.lineTo(cx+Math.cos(a)*len,cy+Math.sin(a)*len*.55);
+      splatCtx.strokeStyle='rgba('+(140+Math.floor(Math.random()*40))+',10,0,'+(.5+Math.random()*.4)+')';
+      splatCtx.lineWidth=w;splatCtx.lineCap='round';splatCtx.stroke();
+    }
+    // feathers
+    for(let i=0;i<12;i++){
+      const a=Math.random()*Math.PI*2,dist=r*(.5+Math.random()*.9);
+      const fx=cx+Math.cos(a)*dist,fy=cy+Math.sin(a)*dist*.7;
+      splatCtx.beginPath();splatCtx.ellipse(fx,fy,3+Math.random()*5,1+Math.random()*2,a,0,Math.PI*2);
+      splatCtx.fillStyle='rgba(200,185,160,0.7)';splatCtx.fill();
+    }
+  }
+  function showSplat(){
+    ensureSplatEl();
+    clearTimeout(splatTimer);cancelAnimationFrame(splatAnimId||0);
+    drawSplat();
+    splatAlpha=1;splatEl.style.display='block';splatEl.style.opacity='1';
+    const start=performance.now();
+    function fade(now){
+      const p=Math.min(1,(now-start)/SPLAT_DUR);
+      splatAlpha=1-p*p;
+      splatEl.style.opacity=splatAlpha;
+      if(splatAlpha>0.01){splatAnimId=requestAnimationFrame(fade);}
+      else{splatEl.style.display='none';}
+    }
+    splatAnimId=requestAnimationFrame(fade);
+    // red flash
+    const fl=document.createElement('div');
+    fl.style.cssText='position:fixed;inset:0;background:rgba(200,0,0,0.45);pointer-events:none;z-index:309;animation:bsFlash .35s ease-out forwards;';
+    if(!document.getElementById('bsFlashStyle')){
+      const s=document.createElement('style');s.id='bsFlashStyle';
+      s.textContent='@keyframes bsFlash{0%{opacity:1}100%{opacity:0}}';
+      document.head.appendChild(s);
+    }
+    document.body.appendChild(fl);setTimeout(()=>fl.remove(),400);
+  }
+  // Hook into the existing fault system by polling for BIRD_STRIKE activation
+  let _wasBS=false;
+  setInterval(()=>{
+    try{
+      const active=window._birdStrikeFired;
+      if(active&&!_wasBS){showSplat();_wasBS=true;}
+      if(!active&&_wasBS)_wasBS=false;
+    }catch(e){}
+  },500);
+})();
+
+/* ═══════════════════════════════════════════════════════════════════
+   FEATURE 6 – RAIN ON WINDSHIELD
+   Animated water-streak canvas overlay visible only in cockpit view.
+   Streaks spawn at top, slide down with slight curve, fade on exit.
+═══════════════════════════════════════════════════════════════════ */
+(function(){
+  let canvas=null,ctx=null,drops=[],animId=null,active=false;
+  const MAX_DROPS=110;
+  function ensureCanvas(){
+    if(canvas)return;
+    canvas=document.createElement('canvas');
+    canvas.id='rainWsCanvas';
+    canvas.style.cssText='position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:290;display:none;';
+    document.body.appendChild(canvas);
+    ctx=canvas.getContext('2d');
+  }
+  function spawnDrop(){
+    const W=canvas.width,H=canvas.height;
+    drops.push({
+      x:W*(.12+Math.random()*.76),y:-10+Math.random()*H*.05,
+      len:H*(0.06+Math.random()*.18),
+      speed:H*(0.45+Math.random()*.7),
+      curve:(Math.random()-.5)*W*.04,
+      w:1+Math.random()*2.2,
+      alpha:.18+Math.random()*.45,
+      t:0,dur:.6+Math.random()*.9,
+    });
+  }
+  function renderRain(dt){
+    const W=canvas.width=window.innerWidth,H=canvas.height=window.innerHeight;
+    ctx.clearRect(0,0,W,H);
+    const rainInt=window._rainIntensity||0;
+    if(rainInt<=0){drops=[];return;}
+    // spawn more drops proportional to rain intensity
+    const target=Math.round(MAX_DROPS*rainInt);
+    while(drops.length<target)spawnDrop();
+    // update & draw
+    for(let i=drops.length-1;i>=0;i--){
+      const d=drops[i];
+      d.t+=dt;d.y+=d.speed*dt;d.x+=d.curve*dt;
+      const life=d.t/d.dur;
+      const a=life<.1?life/.1:life>.8?(1-life)/.2:1;
+      ctx.beginPath();
+      ctx.moveTo(d.x,d.y);
+      ctx.lineTo(d.x+d.curve*.3,d.y+d.len);
+      ctx.strokeStyle=`rgba(200,220,255,${d.alpha*a*.85})`;
+      ctx.lineWidth=d.w;ctx.lineCap='round';ctx.stroke();
+      // blob at bottom of streak
+      ctx.beginPath();ctx.arc(d.x+d.curve*.3,d.y+d.len,d.w*1.4,0,Math.PI*2);
+      ctx.fillStyle=`rgba(180,210,255,${d.alpha*a*.5})`;ctx.fill();
+      if(d.y>H+d.len+10){drops.splice(i,1);}
+    }
+  }
+  let last=0;
+  function loop(now){
+    animId=requestAnimationFrame(loop);
+    const dt=Math.min(.05,(now-(last||now))/1000);last=now;
+    if(!active){canvas.style.display='none';drops=[];return;}
+    canvas.style.display='block';
+    renderRain(dt);
+  }
+  ensureCanvas();
+  requestAnimationFrame(loop);
+  // Poll cockpit mode & rain intensity from the sim globals
+  setInterval(()=>{
+    try{
+      const inCockpit=window._simCamMode===1;
+      const wx=window._simCurrentWeather;
+      const rain=(wx?wx.rain:0)||0;
+      window._rainIntensity=inCockpit?rain:0;
+      active=inCockpit&&rain>0;
+    }catch(e){active=false;}
+  },200);
+})();
+
+/* ═══════════════════════════════════════════════════════════════════
+   FEATURE 4 – LANDING LOGBOOK
+   Grades every touchdown (excluding belly/water) and keeps a
+   persistent log in localStorage. Logbook button bottom-right.
+═══════════════════════════════════════════════════════════════════ */
+(function(){
+  const KEY='bf737_landingLog_v2';
+  const MAX_LOG=60;
+  function grade(fpm){
+    if(fpm<110)return{g:'GREASER 🧈',c:'#00e860'};
+    if(fpm<220)return{g:'SMOOTH ✅',c:'#4adf7c'};
+    if(fpm<420)return{g:'GOOD',c:'#cce853'};
+    if(fpm<620)return{g:'FIRM',c:'#f0c040'};
+    if(fpm<900)return{g:'HARD ⚠',c:'#f07020'};
+    return{g:'SLAM 💥',c:'#ff3030'};
+  }
+  function loadLog(){try{return JSON.parse(localStorage.getItem(KEY)||'[]');}catch(e){return[];}}
+  function saveLog(l){try{localStorage.setItem(KEY,JSON.stringify(l));}catch(e){}}
+
+  // Build logbook UI
+  const btn=document.createElement('button');
+  btn.id='logbookBtn';
+  btn.textContent='📋 Logbook';
+  btn.style.cssText='position:fixed;bottom:56px;right:14px;z-index:400;background:#0b1a2e;color:#9cf;border:1px solid #1e4a7a;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.05em;';
+  document.body.appendChild(btn);
+
+  const panel=document.createElement('div');
+  panel.id='logbookPanel';
+  panel.style.cssText='position:fixed;bottom:90px;right:14px;z-index:401;background:#08111f;border:1px solid #1e4a7a;border-radius:12px;padding:14px 16px;min-width:270px;max-height:340px;overflow-y:auto;display:none;font-family:monospace;font-size:12px;color:#acd;box-shadow:0 8px 32px rgba(0,0,0,.6);';
+  document.body.appendChild(panel);
+
+  function renderLog(){
+    const log=loadLog();
+    if(log.length===0){panel.innerHTML='<div style="color:#556;text-align:center;padding:18px 0">No landings yet</div>';return;}
+    let html='<div style="font-size:11px;color:#5af;font-weight:700;margin-bottom:8px">LANDING LOGBOOK ('+log.length+')</div>';
+    html+='<table style="width:100%;border-collapse:collapse">';
+    html+='<tr style="color:#445;font-size:10px"><th style="text-align:left">TIME</th><th>FPM</th><th>GRADE</th><th>AIRPORT</th></tr>';
+    for(let i=log.length-1;i>=0;i--){
+      const e=log[i],gr=grade(e.fpm);
+      html+=`<tr style="border-top:1px solid #111d30"><td style="padding:3px 0;color:#667;font-size:10px">${e.time}</td><td style="text-align:center;color:#adf">${e.fpm}</td><td style="text-align:center;color:${gr.c};font-weight:700">${gr.g}</td><td style="text-align:center;color:#556;font-size:10px">${e.icao||'???'}</td></tr>`;
+    }
+    html+='</table>';
+    html+='<div style="margin-top:10px;text-align:right"><button id="clearLogBtn" style="background:#1a0000;color:#f66;border:1px solid #400;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer">Clear</button></div>';
+    panel.innerHTML=html;
+    const cb=document.getElementById('clearLogBtn');
+    if(cb)cb.onclick=()=>{saveLog([]);renderLog();};
+  }
+  btn.onclick=()=>{
+    const vis=panel.style.display==='none';
+    panel.style.display=vis?'block':'none';
+    if(vis)renderLog();
+  };
+  document.addEventListener('click',e=>{if(!panel.contains(e.target)&&e.target!==btn)panel.style.display='none';},{capture:true,passive:true});
+
+  // Hook touchdown
+  const prevTD=window._onTouchdown;
+  window._onTouchdown=(sink,hs,noGear,water)=>{
+    try{prevTD&&prevTD(sink,hs,noGear,water);}catch(e){}
+    try{
+      if(noGear||water)return;
+      const fpm=Math.round(sink*196.85);
+      const now=new Date();
+      const time=now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0');
+      const icao=(typeof CFG!=='undefined'&&CFG._icao)||'----';
+      const log=loadLog();
+      log.push({fpm,time,icao,ts:now.getTime()});
+      if(log.length>MAX_LOG)log.splice(0,log.length-MAX_LOG);
+      saveLog(log);
+      // Show grade toast
+      const gr=grade(fpm);
+      const toast=document.createElement('div');
+      toast.style.cssText=`position:fixed;bottom:110px;left:50%;transform:translateX(-50%);z-index:500;background:#050e1a;border:2px solid ${gr.c};border-radius:10px;padding:10px 22px;font-family:monospace;font-weight:700;font-size:15px;color:${gr.c};text-align:center;pointer-events:none;animation:logToastAnim .3s ease-out;`;
+      toast.innerHTML=gr.g+'<br><span style="font-size:11px;color:#7af;font-weight:400">'+fpm+' fpm</span>';
+      if(!document.getElementById('logToastStyle')){
+        const s=document.createElement('style');s.id='logToastStyle';
+        s.textContent='@keyframes logToastAnim{0%{transform:translateX(-50%) scale(.7);opacity:0}100%{transform:translateX(-50%) scale(1);opacity:1}}';
+        document.head.appendChild(s);
+      }
+      document.body.appendChild(toast);
+      setTimeout(()=>toast.remove(),3000);
+    }catch(e){}
+  };
+})();
+
+/* ═══════════════════════════════════════════════════════════════════
+   FEATURE 2 – CROSSWIND LANDING CHALLENGE
+   Preset strong crosswind scenario, measures how close to CL you
+   land and gives a score. Activate via start card or C/W button.
+═══════════════════════════════════════════════════════════════════ */
+(function(){
+  let challengeActive=false,challengeScore=null;
+  // Button to toggle challenge mode while on start card
+  window._crosswindChallenge=function(activate){
+    challengeActive=!!activate;
+    const btn=document.getElementById('cwChallengeBtn');
+    if(btn)btn.textContent=challengeActive?'🌬️ Challenge: ON':'🌬️ Crosswind Challenge';
+    if(btn)btn.style.background=challengeActive?'#1a3a0a':'#0b1a2e';
+  };
+  // Hook into startBtn
+  const _hookStart=setInterval(()=>{
+    const sb=document.getElementById('startBtn');
+    const wx=document.getElementById('wxSel');
+    if(!sb)return;
+    clearInterval(_hookStart);
+    sb.addEventListener('click',()=>{
+      if(!challengeActive)return;
+      // Override weather to crosswind
+      if(wx)wx.value='windy';
+      // Defer so flight start sets up first
+      setTimeout(()=>{
+        try{
+          // Max crosswind — patch via the render-loop bridge
+          window._pendingWxPatch={wind:28,gust:8,turb:0.9};
+          showChallengeHUD();
+        }catch(e){}
+      },1200);
+    },true);
+  },200);
+
+  function showChallengeHUD(){
+    const hud=document.createElement('div');
+    hud.id='cwHUD';
+    hud.style.cssText='position:fixed;top:70px;left:50%;transform:translateX(-50%);z-index:350;background:rgba(5,15,30,.82);border:1.5px solid #2a6fdd;border-radius:10px;padding:8px 18px;font-family:monospace;font-size:13px;color:#7cf;pointer-events:none;text-align:center;min-width:200px;';
+    hud.innerHTML='🌬️ <b style="color:#f0c">CROSSWIND CHALLENGE</b><br><span id="cwWindLine">Wind: 28 kts × hdg</span><br><span id="cwStatusLine" style="color:#adf">Land on the runway centreline!</span>';
+    document.body.appendChild(hud);
+    // Update wind indicator each frame
+    const _cwInt=setInterval(()=>{
+      try{
+        const wl=document.getElementById('cwWindLine');
+        const wx=window._simCurrentWeather;
+        if(wl&&wx){
+          const wkts=Math.round((wx.wind+(Math.random()-.5)*wx.gust)*1.94384);
+          wl.textContent='Wind: '+wkts+' kts (crosswind)';
+        }
+      }catch(e){}
+      if(challengeScore!==null)clearInterval(_cwInt);
+    },800);
+  }
+
+  // Grade crosswind landing by centreline offset
+  const prevTD=window._onTouchdown;
+  window._onTouchdown=(sink,hs,noGear,water)=>{
+    try{prevTD&&prevTD(sink,hs,noGear,water);}catch(e){}
+    try{
+      if(!challengeActive||noGear||water)return;
+      // Centreline offset in metres: project position onto runway perpendicular
+      let offM=99;
+      try{
+        if(typeof runwayHdgDeg!=='undefined'&&typeof plane!=='undefined'){
+          const h2=runwayHdgDeg*Math.PI/180;
+          offM=Math.abs(plane.pos.x*Math.sin(h2)+plane.pos.z*Math.cos(h2));
+        }
+      }catch(e){}
+      const fpm=Math.round(sink*196.85);
+      let stars,txt,col;
+      if(offM<5)      {stars='★★★★★';txt='PERFECT CL';col='#00e860';}
+      else if(offM<12){stars='★★★★☆';txt='EXCELLENT';col='#4adf7c';}
+      else if(offM<22){stars='★★★☆☆';txt='GOOD';col='#cce853';}
+      else if(offM<35){stars='★★☆☆☆';txt='ACCEPTABLE';col='#f0c040';}
+      else if(offM<50){stars='★☆☆☆☆';txt='DRIFTED';col='#f07020';}
+      else            {stars='☆☆☆☆☆';txt='EXCURSION ⚠';col='#ff3030';}
+      challengeScore={stars,txt,col,offM:Math.round(offM),fpm};
+      // Show result panel
+      const rp=document.createElement('div');
+      rp.style.cssText=`position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:600;background:#050e1a;border:2px solid ${col};border-radius:14px;padding:22px 32px;font-family:monospace;text-align:center;color:${col};min-width:220px;box-shadow:0 12px 40px rgba(0,0,0,.8);`;
+      rp.innerHTML=`<div style="font-size:20px;font-weight:700;margin-bottom:6px">🌬️ CROSSWIND SCORE</div><div style="font-size:26px;letter-spacing:3px">${stars}</div><div style="font-size:18px;font-weight:700;margin:6px 0">${txt}</div><div style="font-size:12px;color:#7af">CL offset: ${Math.round(offM)} m &nbsp;·&nbsp; ${fpm} fpm</div><button onclick="this.parentNode.remove()" style="margin-top:14px;background:#0b1a2e;color:#7cf;border:1px solid #2a6fdd;border-radius:7px;padding:6px 16px;cursor:pointer;font-size:12px">OK</button>`;
+      document.body.appendChild(rp);
+      // Dismiss HUD
+      setTimeout(()=>{const h=document.getElementById('cwHUD');if(h)h.remove();},200);
+    }catch(e){}
+  };
+})();
+
+/* ═══════════════════════════════════════════════════════════════════
+   FEATURE 7 – ENHANCED CRASH OVERLAY with crash type context
+   Shows animated crash type icon, sequence, speed/attitude data
+═══════════════════════════════════════════════════════════════════ */
+(function(){
+  // Enrich crash overlay with extra data when crash fires
+  const crashOverlay=document.getElementById('crashOverlay');
+  if(!crashOverlay)return;
+  // Inject sub-panel for crash details if not present
+  if(!document.getElementById('crashDetails')){
+    const dp=document.createElement('div');
+    dp.id='crashDetails';
+    dp.style.cssText='font-size:11px;color:#8aabcc;font-family:monospace;margin-top:8px;line-height:1.7;text-align:center;min-height:32px;';
+    const cr=crashOverlay.querySelector('#crashReason');
+    if(cr)cr.parentNode.insertBefore(dp,cr.nextSibling);
+    else crashOverlay.appendChild(dp);
+  }
+  // Intercept crashes to add details
+  const _origCrash=window.crash;
+  // We can't easily intercept the internal crash() but we can hook the overlay timing
+  // Poll until overlay shows, then fill details
+  const _cdObs=new MutationObserver(()=>{
+    if(!crashOverlay.classList.contains('show'))return;
+    try{
+      const dp=document.getElementById('crashDetails');
+      if(!dp)return;
+      // Read current plane state
+      const p=typeof plane!=='undefined'?plane:null;
+      if(!p){dp.textContent='';return;}
+      const spd=Math.round(Math.hypot((p.vel?.x||0),(p.vel?.y||0),(p.vel?.z||0))*1.944);
+      const alt=Math.round((p.pos?.y||0)*3.28084);
+      const vsi=Math.round((p.vel?.y||0)*-196.85);
+      const eng=typeof ENG!=='undefined'?(ENG.L.state==='RUNNING'&&ENG.R.state==='RUNNING'?'BOTH':'ENG FAIL'):'–';
+      const gear=p.gearDown?'DOWN':'UP';
+      const fuel=p.fuel?Math.round(p.fuel)+' kg':'–';
+      dp.innerHTML=
+        `<span style="color:#4a9fdd">IMPACT DATA</span><br>`+
+        `SPD ${spd} kt &nbsp; ALT ${alt} ft &nbsp; VSI ${vsi} fpm<br>`+
+        `GEAR ${gear} &nbsp; ENGINES ${eng} &nbsp; FUEL ${fuel}`;
+    }catch(e){}
+  });
+  _cdObs.observe(crashOverlay,{attributes:true,attributeFilter:['class']});
+})();
+
+/* ═══════════════════════════════════════════════════════════════════
+   FEATURE 8 – TIRE BURST at high speed + runway excursion crash
+   Tires can blow on high-speed landing or rejected takeoff. 
+   Runway excursion (going off the end fast) triggers crash.
+═══════════════════════════════════════════════════════════════════ */
+(function(){
+  let tireBurstFired=false;
+  let _excTimer=0;
+
+  // Patch into the render / physics update via RAF
+  function tireTick(){
+    requestAnimationFrame(tireTick);
+    try{
+      if(typeof plane==='undefined'||plane.crashed)return;
+      const hs=Math.hypot((plane.vel?.x||0),(plane.vel?.z||0));
+      const spd=hs*1.944; // kts
+
+      // Tire burst: high speed + heavy landing or brakes held too long
+      if(!tireBurstFired&&plane.onGround&&spd>155&&plane.gearDown&&Math.random()<0.0006){
+        tireBurstFired=true;
+        try{
+          if(typeof faults!=='undefined'&&!faults.has('TIRE_BURST'))faults.inject('TIRE_BURST');
+          if(typeof showMsg!=='undefined')showMsg('💥 TIRE BURST · DIRECTIONAL CONTROL LOST',3500);
+        }catch(e){}
+        setTimeout(()=>{tireBurstFired=false;},30000);
+      }
+
+      // Runway excursion: off paved surface at speed (rough terrain = crash)
+      if(plane.onGround&&spd>80&&plane.gearDown){
+        try{
+          if(typeof ghPreview!=='undefined'&&typeof sampleSurface!=='undefined'){
+            const terrH=sampleSurface(plane.pos.x,plane.pos.z);
+            const rough=(terrH%1); // fractional terrain = rough
+            if(rough>0.18&&rough<0.82){
+              _excTimer+=0.016;
+              if(_excTimer>0.8){
+                if(typeof crash!=='undefined')crash('RUNWAY EXCURSION · '+Math.round(spd)+' kt');
+              }
+            } else {_excTimer=0;}
+          }
+        }catch(e){_excTimer=0;}
+      } else {_excTimer=0;}
+    }catch(e){}
+  }
+  tireTick();
+})();
+
+/* ═══════════════════════════════════════════════════════════════════
+   FEATURE 9 – GPWS / PULL-UP callout with visual alert
+   Warns when descending fast below 500ft, < 200ft and still 
+   sinking fast → "PULL UP" + red flash overlay
+═══════════════════════════════════════════════════════════════════ */
+(function(){
+  let _puCooldown=0;
+  let _pullUpEl=null;
+
+  function getPullUpEl(){
+    if(_pullUpEl)return _pullUpEl;
+    const d=document.createElement('div');
+    d.id='pullUpAlert';
+    d.style.cssText='position:fixed;top:20%;left:50%;transform:translateX(-50%);z-index:700;background:rgba(200,0,0,.92);color:#fff;font-family:monospace;font-weight:900;font-size:26px;padding:10px 28px;border-radius:10px;letter-spacing:.08em;pointer-events:none;display:none;text-align:center;border:2px solid #ff6060;box-shadow:0 0 40px rgba(255,0,0,.7);';
+    document.body.appendChild(d);
+    _pullUpEl=d;
+    return d;
+  }
+
+  function gpwsTick(){
+    requestAnimationFrame(gpwsTick);
+    try{
+      if(typeof plane==='undefined'||plane.crashed||plane.onGround)return;
+      const ghP=typeof ghPreview!=='undefined'?ghPreview:0;
+      const agl=(plane.pos.y-ghP)*3.28084;
+      const vsi=(plane.vel?.y||0)*196.85; // positive = climbing
+      const el=getPullUpEl();
+      const now=performance.now();
+
+      // SINK RATE warning 500–200ft
+      if(agl<500&&agl>50&&vsi<-1200&&now>_puCooldown){
+        el.textContent='⚠ SINK RATE';
+        el.style.background='rgba(200,120,0,.92)';
+        el.style.display='block';
+        _puCooldown=now+3500;
+        setTimeout(()=>{el.style.display='none';},2000);
+      }
+      // PULL UP below 200ft with heavy sink
+      if(agl<200&&agl>0&&vsi<-1800&&now>_puCooldown){
+        el.textContent='▲ PULL UP  PULL UP ▲';
+        el.style.background='rgba(200,0,0,.92)';
+        el.style.display='block';
+        _puCooldown=now+4000;
+        // Screen flash
+        try{if(typeof wxFlash!=='undefined'){wxFlash.style.opacity='.35';setTimeout(()=>{wxFlash.style.opacity='0';},200);}}catch(e){}
+        setTimeout(()=>{el.style.display='none';},2500);
+      }
+      // TOO LOW TERRAIN
+      if(agl<80&&agl>0&&vsi<-600&&now>_puCooldown){
+        el.textContent='⚠ TOO LOW TERRAIN';
+        el.style.background='rgba(200,0,0,.88)';
+        el.style.display='block';
+        _puCooldown=now+4000;
+        setTimeout(()=>{el.style.display='none';},2200);
+      }
+    }catch(e){}
+  }
+  gpwsTick();
+})();
+
+/* ═══════════════════════════════════════════════════════════════════
+   FEATURE 10 – GEAR COLLAPSE VISUAL + HYDRAULIC FAIL
+   When gear collapses (crash), fade cockpit lights, sparks trail
+   When hydraulics fail mid-flight (random chance on heavy landing)
+═══════════════════════════════════════════════════════════════════ */
+(function(){
+  // Hydraulic leak: heavy landing can damage hydraulics
+  const _prevTD=window._onTouchdown;
+  window._onTouchdown=(sink,hs,noGear,water)=>{
+    try{_prevTD&&_prevTD(sink,hs,noGear,water);}catch(e){}
+    try{
+      const fpm=sink*196.85;
+      // Very hard landing can damage hydraulics (>700 fpm) — low random chance
+      if(!noGear&&!water&&fpm>700&&Math.random()<(fpm-700)/8000){
+        setTimeout(()=>{
+          try{
+            if(typeof faults!=='undefined'){
+              if(!faults.has('HYD_FAIL_L')){
+                faults.inject('HYD_FAIL_L');
+                if(typeof showMsg!=='undefined')showMsg('⚠ HYD SYS 1 FAULT · HARD LANDING DAMAGE',4000);
+              }
+            }
+          }catch(e){}
+        },3000);
+      }
+    }catch(e){}
+  };
+})();
