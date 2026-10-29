@@ -38,22 +38,343 @@ const KS_TERM=ksXZ(37.6160,-122.3892);   /* centre of the terminal horseshoe / c
 const KS_FIELD=ksXZ(37.6165,-122.3790);  /* middle of the airfield, between the terminals and the 1L/1R runways */
 
 const LOCS={
-  LSZH:{lat:47.4647,lon:8.5492,elev:432},EGLL:{lat:51.47,lon:-0.4543,elev:25},
-  KJFK:{lat:40.6413,lon:-73.7781,elev:4},OMDB:{lat:25.2532,lon:55.3657,elev:19},
-  RJTT:{lat:35.5494,lon:139.7798,elev:6},YSSY:{lat:-33.9399,lon:151.1753,elev:6},
-  KSFO:{lat:KS_REF.lat,lon:KS_REF.lon,elev:4},LFPG:{lat:48.9969,lon:2.5483,elev:119},
-  EHAM:{lat:52.3105,lon:4.7683,elev:-3},CYXE:{lat:52.1333,lon:-106.6667,elev:480},
-  CYQR:{lat:50.4319,lon:-104.6177,elev:577},
+  // North America — Canada — Ontario
+  CYYZ:{lat:43.6772,lon:-79.6306,elev:173},  // Toronto Pearson
+  CYTZ:{lat:43.6275,lon:-79.3962,elev:77},   // Toronto Billy Bishop (Island)
+  CYKF:{lat:43.4608,lon:-80.3786,elev:321},  // Waterloo
+  CYOO:{lat:43.9228,lon:-78.8950,elev:137},  // Oshawa
+  CYHM:{lat:43.1736,lon:-79.9350,elev:238},  // Hamilton
+  CYKZ:{lat:43.8608,lon:-79.3703,elev:190},  // Buttonville (Toronto north)
+  CYXU:{lat:43.0356,lon:-81.1531,elev:278},  // London ON
+  CYWG:{lat:49.9100,lon:-97.2398,elev:239},  // Winnipeg
+  // Canada — Quebec
+  CYUL:{lat:45.4706,lon:-73.7408,elev:36},   // Montréal Trudeau
+  CYMX:{lat:45.6795,lon:-74.0056,elev:57},   // Montréal Mirabel
+  CYHU:{lat:45.5175,lon:-73.4197,elev:27},   // St-Hubert (Longueuil)
+  CYQB:{lat:46.7911,lon:-71.3933,elev:74},   // Quebec City
+  CYSB:{lat:46.6253,lon:-80.7989,elev:348},  // Sudbury
+  // Canada — BC / West
+  CYVR:{lat:49.1947,lon:-123.1792,elev:4},   // Vancouver Intl
+  CYYJ:{lat:48.6469,lon:-123.4258,elev:19},  // Victoria
+  CZBB:{lat:49.0942,lon:-122.3597,elev:2},   // Boundary Bay (Delta BC)
+  CYCD:{lat:49.0547,lon:-123.8697,elev:6},   // Nanaimo
+  CYXS:{lat:53.8894,lon:-122.6792,elev:691}, // Prince George
+  CYXX:{lat:49.0253,lon:-122.3606,elev:58},  // Abbotsford
+  // Canada — Alberta / Prairies
+  CYYC:{lat:51.1139,lon:-114.0203,elev:1084},// Calgary Intl
+  CYBW:{lat:51.1131,lon:-114.3744,elev:1118},// Springbank (Calgary area)
+  CYEG:{lat:53.3097,lon:-113.5800,elev:723}, // Edmonton Intl
+  CYXD:{lat:53.5728,lon:-113.5214,elev:671}, // Edmonton City Centre (Blatchford)
+  CYXE:{lat:52.1333,lon:-106.6667,elev:480}, // Saskatoon
+  CYQR:{lat:50.4319,lon:-104.6177,elev:577}, // Regina
+  CYBR:{lat:49.9108,lon:-99.9519,elev:357},  // Brandon
+  // Canada — East / Maritimes
+  CYOW:{lat:45.3225,lon:-75.6692,elev:114},  // Ottawa
+  CYYG:{lat:46.2900,lon:-63.1211,elev:55},   // Charlottetown
+  CYHZ:{lat:44.8808,lon:-63.5086,elev:145},  // Halifax
+  CYQM:{lat:46.1122,lon:-64.6786,elev:71},   // Moncton
+  CYFC:{lat:45.8719,lon:-66.5372,elev:34},   // Fredericton
+  CYSJ:{lat:45.3161,lon:-65.8900,elev:38},   // Saint John NB
+  CYYT:{lat:47.6186,lon:-52.7519,elev:140},  // St. John's NL
+  CYGV:{lat:51.3994,lon:-56.0819,elev:48},   // Havre-Saint-Pierre / La Grande Rivière area
+  // USA — Northeast / Mid-Atlantic regional
+  KBUF:{lat:42.9405,lon:-78.7322,elev:215},  // Buffalo
+  KSYR:{lat:43.1112,lon:-76.1063,elev:128},  // Syracuse
+  KALB:{lat:42.7483,lon:-73.8017,elev:89},   // Albany
+  KPVD:{lat:41.7265,lon:-71.4282,elev:15},   // Providence
+  KMHT:{lat:42.9326,lon:-71.4357,elev:81},   // Manchester NH
+  KBGR:{lat:44.8074,lon:-68.8282,elev:59},   // Bangor
+  KPWM:{lat:43.6462,lon:-70.3093,elev:76},   // Portland ME
+  KHPN:{lat:41.0670,lon:-73.7076,elev:122},  // Westchester (White Plains)
+  KTEB:{lat:40.8501,lon:-74.0608,elev:3},    // Teterboro NJ (small jets)
+  KABE:{lat:40.6521,lon:-75.4408,elev:124},  // Allentown PA
+  KAVP:{lat:41.3385,lon:-75.7234,elev:289},  // Scranton/Wilkes-Barre
+  KISP:{lat:40.7952,lon:-73.1002,elev:28},   // Long Island MacArthur
+  KHVN:{lat:41.2638,lon:-72.8868,elev:4},    // New Haven
+  // USA — Midwest regional
+  KMDW:{lat:41.7860,lon:-87.7524,elev:188},  // Chicago Midway
+  KGRR:{lat:42.8808,lon:-85.5228,elev:245},  // Grand Rapids
+  KLAN:{lat:42.7787,lon:-84.5874,elev:282},  // Lansing
+  KFTW:{lat:32.8199,lon:-97.3622,elev:218},  // Ft. Worth Meacham
+  KHOU:{lat:29.6454,lon:-95.2789,elev:14},   // Houston Hobby
+  KSAT:{lat:29.5337,lon:-98.4698,elev:242},  // San Antonio
+  // El Paso is already in LOCS as KELP below — no duplicate needed
+  KCOS:{lat:38.8058,lon:-104.7008,elev:1881},// Colorado Springs
+  KDSM:{lat:41.5340,lon:-93.6631,elev:294},  // Des Moines
+  KOMA:{lat:41.3032,lon:-95.8941,elev:299},  // Omaha Eppley
+  KICT:{lat:37.6499,lon:-97.4331,elev:408},  // Wichita
+  KMCI:{lat:39.2976,lon:-94.7139,elev:313},  // Kansas City
+  KLIT:{lat:34.7294,lon:-92.2243,elev:75},   // Little Rock
+  // USA — South regional
+  KBHM:{lat:33.5629,lon:-86.7535,elev:193},  // Birmingham AL
+  KMOB:{lat:30.6912,lon:-88.2428,elev:67},   // Mobile
+  KJAN:{lat:32.3112,lon:-90.0759,elev:97},   // Jackson MS
+  KCHA:{lat:35.0353,lon:-85.2038,elev:218},  // Chattanooga
+  KTYS:{lat:35.8118,lon:-83.9940,elev:293},  // Knoxville
+  KAVL:{lat:35.4362,lon:-82.5419,elev:661},  // Asheville NC
+  KMYR:{lat:33.6797,lon:-78.9283,elev:9},    // Myrtle Beach
+  KCHS:{lat:32.8986,lon:-80.0405,elev:14},   // Charleston SC
+  KSAV:{lat:32.1276,lon:-81.2021,elev:15},   // Savannah
+  KJAX:{lat:30.4941,lon:-81.6879,elev:9},    // Jacksonville
+  KPNS:{lat:30.4734,lon:-87.1866,elev:36},   // Pensacola
+  // USA — West regional
+  KBUR:{lat:34.2007,lon:-118.3585,elev:238}, // Burbank / Hollywood
+  KLGB:{lat:33.8177,lon:-118.1517,elev:18},  // Long Beach
+  KONT:{lat:34.0560,lon:-117.6012,elev:288}, // Ontario CA
+  KOAK:{lat:37.7213,lon:-122.2208,elev:2},   // Oakland
+  KSJC:{lat:37.3626,lon:-121.9290,elev:18},  // San Jose
+  KSMF:{lat:38.6954,lon:-121.5908,elev:8},   // Sacramento
+  KFAT:{lat:36.7762,lon:-119.7181,elev:102}, // Fresno
+  KRNO:{lat:39.4991,lon:-119.7681,elev:1341},// Reno
+  KBOI:{lat:43.5644,lon:-116.2228,elev:874}, // Boise
+  KBZN:{lat:45.7775,lon:-111.1531,elev:1369},// Bozeman
+  KMSN:{lat:43.1399,lon:-89.3375,elev:265},  // Madison WI
+  KFSD:{lat:43.5820,lon:-96.7419,elev:437},  // Sioux Falls
+  // USA — Hawaii / Alaska
+  PHKO:{lat:19.7386,lon:-156.0456,elev:14},  // Kona
+  PHOG:{lat:20.8986,lon:-156.4305,elev:49},  // Maui Kahului
+  PANC:{lat:61.1744,lon:-149.9964,elev:46},  // Anchorage
+  PAFA:{lat:64.8151,lon:-147.8561,elev:135}, // Fairbanks
+  PAJN:{lat:58.3550,lon:-134.5763,elev:6},   // Juneau
+  // North America — USA
+  KJFK:{lat:40.6413,lon:-73.7781,elev:4},KLAX:{lat:33.9425,lon:-118.4081,elev:38},
+  KORD:{lat:41.9742,lon:-87.9073,elev:202},KATL:{lat:33.6367,lon:-84.4281,elev:313},
+  KDFW:{lat:32.8968,lon:-97.0380,elev:182},KDEN:{lat:39.8561,lon:-104.6737,elev:1655},
+  KSFO:{lat:KS_REF.lat,lon:KS_REF.lon,elev:4},KLAS:{lat:36.0840,lon:-115.1537,elev:664},
+  KMIA:{lat:25.7959,lon:-80.2870,elev:3},KSEA:{lat:47.4502,lon:-122.3088,elev:132},
+  KPHX:{lat:33.4373,lon:-112.0078,elev:337},KIAH:{lat:29.9902,lon:-95.3368,elev:30},
+  KEWR:{lat:40.6895,lon:-74.1745,elev:9},KMSP:{lat:44.8848,lon:-93.2223,elev:256},
+  KDTW:{lat:42.2124,lon:-83.3534,elev:195},KBOS:{lat:42.3656,lon:-71.0096,elev:9},
+  KPHL:{lat:39.8721,lon:-75.2411,elev:11},KLGA:{lat:40.7773,lon:-73.8726,elev:7},
+  KBWI:{lat:39.1754,lon:-76.6683,elev:46},KDCA:{lat:38.8521,lon:-77.0377,elev:15},
+  KSLC:{lat:40.7884,lon:-111.9778,elev:1288},KFLL:{lat:26.0726,lon:-80.1527,elev:3},
+  KMCO:{lat:28.4294,lon:-81.3089,elev:29},KIAH2:{lat:29.9844,lon:-95.3414,elev:30},
+  KSTL:{lat:38.7487,lon:-90.3700,elev:189},KCLT:{lat:35.2140,lon:-80.9431,elev:237},
+  KSAN:{lat:32.7336,lon:-117.1897,elev:5},KTPA:{lat:27.9755,lon:-82.5332,elev:9},
+  KPDX:{lat:45.5888,lon:-122.5975,elev:9},KMEM:{lat:35.0424,lon:-89.9767,elev:103},
+  KBNA:{lat:36.1245,lon:-86.6782,elev:183},KAUS:{lat:30.1945,lon:-97.6699,elev:160},
+  KMSY:{lat:29.9934,lon:-90.2580,elev:2},KRDU:{lat:35.8776,lon:-78.7875,elev:132},
+  KRIC:{lat:37.5052,lon:-77.3197,elev:52},KCMH:{lat:39.9998,lon:-82.8919,elev:248},
+  KPIT:{lat:40.4915,lon:-80.2329,elev:365},KIND:{lat:39.7173,lon:-86.2944,elev:246},
+  KSNA:{lat:33.6757,lon:-117.8682,elev:17},KSDF:{lat:38.1744,lon:-85.7360,elev:149},
+  KELP:{lat:31.8072,lon:-106.3779,elev:1194},KABQ:{lat:35.0402,lon:-106.6090,elev:1640},
+  KTUS:{lat:32.1161,lon:-110.9410,elev:779},KOKC:{lat:35.3931,lon:-97.6007,elev:398},
+  KTUL:{lat:36.1984,lon:-95.8881,elev:202},KOMAHA:{lat:41.3032,lon:-95.8941,elev:299},
+  // USA scenic
   ALPS:{lat:46.5,lon:7.9,elev:3600},
-  EVEREST:{lat:27.9881,lon:86.925,elev:5300},GRANDCANYON:{lat:35.9524,lon:-112.147,elev:2000}
+  EVEREST:{lat:27.9881,lon:86.925,elev:5300},GRANDCANYON:{lat:35.9524,lon:-112.147,elev:2000},
+  // Mexico / Caribbean
+  MMMX:{lat:19.4363,lon:-99.0721,elev:2237},MMGL:{lat:20.5218,lon:-103.3111,elev:1521},
+  MMUN:{lat:21.0365,lon:-86.8771,elev:7},MMTY:{lat:25.7785,lon:-100.1066,elev:366},
+  MYNN:{lat:25.0390,lon:-77.4662,elev:5},MBPV:{lat:21.7737,lon:-72.1887,elev:6},
+  TJSJ:{lat:18.4394,lon:-66.0018,elev:9},MDSD:{lat:18.4297,lon:-69.6689,elev:17},
+  // South America
+  SBGR:{lat:-23.4356,lon:-46.4731,elev:750},SCEL:{lat:-33.3930,lon:-70.7858,elev:474},
+  SKBO:{lat:4.7016,lon:-74.1469,elev:2549},SEQM:{lat:-0.1292,lon:-78.3576,elev:2400},
+  SPJC:{lat:-12.0219,lon:-77.1143,elev:13},SAEZ:{lat:-34.8222,lon:-58.5358,elev:20},
+  SBSP:{lat:-23.6261,lon:-46.6564,elev:802},SBPA:{lat:-29.9944,lon:-51.1714,elev:3},
+  SBRJ:{lat:-22.9100,lon:-43.1631,elev:9},SBCF:{lat:-19.6244,lon:-43.9719,elev:827},
+  // Europe — UK/Ireland
+  EGLL:{lat:51.47,lon:-0.4543,elev:25},EGKK:{lat:51.1481,lon:-0.1903,elev:62},
+  EGCC:{lat:53.3537,lon:-2.2750,elev:76},EGNX:{lat:52.8311,lon:-1.3281,elev:99},
+  EGBB:{lat:52.4539,lon:-1.7480,elev:99},EGGD:{lat:51.3827,lon:-2.7191,elev:189},
+  EGSS:{lat:51.8850,lon:0.2350,elev:103},EIDW:{lat:53.4213,lon:-6.2701,elev:74},
+  // Europe — Western
+  LFPG:{lat:48.9969,lon:2.5483,elev:119},LFPO:{lat:48.7233,lon:2.3794,elev:96},
+  LSZH:{lat:47.4647,lon:8.5492,elev:432},LSGG:{lat:46.2381,lon:6.1089,elev:430},
+  EHAM:{lat:52.3105,lon:4.7683,elev:-3},EBBR:{lat:50.9014,lon:4.4844,elev:56},
+  EDDF:{lat:50.0264,lon:8.5431,elev:111},EDDM:{lat:48.3537,lon:11.7860,elev:448},
+  EDDL:{lat:51.2895,lon:6.7668,elev:45},EDDB:{lat:52.3667,lon:13.5033,elev:37},
+  LEMD:{lat:40.4936,lon:-3.5668,elev:610},LEBL:{lat:41.2971,lon:2.0785,elev:4},
+  LIRF:{lat:41.8003,lon:12.2389,elev:14},LIML:{lat:45.4454,lon:9.2763,elev:107},
+  LPPT:{lat:38.7756,lon:-9.1359,elev:113},LHBP:{lat:47.4369,lon:19.2556,elev:151},
+  LOWW:{lat:48.1103,lon:16.5697,elev:183},LSZA:{lat:46.0044,lon:8.9109,elev:276},
+  ESSA:{lat:59.6519,lon:17.9186,elev:42},ENGM:{lat:60.1939,lon:11.1004,elev:208},
+  EKCH:{lat:55.6180,lon:12.6561,elev:17},EFHK:{lat:60.3172,lon:24.9633,elev:55},
+  EPWA:{lat:52.1657,lon:20.9671,elev:110},LKPR:{lat:50.1008,lon:14.2600,elev:381},
+  LYBE:{lat:44.8184,lon:20.3091,elev:99},LGAV:{lat:37.9364,lon:23.9445,elev:94},
+  LTBA:{lat:40.9762,lon:28.8146,elev:157},LTFM:{lat:41.2753,lon:28.7519,elev:99},
+  // Europe — Eastern / Russia
+  UUEE:{lat:55.9736,lon:37.4125,elev:190},UUDD:{lat:55.4088,lon:37.9063,elev:178},
+  UKBB:{lat:50.3450,lon:30.8947,elev:120},EVRA:{lat:56.9236,lon:23.9711,elev:10},
+  EYVI:{lat:54.6341,lon:25.2858,elev:197},UMMS:{lat:53.8825,lon:28.0322,elev:204},
+  LROP:{lat:44.5722,lon:26.1022,elev:95},LBSF:{lat:42.6967,lon:23.4114,elev:531},
+  // Middle East / Africa
+  OMDB:{lat:25.2532,lon:55.3657,elev:19},OMAA:{lat:24.4330,lon:54.6511,elev:27},
+  OERK:{lat:24.9576,lon:46.6988,elev:620},OEJN:{lat:21.6796,lon:39.1565,elev:17},
+  OTHH:{lat:25.2731,lon:51.6081,elev:13},OKBK:{lat:29.2267,lon:47.9689,elev:55},
+  HECA:{lat:30.1219,lon:31.4056,elev:74},HAAB:{lat:8.9779,lon:38.7993,elev:2334},
+  DNMM:{lat:6.5774,lon:3.3213,elev:38},FAOR:{lat:-26.1392,lon:28.2460,elev:1694},
+  FACT:{lat:-33.9648,lon:18.6017,elev:46},FMMI:{lat:-18.7969,lon:47.4788,elev:1276},
+  FCBB:{lat:-4.2517,lon:15.2531,elev:315},GOOG:{lat:14.7447,lon:-17.4902,elev:24},
+  DTTA:{lat:36.8510,lon:10.2272,elev:6},GMME:{lat:34.0510,lon:-6.7517,elev:276},
+  HKJK:{lat:-1.3192,lon:36.9275,elev:1624},HTDA:{lat:-6.8781,lon:39.2026,elev:55},
+  // Asia — East
+  RJTT:{lat:35.5494,lon:139.7798,elev:6},RJAA:{lat:35.7647,lon:140.3864,elev:41},
+  RKSI:{lat:37.4602,lon:126.4407,elev:23},RKSS:{lat:37.5583,lon:126.7906,elev:18},
+  ZSPD:{lat:31.1434,lon:121.8052,elev:4},ZBAA:{lat:40.0799,lon:116.5845,elev:35},
+  ZGGG:{lat:23.3924,lon:113.2990,elev:15},VHHH:{lat:22.3080,lon:113.9185,elev:9},
+  RCTP:{lat:25.0777,lon:121.2328,elev:33},WMKK:{lat:2.7456,lon:101.7099,elev:21},
+  WSSS:{lat:1.3644,lon:103.9915,elev:7},VTBS:{lat:13.9132,lon:100.6070,elev:8},
+  WIII:{lat:-6.1256,lon:106.6558,elev:8},RPLL:{lat:14.5086,lon:121.0197,elev:21},
+  VOMM:{lat:12.9900,lon:80.1693,elev:16},VIDP:{lat:28.5665,lon:77.1031,elev:237},
+  VABB:{lat:19.0896,lon:72.8656,elev:11},OMAB:{lat:24.2528,lon:54.6511,elev:27},
+  // Asia — Central / South
+  OAKB:{lat:34.5659,lon:69.2123,elev:1791},OPKC:{lat:24.9065,lon:67.1608,elev:22},
+  VCBI:{lat:7.1808,lon:79.8841,elev:7},UAAA:{lat:43.3528,lon:77.0405,elev:647},
+  UTDD:{lat:38.5433,lon:68.8247,elev:864},
+  // Oceania / Pacific
+  YSSY:{lat:-33.9399,lon:151.1753,elev:6},YMML:{lat:-37.6733,lon:144.8430,elev:131},
+  YBBN:{lat:-27.3842,lon:153.1175,elev:5},YPPH:{lat:-31.9403,lon:115.9669,elev:15},
+  NZAA:{lat:-37.0082,lon:174.7917,elev:7},NZWN:{lat:-41.3272,lon:174.8051,elev:12},
+  NFFN:{lat:-17.7554,lon:177.4432,elev:5},NTAA:{lat:-17.5534,lon:-149.6062,elev:2},
+  PGUM:{lat:13.4834,lon:144.7960,elev:91},PHNL:{lat:21.3245,lon:-157.9251,elev:4},
+  // Scenic
+  MATTERHORN:{lat:45.9763,lon:7.6586,elev:4300},FUJI:{lat:35.3606,lon:138.7274,elev:3700},
+  YOSEMITE:{lat:37.7456,lon:-119.5936,elev:1200},ZION:{lat:37.2982,lon:-113.0263,elev:1300},
+  MONUMENT:{lat:36.9980,lon:-110.0985,elev:1700},GEIRANGER:{lat:62.1049,lon:7.2058,elev:0},
+  IGUAZU:{lat:-25.6958,lon:-54.4353,elev:185},VICTORIA:{lat:-17.9314,lon:25.8564,elev:1000},
+  ANTARCTICAPEN:{lat:-63.4,lon:-57.0,elev:0},GREENLAND:{lat:72.0,lon:-40.0,elev:2000}
 };
 const RUNWAYS={
-  LSZH:{hdg:156,len:3400,wid:60},EGLL:{hdg:270,len:3900,wid:60},
-  KJFK:{hdg:044,len:3400,wid:60},OMDB:{hdg:121,len:4000,wid:60},
-  RJTT:{hdg:156,len:3000,wid:60},YSSY:{hdg:155,len:3960,wid:60},
-  KSFO:{hdg:KS_RWY[0].hdg,len:KS_RWY[0].len,wid:61,des:KS_RWY[0].des,extras:KS_RWY.slice(1),custom:true},LFPG:{hdg:270,len:3600,wid:60},
-  EHAM:{hdg:183,len:3400,wid:60},CYXE:{hdg:090,len:2800,wid:60},
-  CYQR:{hdg:080,len:2600,wid:60}
+  // Canada — Ontario
+  CYYZ:{hdg:060,len:3389,wid:61},CYTZ:{hdg:080,len:1216,wid:30},
+  CYKF:{hdg:140,len:1524,wid:46},CYOO:{hdg:120,len:1768,wid:46},
+  CYHM:{hdg:120,len:1798,wid:46},CYKZ:{hdg:150,len:914,wid:23},
+  CYXU:{hdg:150,len:2744,wid:61},CYWG:{hdg:130,len:2743,wid:61},
+  // Canada — Quebec
+  CYUL:{hdg:064,len:3353,wid:61},CYMX:{hdg:060,len:3658,wid:61},
+  CYHU:{hdg:150,len:1829,wid:46},CYQB:{hdg:240,len:2743,wid:61},
+  CYSB:{hdg:040,len:2134,wid:46},
+  // Canada — BC/West
+  CYVR:{hdg:080,len:3600,wid:61},CYYJ:{hdg:088,len:1757,wid:45},
+  CZBB:{hdg:120,len:1067,wid:23},CYCD:{hdg:160,len:1524,wid:30},
+  CYXS:{hdg:150,len:2438,wid:46},CYXX:{hdg:070,len:2134,wid:46},
+  // Canada — Alberta / Prairies
+  CYYC:{hdg:170,len:3963,wid:61},CYBW:{hdg:160,len:1524,wid:30},
+  CYEG:{hdg:020,len:3109,wid:61},CYXD:{hdg:160,len:1524,wid:30},
+  CYXE:{hdg:090,len:2800,wid:60},CYQR:{hdg:080,len:2600,wid:60},
+  CYBR:{hdg:080,len:2438,wid:61},
+  // Canada — East / Maritimes
+  CYOW:{hdg:079,len:2438,wid:61},CYYG:{hdg:030,len:1829,wid:46},
+  CYHZ:{hdg:150,len:2347,wid:61},CYQM:{hdg:060,len:2438,wid:46},
+  CYFC:{hdg:090,len:1980,wid:45},CYSJ:{hdg:140,len:1829,wid:46},
+  CYYT:{hdg:110,len:2590,wid:61},CYGV:{hdg:090,len:1524,wid:30},
+  // USA
+  KJFK:{hdg:044,len:3400,wid:60},KLAX:{hdg:069,len:3685,wid:61},
+  KORD:{hdg:100,len:3657,wid:61},KATL:{hdg:098,len:3624,wid:61},
+  KDFW:{hdg:180,len:4085,wid:61},KDEN:{hdg:170,len:4877,wid:61},
+  KSFO:{hdg:KS_RWY[0].hdg,len:KS_RWY[0].len,wid:61,des:KS_RWY[0].des,extras:KS_RWY.slice(1),custom:true},
+  KLAS:{hdg:190,len:4423,wid:61},KMIA:{hdg:090,len:3962,wid:61},
+  KSEA:{hdg:163,len:3627,wid:61},KPHX:{hdg:260,len:3459,wid:61},
+  KIAH:{hdg:150,len:3963,wid:61},KEWR:{hdg:040,len:3353,wid:46},
+  KMSP:{hdg:120,len:3353,wid:61},KDTW:{hdg:040,len:3524,wid:61},
+  KBOS:{hdg:150,len:3048,wid:61},KPHL:{hdg:090,len:2896,wid:46},
+  KLGA:{hdg:040,len:2134,wid:46},KDCA:{hdg:010,len:1587,wid:46},
+  KSLC:{hdg:160,len:3657,wid:61},KFLL:{hdg:100,len:2743,wid:46},
+  KMCO:{hdg:180,len:3659,wid:61},KSTL:{hdg:120,len:3353,wid:46},
+  KCLT:{hdg:180,len:2743,wid:61},KSAN:{hdg:090,len:2865,wid:61},
+  KTPA:{hdg:190,len:2987,wid:46},KPDX:{hdg:100,len:2835,wid:61},
+  KMEM:{hdg:180,len:3048,wid:61},KBNA:{hdg:200,len:2286,wid:46},
+  KAUS:{hdg:180,len:2743,wid:61},KMSY:{hdg:100,len:2743,wid:46},
+  KRDU:{hdg:050,len:2743,wid:46},KRIC:{hdg:160,len:2133,wid:46},
+  KCMH:{hdg:100,len:3049,wid:61},KIND:{hdg:050,len:2835,wid:46},
+  KPIT:{hdg:280,len:3353,wid:61},KSDF:{hdg:170,len:3048,wid:61},
+  KSNA:{hdg:200,len:1737,wid:46},KELP:{hdg:220,len:4267,wid:61},
+  KABQ:{hdg:030,len:4207,wid:61},KTUS:{hdg:110,len:3292,wid:46},
+  KOKC:{hdg:170,len:2743,wid:61},KTUL:{hdg:180,len:2896,wid:46},
+  // USA — regional airports
+  KBUF:{hdg:230,len:2134,wid:46},KSYR:{hdg:100,len:2286,wid:46},
+  KALB:{hdg:190,len:2134,wid:46},KPVD:{hdg:050,len:2134,wid:46},
+  KMHT:{hdg:170,len:2134,wid:46},KBGR:{hdg:150,len:3048,wid:61},
+  KPWM:{hdg:180,len:1829,wid:46},KHPN:{hdg:160,len:1649,wid:46},
+  KTEB:{hdg:190,len:1524,wid:30},KABE:{hdg:240,len:1798,wid:46},
+  KAVP:{hdg:220,len:2134,wid:46},KISP:{hdg:100,len:2286,wid:46},
+  KHVN:{hdg:020,len:1433,wid:46},
+  KMDW:{hdg:130,len:1966,wid:46},KGRR:{hdg:260,len:2286,wid:46},
+  KLAN:{hdg:100,len:1981,wid:46},KFTW:{hdg:170,len:1981,wid:46},
+  KHOU:{hdg:130,len:2130,wid:46},KSAT:{hdg:120,len:2743,wid:46},
+  KCOS:{hdg:170,len:2896,wid:46},KDSM:{hdg:130,len:2682,wid:46},
+  KOMA:{hdg:140,len:2682,wid:46},KICT:{hdg:190,len:3048,wid:46},
+  KMCI:{hdg:190,len:2987,wid:61},KLIT:{hdg:040,len:2134,wid:46},
+  KBHM:{hdg:060,len:2590,wid:46},KMOB:{hdg:150,len:2591,wid:46},
+  KJAN:{hdg:160,len:2590,wid:46},KCHA:{hdg:200,len:2134,wid:46},
+  KTYS:{hdg:050,len:2560,wid:46},KAVL:{hdg:350,len:2159,wid:46},
+  KMYR:{hdg:010,len:2286,wid:46},KCHS:{hdg:150,len:2134,wid:46},
+  KSAV:{hdg:100,len:2896,wid:46},KJAX:{hdg:070,len:3048,wid:46},
+  KPNS:{hdg:080,len:2316,wid:46},
+  KBUR:{hdg:150,len:1887,wid:46},KLGB:{hdg:120,len:1830,wid:46},
+  KONT:{hdg:080,len:3658,wid:46},KOAK:{hdg:270,len:3048,wid:61},
+  KSJC:{hdg:300,len:3292,wid:61},KSMF:{hdg:200,len:2744,wid:46},
+  KFAT:{hdg:290,len:2896,wid:46},KRNO:{hdg:160,len:3353,wid:61},
+  KBOI:{hdg:280,len:3048,wid:46},KBZN:{hdg:120,len:2743,wid:46},
+  KMSN:{hdg:180,len:2286,wid:46},KFSD:{hdg:210,len:2743,wid:46},
+  PHKO:{hdg:170,len:2134,wid:46},PHOG:{hdg:020,len:2896,wid:46},
+  PANC:{hdg:150,len:3353,wid:61},PAFA:{hdg:200,len:3204,wid:46},
+  PAJN:{hdg:080,len:2134,wid:46},
+  // Mexico / Caribbean
+  MMMX:{hdg:230,len:4000,wid:61},MMGL:{hdg:280,len:4000,wid:61},
+  MMUN:{hdg:120,len:3500,wid:61},MMTY:{hdg:160,len:3000,wid:45},
+  MYNN:{hdg:150,len:2113,wid:46},TJSJ:{hdg:100,len:2887,wid:61},
+  MDSD:{hdg:170,len:3220,wid:61},
+  // South America
+  SBGR:{hdg:097,len:3700,wid:61},SCEL:{hdg:170,len:3800,wid:61},
+  SKBO:{hdg:140,len:3800,wid:61},SEQM:{hdg:360,len:3120,wid:61},
+  SPJC:{hdg:150,len:3507,wid:61},SAEZ:{hdg:110,len:3300,wid:61},
+  SBPA:{hdg:290,len:3200,wid:61},SBRJ:{hdg:020,len:1323,wid:46},
+  SBSP:{hdg:180,len:1940,wid:45},SBCF:{hdg:160,len:3000,wid:61},
+  // Europe
+  EGLL:{hdg:270,len:3900,wid:60},EGKK:{hdg:260,len:3316,wid:46},
+  EGCC:{hdg:230,len:3048,wid:61},EGNX:{hdg:270,len:2893,wid:46},
+  EGBB:{hdg:150,len:2605,wid:46},EGGD:{hdg:270,len:2011,wid:46},
+  EGSS:{hdg:220,len:3048,wid:46},EIDW:{hdg:100,len:2637,wid:61},
+  LFPG:{hdg:270,len:3600,wid:60},LFPO:{hdg:260,len:2400,wid:46},
+  LSZH:{hdg:156,len:3400,wid:60},LSGG:{hdg:230,len:3900,wid:61},
+  EHAM:{hdg:183,len:3400,wid:60},EBBR:{hdg:070,len:3638,wid:61},
+  EDDF:{hdg:250,len:4000,wid:61},EDDM:{hdg:260,len:4000,wid:61},
+  EDDL:{hdg:230,len:3000,wid:61},EDDB:{hdg:070,len:3600,wid:61},
+  LEMD:{hdg:180,len:4349,wid:61},LEBL:{hdg:200,len:3743,wid:61},
+  LIRF:{hdg:160,len:3900,wid:61},LIML:{hdg:350,len:3000,wid:61},
+  LPPT:{hdg:030,len:3805,wid:61},LHBP:{hdg:315,len:3707,wid:61},
+  LOWW:{hdg:160,len:3600,wid:61},ESSA:{hdg:080,len:3301,wid:61},
+  ENGM:{hdg:190,len:3600,wid:61},EKCH:{hdg:040,len:3300,wid:61},
+  EFHK:{hdg:150,len:3200,wid:61},EPWA:{hdg:150,len:3690,wid:61},
+  LKPR:{hdg:240,len:3715,wid:61},LYBE:{hdg:120,len:3400,wid:61},
+  LGAV:{hdg:030,len:4000,wid:61},LTBA:{hdg:060,len:3000,wid:61},
+  LTFM:{hdg:035,len:4100,wid:61},LSZA:{hdg:010,len:1240,wid:46},
+  // Eastern Europe / Russia
+  UUEE:{hdg:240,len:3700,wid:61},UUDD:{hdg:143,len:3793,wid:61},
+  UKBB:{hdg:180,len:4000,wid:61},EVRA:{hdg:180,len:3200,wid:61},
+  EYVI:{hdg:010,len:2516,wid:46},UMMS:{hdg:240,len:3650,wid:61},
+  LROP:{hdg:080,len:3500,wid:61},LBSF:{hdg:270,len:3600,wid:61},
+  // Middle East / Africa
+  OMDB:{hdg:121,len:4000,wid:60},OMAA:{hdg:130,len:4100,wid:61},
+  OERK:{hdg:155,len:4205,wid:61},OEJN:{hdg:160,len:3800,wid:61},
+  OTHH:{hdg:160,len:4850,wid:61},OKBK:{hdg:150,len:3400,wid:61},
+  HECA:{hdg:160,len:4000,wid:61},HAAB:{hdg:070,len:3800,wid:61},
+  DNMM:{hdg:190,len:3900,wid:61},FAOR:{hdg:030,len:4418,wid:61},
+  FACT:{hdg:020,len:3201,wid:61},FMMI:{hdg:120,len:3100,wid:61},
+  FCBB:{hdg:060,len:4200,wid:61},HKJK:{hdg:060,len:4207,wid:61},
+  HTDA:{hdg:030,len:3700,wid:61},DTTA:{hdg:280,len:3200,wid:61},
+  GMME:{hdg:170,len:3700,wid:61},GOOG:{hdg:210,len:2700,wid:46},
+  // Asia
+  RJTT:{hdg:156,len:3000,wid:60},RJAA:{hdg:340,len:4000,wid:61},
+  RKSI:{hdg:150,len:4000,wid:61},RKSS:{hdg:140,len:3200,wid:61},
+  ZSPD:{hdg:170,len:4000,wid:61},ZBAA:{hdg:010,len:3800,wid:61},
+  ZGGG:{hdg:020,len:3600,wid:61},VHHH:{hdg:070,len:3800,wid:61},
+  RCTP:{hdg:060,len:3660,wid:61},WMKK:{hdg:150,len:4124,wid:61},
+  WSSS:{hdg:020,len:4000,wid:61},VTBS:{hdg:200,len:4000,wid:61},
+  WIII:{hdg:260,len:3600,wid:61},RPLL:{hdg:060,len:3737,wid:61},
+  VOMM:{hdg:070,len:3658,wid:61},VIDP:{hdg:270,len:4430,wid:61},
+  VABB:{hdg:090,len:3660,wid:61},OPKC:{hdg:070,len:3400,wid:61},
+  VCBI:{hdg:040,len:3350,wid:61},OAKB:{hdg:290,len:3600,wid:61},
+  UAAA:{hdg:050,len:4000,wid:61},
+  // Oceania
+  YSSY:{hdg:155,len:3960,wid:60},YMML:{hdg:160,len:3657,wid:61},
+  YBBN:{hdg:010,len:3560,wid:61},YPPH:{hdg:210,len:3444,wid:61},
+  NZAA:{hdg:050,len:3635,wid:61},NZWN:{hdg:160,len:1935,wid:46},
+  NFFN:{hdg:020,len:3000,wid:46},PHNL:{hdg:080,len:3750,wid:61},
+  PGUM:{hdg:060,len:3197,wid:61},
 };
 let runwayMesh=null, runwayY=0, runwayHdgDeg=0, runwayLenM=0, runwayWidM=0;
 
@@ -2071,6 +2392,8 @@ function physicsStep(dt){
   if(plane.spoilerDeploy>0){
     const spLiftKill = plane.onGround ? plane.spoilerDeploy*0.92 : plane.spoilerDeploy*0.70;
     CL*=(1-spLiftKill);
+    // Ice penalty (Feature 20)
+    if(plane._iceLiftPenalty>0)CL*=(1-plane._iceLiftPenalty);
   }
   plane.stall=aAbs>stallA&&Va>15;
 
@@ -2370,7 +2693,8 @@ function physicsStep(dt){
   const dq=BABYLON.Quaternion.RotationYawPitchRoll(-plane.angVel.y*dt,plane.angVel.x*dt,-plane.angVel.z*dt);
   plane.quat.multiplyInPlace(dq);plane.quat.normalize();
 
-  if(plane.gForce>6.5){crash('OVER-G · '+plane.gForce.toFixed(1)+'g');return;}
+  // Only trigger over-G crash when airborne and not in takeoff rotation phase
+  if(plane.gForce>6.5 && !plane.onGround && plane.pos.y-(typeof ghPreview!=='undefined'?ghPreview:0)>15){crash('OVER-G · '+plane.gForce.toFixed(1)+'g');return;}
 
   // Stall close to ground = CFIT / controlled flight into terrain
   if(plane.stall && !plane.onGround){
@@ -5628,8 +5952,16 @@ startBtn.addEventListener('click',async()=>{
   createRunway(currentLocation.code);
   resetAircraft(currentLocation.lat,currentLocation.lon,currentLocation.elev);
   plane.hold=false;loadEl.textContent='Ready';status('flying');
+  // Re-enable start button so player can fly again without reloading
+  startBtn.disabled=false;
 });
 respawnBtn.addEventListener('click',respawn);
+// Always keep start button enabled after respawn too
+const _origRespawn=respawn;
+function respawn(){
+  _origRespawn();
+  try{startBtn.disabled=false;}catch(e){}
+}
   /* ================================================================== */
 /* ===== TYCOON / CAREER GAMIFICATION LAYER (self-contained) ======== */
 /* ================================================================== */
@@ -7873,4 +8205,1170 @@ void main(){
       }
     }catch(e){}
   };
+})();
+
+/* ═══════════════════════════════════════════════════════════════════
+   FEATURE 11 – G-FORCE GREYOUT / REDOUT OVERLAY
+   Positive G above 3g → tunnel-vision grey edges (greyout)
+   Negative G below -1g → red wash (redout)
+═══════════════════════════════════════════════════════════════════ */
+(function(){
+  const ov=document.createElement('div');
+  ov.id='gForceOverlay';
+  ov.style.cssText='position:fixed;inset:0;z-index:350;pointer-events:none;transition:opacity .15s;opacity:0;';
+  document.body.appendChild(ov);
+
+  // Radial tunnel for greyout
+  const grayOv=document.createElement('div');
+  grayOv.style.cssText='position:absolute;inset:0;background:radial-gradient(ellipse 65% 50% at 50% 50%,transparent 30%,rgba(180,180,180,.0) 50%,rgba(150,150,150,.9) 100%);opacity:0;transition:opacity .2s;';
+  ov.appendChild(grayOv);
+
+  // Red wash for redout
+  const redOv=document.createElement('div');
+  redOv.style.cssText='position:absolute;inset:0;background:rgba(180,0,0,.0);opacity:0;transition:opacity .2s;';
+  ov.appendChild(redOv);
+
+  function gfxTick(){
+    requestAnimationFrame(gfxTick);
+    try{
+      if(typeof plane==='undefined'||plane.crashed){grayOv.style.opacity=0;redOv.style.opacity=0;return;}
+      const g=plane.gForce||1;
+      // Greyout: starts at 3g, full at 6g
+      const gr=Math.max(0,Math.min(1,(g-3)/3));
+      grayOv.style.opacity=gr;
+      // Redout: starts at -1g, full at -3g
+      const rr=Math.max(0,Math.min(1,(-g-1)/2));
+      redOv.style.background=`rgba(180,0,0,${rr*0.55})`;
+      redOv.style.opacity=rr>0?1:0;
+      ov.style.opacity=(gr>0||rr>0)?1:0;
+    }catch(e){}
+  }
+  gfxTick();
+})();
+
+/* ═══════════════════════════════════════════════════════════════════
+   FEATURE 12 – TIRE SMOKE ON TOUCHDOWN
+   Particle puff at main gear contact when speed > 20 kts
+═══════════════════════════════════════════════════════════════════ */
+(function(){
+  const _prevTD=window._onTouchdown;
+  window._onTouchdown=(sink,hs,noGear,water)=>{
+    try{_prevTD&&_prevTD(sink,hs,noGear,water);}catch(e){}
+    if(noGear||water||hs<20)return;
+    try{
+      const scene=window._scene||BABYLON.Engine.LastCreatedScene;
+      if(!scene)return;
+      const pos=plane.pos.clone();
+      pos.y+=0.3;
+      // Left and right gear smoke burst
+      for(let side=-1;side<=1;side+=2){
+        const quat=plane.quat;
+        const right=new BABYLON.Vector3(1,0,0);
+        const rw=BABYLON.Vector3.TransformNormal(right,BABYLON.Matrix.RotationQuaternion(quat));
+        const gp=pos.add(rw.scale(side*3.5));
+        const ps=new BABYLON.ParticleSystem('tiresmoke'+Date.now()+side,80,scene);
+        ps.particleTexture=window._smokeTex||new BABYLON.Texture('data:image/png;base64,iVBORw0KGgo=',scene);
+        ps.emitter=BABYLON.MeshBuilder.CreateSphere('tse',{diameter:.1},scene);
+        ps.emitter.position.copyFrom(gp);
+        ps.emitter.isVisible=false;
+        ps.color1=new BABYLON.Color4(.85,.85,.85,.7);
+        ps.color2=new BABYLON.Color4(.6,.6,.6,.4);
+        ps.colorDead=new BABYLON.Color4(.4,.4,.4,0);
+        ps.minSize=0.4;ps.maxSize=2.5;
+        ps.minLifeTime=0.5;ps.maxLifeTime=1.4;
+        ps.emitRate=0;
+        ps.manualEmitCount=40+Math.round(hs*0.5);
+        ps.blendMode=BABYLON.ParticleSystem.BLENDMODE_STANDARD;
+        ps.minEmitPower=1;ps.maxEmitPower=3.5;
+        ps.direction1=new BABYLON.Vector3(-0.5,0.8,-0.5);
+        ps.direction2=new BABYLON.Vector3(0.5,2.5,0.5);
+        ps.gravity=new BABYLON.Vector3(0,-1,0);
+        ps.start();
+        setTimeout(()=>{try{ps.emitter.dispose();ps.dispose();}catch(e){}},3000);
+      }
+    }catch(e){}
+  };
+})();
+
+/* ═══════════════════════════════════════════════════════════════════
+   FEATURE 13 – CONTRAILS AT HIGH ALTITUDE
+   Wing-tip contrails above FL250 (7620m) when engines running
+═══════════════════════════════════════════════════════════════════ */
+(function(){
+  let contrailL=null,contrailR=null,contrailActive=false;
+  const CONTRAIL_ALT=7620; // meters (FL250)
+
+  function initContrails(){
+    const scene=window._scene||BABYLON.Engine.LastCreatedScene;
+    if(!scene||contrailL)return;
+    function makeContrail(tag){
+      const ps=new BABYLON.ParticleSystem('contrail_'+tag,300,scene);
+      ps.particleTexture=window._smokeTex||new BABYLON.Texture('data:image/png;base64,iVBORw0KGgo=',scene);
+      const em=BABYLON.MeshBuilder.CreateSphere('cte_'+tag,{diameter:.1},scene);
+      em.isVisible=false;
+      ps.emitter=em;
+      ps.color1=new BABYLON.Color4(1,1,1,.6);
+      ps.color2=new BABYLON.Color4(.9,.9,.95,.5);
+      ps.colorDead=new BABYLON.Color4(.8,.8,.85,0);
+      ps.minSize=1.0;ps.maxSize=3.5;
+      ps.minLifeTime=4;ps.maxLifeTime=9;
+      ps.emitRate=20;
+      ps.blendMode=BABYLON.ParticleSystem.BLENDMODE_STANDARD;
+      ps.minEmitPower=.5;ps.maxEmitPower=1.5;
+      ps.direction1=new BABYLON.Vector3(-.1,.1,-.1);
+      ps.direction2=new BABYLON.Vector3(.1,.3,.1);
+      ps.gravity=new BABYLON.Vector3(0,-.05,0);
+      return {ps,em};
+    }
+    contrailL=makeContrail('L');
+    contrailR=makeContrail('R');
+  }
+
+  function contrailTick(){
+    requestAnimationFrame(contrailTick);
+    try{
+      if(typeof plane==='undefined')return;
+      initContrails();
+      if(!contrailL||!contrailR)return;
+      const alt=plane.pos.y;
+      const engOn=(typeof ENG!=='undefined')&&(ENG.L.state==='RUNNING'||ENG.R.state==='RUNNING');
+      const shouldShow=alt>CONTRAIL_ALT&&engOn&&!plane.crashed;
+      if(shouldShow!==contrailActive){
+        contrailActive=shouldShow;
+        if(shouldShow){contrailL.ps.start();contrailR.ps.start();}
+        else{contrailL.ps.stop();contrailR.ps.stop();}
+      }
+      if(contrailActive){
+        const q=plane.quat;
+        const rw=BABYLON.Vector3.TransformNormal(new BABYLON.Vector3(1,0,0),BABYLON.Matrix.RotationQuaternion(q));
+        contrailL.em.position.copyFrom(plane.pos).addInPlace(rw.scale(-12)).addInPlaceFromFloats(0,-.5,0);
+        contrailR.em.position.copyFrom(plane.pos).addInPlace(rw.scale(12)).addInPlaceFromFloats(0,-.5,0);
+      }
+    }catch(e){}
+  }
+  contrailTick();
+})();
+
+/* ═══════════════════════════════════════════════════════════════════
+   FEATURE 14 – BUTTER CHALLENGE PERSONAL BEST TRACKER
+   Tracks best (lowest) touchdown FPM, "butter" badge at <100 fpm
+═══════════════════════════════════════════════════════════════════ */
+(function(){
+  const PB_KEY='sim_butterPB';
+  function getPB(){try{return parseInt(localStorage.getItem(PB_KEY))||9999;}catch(e){return 9999;}}
+  function setPB(v){try{localStorage.setItem(PB_KEY,v);}catch(e){}}
+
+  // PB display badge
+  const badge=document.createElement('div');
+  badge.id='butterBadge';
+  const pb=getPB();
+  badge.style.cssText='position:fixed;bottom:56px;left:14px;z-index:400;background:#08111f;border:1px solid #1e4a7a;border-radius:8px;padding:5px 11px;font-family:monospace;font-size:11px;color:#9cf;font-weight:700;cursor:default;opacity:0.85;';
+  badge.title='Your personal best landing rate';
+  badge.textContent='🧈 PB: '+(pb<9999?pb+' fpm':'—');
+  document.body.appendChild(badge);
+
+  const _prevTD=window._onTouchdown;
+  window._onTouchdown=(sink,hs,noGear,water)=>{
+    try{_prevTD&&_prevTD(sink,hs,noGear,water);}catch(e){}
+    if(noGear||water)return;
+    try{
+      const fpm=Math.round(Math.abs(sink*196.85));
+      const cur=getPB();
+      if(fpm<cur){
+        setPB(fpm);
+        badge.textContent='🧈 PB: '+fpm+' fpm';
+        // Celebrate!
+        const msg=document.createElement('div');
+        msg.style.cssText='position:fixed;top:30%;left:50%;transform:translateX(-50%);z-index:600;background:linear-gradient(135deg,#0a2040,#0d3060);border:2px solid #5af;border-radius:14px;padding:18px 32px;font-family:monospace;font-weight:900;font-size:18px;color:#5af;text-align:center;animation:pbPop .4s ease-out;pointer-events:none;';
+        msg.innerHTML='🧈 NEW PERSONAL BEST!<br><span style="font-size:13px;color:#9cf;font-weight:400">'+fpm+' fpm '+(fpm<50?'· ABSOLUTELY BUTTERED':fpm<100?'· GREASER!':'· SMOOTH!')+'</span>';
+        if(!document.getElementById('pbPopStyle')){
+          const s=document.createElement('style');s.id='pbPopStyle';
+          s.textContent='@keyframes pbPop{0%{transform:translateX(-50%) scale(.6);opacity:0}80%{transform:translateX(-50%) scale(1.05)}100%{transform:translateX(-50%) scale(1);opacity:1}}';
+          document.head.appendChild(s);
+        }
+        document.body.appendChild(msg);
+        setTimeout(()=>msg.remove(),4000);
+      } else if(fpm<100){
+        // Still show butter badge even if not PB
+        badge.textContent='🧈 PB: '+cur+' fpm';
+        badge.style.borderColor='#5af';
+        setTimeout(()=>{badge.style.borderColor='#1e4a7a';},3000);
+      }
+    }catch(e){}
+  };
+})();
+
+/* ═══════════════════════════════════════════════════════════════════
+   FEATURE 15 – NIGHT LANDING MODE
+   Dims world to night, adds runway edge lights, cockpit glow
+═══════════════════════════════════════════════════════════════════ */
+(function(){
+  let nightMode=false;
+  const runwayLights=[];
+
+  function toggleNight(){
+    nightMode=!nightMode;
+    applyNight();
+    try{if(typeof showMsg!=='undefined')showMsg(nightMode?'🌙 NIGHT MODE · ON':'☀ NIGHT MODE · OFF',1500);}catch(e){}
+  }
+
+  function applyNight(){
+    try{
+      const scene=window._scene||BABYLON.Engine.LastCreatedScene;
+      if(!scene)return;
+      // Sky / ambient
+      scene.clearColor=nightMode?new BABYLON.Color4(0.01,0.02,0.06,1):new BABYLON.Color4(0.53,0.81,0.92,1);
+      scene.ambientColor=nightMode?new BABYLON.Color3(0.02,0.03,0.06):new BABYLON.Color3(0.4,0.4,0.45);
+      // Adjust sunlight
+      scene.lights.forEach(l=>{
+        if(l instanceof BABYLON.DirectionalLight||l instanceof BABYLON.HemisphericLight){
+          if(!l._origIntensity)l._origIntensity=l.intensity;
+          l.intensity=nightMode?l._origIntensity*0.05:l._origIntensity;
+        }
+      });
+      // Add/remove runway edge lights
+      if(nightMode){
+        spawnRunwayLights(scene);
+      } else {
+        runwayLights.forEach(l=>{try{l.dispose();}catch(e){}});
+        runwayLights.length=0;
+      }
+    }catch(e){}
+  }
+
+  function spawnRunwayLights(scene){
+    // Simple row of white spheres along runway edges with point lights
+    const runLen=1800,runW=22.5;
+    const spacing=60;
+    for(let z=-runLen/2;z<=runLen/2;z+=spacing){
+      for(let side=-1;side<=1;side+=2){
+        const sphere=BABYLON.MeshBuilder.CreateSphere('rl',{diameter:.8},scene);
+        sphere.position.set(side*runW,0.3,z);
+        const mat=new BABYLON.StandardMaterial('rlm'+z+side,scene);
+        mat.emissiveColor=z<0?new BABYLON.Color3(1,1,1):new BABYLON.Color3(1,1,1);
+        mat.diffuseColor=new BABYLON.Color3(0,0,0);
+        // Threshold lights: red on approach end, green at departure
+        if(Math.abs(z)>runLen/2-spacing*1.5){
+          mat.emissiveColor=z<0?new BABYLON.Color3(1,0,0):new BABYLON.Color3(0,1,0);
+        }
+        sphere.material=mat;
+        // Point light per pair (coarser — every 3rd to save performance)
+        if(Math.abs(z%(spacing*3))<1){
+          const pl=new BABYLON.PointLight('rpl'+z,new BABYLON.Vector3(0,1,z),scene);
+          pl.diffuse=new BABYLON.Color3(.8,.8,.9);
+          pl.intensity=0.6;
+          pl.range=30;
+          runwayLights.push(pl);
+        }
+        runwayLights.push(sphere);
+      }
+    }
+    // VASI lights at threshold
+    for(let side=-1;side<=1;side+=2){
+      const vasi=BABYLON.MeshBuilder.CreateSphere('vasi',{diameter:1.2},scene);
+      vasi.position.set(side*runW*1.8,-0.2,-300);
+      const vm=new BABYLON.StandardMaterial('vasim',scene);
+      vm.emissiveColor=new BABYLON.Color3(1,0.1,0.1);
+      vm.diffuseColor=new BABYLON.Color3(0,0,0);
+      vasi.material=vm;
+      runwayLights.push(vasi);
+    }
+  }
+
+  // Button
+  const btn=document.createElement('button');
+  btn.id='nightModeBtn';
+  btn.textContent='🌙 Night';
+  btn.title='Toggle night landing mode (N)';
+  btn.style.cssText='position:fixed;bottom:92px;left:14px;z-index:400;background:#08111f;color:#9cf;border:1px solid #1e4a7a;border-radius:8px;padding:5px 11px;font-size:11px;font-weight:700;cursor:pointer;';
+  document.body.appendChild(btn);
+  btn.onclick=toggleNight;
+  document.addEventListener('keydown',e=>{
+    if(e.code==='KeyN'&&!e.ctrlKey&&!e.altKey&&document.activeElement.tagName!=='INPUT')toggleNight();
+  });
+})();
+
+/* ═══════════════════════════════════════════════════════════════════
+   FEATURE 16 – RANDOM FAILURE ROULETTE
+   Spin and get a random failure mid-flight
+═══════════════════════════════════════════════════════════════════ */
+(function(){
+  const FAULTS_POOL=[
+    {code:'FLAMEOUT',label:'ENGINE FLAMEOUT'},
+    {code:'BIRD_STRIKE',label:'BIRD STRIKE'},
+    {code:'OIL_PRESS',label:'OIL PRESSURE FAULT'},
+    {code:'FUEL_LEAK',label:'FUEL LEAK'},
+    {code:'SPOILER_JAM',label:'SPOILER JAM'},
+    {code:'TRIM_RUNAWAY',label:'TRIM RUNAWAY'},
+    {code:'RUDDER_JAM',label:'RUDDER JAM'},
+    {code:'AIL_JAM',label:'AILERON JAM'},
+    {code:'HYD_LOSS',label:'HYDRAULIC LOSS'},
+    {code:'ENG_SURGE',label:'ENGINE SURGE'},
+    {code:'ELEC_BUS',label:'ELECTRICAL BUS FAULT'},
+    {code:'CABIN_ALT',label:'CABIN PRESSURIZATION'},
+    {code:'TIRE_BURST',label:'TIRE BURST'},
+  ];
+
+  const btn=document.createElement('button');
+  btn.id='rouletteBtn';
+  btn.textContent='🎰 Roulette';
+  btn.title='Spin for a random failure (R)';
+  btn.style.cssText='position:fixed;bottom:128px;left:14px;z-index:400;background:#1a0808;color:#f96;border:1px solid #4a1a1a;border-radius:8px;padding:5px 11px;font-size:11px;font-weight:700;cursor:pointer;';
+  document.body.appendChild(btn);
+
+  function spinRoulette(){
+    try{
+      // Spinning animation via repeated fast messages
+      let i=0;
+      const iv=setInterval(()=>{
+        const r=FAULTS_POOL[(Math.random()*FAULTS_POOL.length)|0];
+        if(typeof showMsg!=='undefined')showMsg('🎰 '+r.label,300);
+        i++;
+        if(i>8){
+          clearInterval(iv);
+          const chosen=FAULTS_POOL[(Math.random()*FAULTS_POOL.length)|0];
+          if(typeof faults!=='undefined'){
+            faults.inject(chosen.code);
+          }
+          setTimeout(()=>{
+            if(typeof showMsg!=='undefined')showMsg('⚡ FAILURE: '+chosen.label,4000);
+          },400);
+        }
+      },120);
+    }catch(e){}
+  }
+
+  btn.onclick=spinRoulette;
+  document.addEventListener('keydown',e=>{
+    if(e.code==='KeyR'&&!e.ctrlKey&&!e.altKey&&document.activeElement.tagName!=='INPUT')spinRoulette();
+  });
+})();
+
+/* ═══════════════════════════════════════════════════════════════════
+   FEATURE 17 – ATC CHATTER TTS
+   Periodic ATC voice callouts using Web Speech API
+   Callsign vectors, approach clearances, runway assignments
+═══════════════════════════════════════════════════════════════════ */
+(function(){
+  if(!window.speechSynthesis)return;
+  let atcEnabled=false;
+  let lastCallout=0;
+  const CALLSIGN='Speedbird 4 7';
+  const RUNWAY='28 Left';
+
+  const phrases_approach=[
+    `${CALLSIGN}, descend and maintain 3,000 feet, expect ILS approach runway ${RUNWAY}.`,
+    `${CALLSIGN}, turn left heading 2-7-0, intercept the localizer.`,
+    `${CALLSIGN}, you are number 2 for landing, runway ${RUNWAY}, wind 2-8-0 at 12.`,
+    `${CALLSIGN}, contact tower on 1-1-8 decimal 7.`,
+    `${CALLSIGN}, gear check, cleared to land runway ${RUNWAY}, wind 2-6-0 at 8.`,
+  ];
+  const phrases_climb=[
+    `${CALLSIGN}, radar contact, turn left heading 1-8-0, climb and maintain flight level 2-4-0.`,
+    `${CALLSIGN}, continue climb, flight level 3-5-0 when able.`,
+    `${CALLSIGN}, traffic 12 o'clock, 10 miles, opposite direction, altitude unknown.`,
+    `${CALLSIGN}, contact center on 1-3-2 decimal 5, good day.`,
+  ];
+
+  function speak(text){
+    try{
+      if(!atcEnabled)return;
+      window.speechSynthesis.cancel();
+      const u=new SpeechSynthesisUtterance(text);
+      u.rate=0.92;u.pitch=0.85;u.volume=0.7;
+      // Try to find a male voice
+      const voices=window.speechSynthesis.getVoices();
+      const eng=voices.find(v=>v.lang.startsWith('en')&&v.name.toLowerCase().includes('male'))||
+                voices.find(v=>v.lang.startsWith('en'))||voices[0];
+      if(eng)u.voice=eng;
+      window.speechSynthesis.speak(u);
+    }catch(e){}
+  }
+
+  function atcTick(){
+    try{
+      if(!atcEnabled||typeof plane==='undefined'||plane.crashed)return;
+      const now=Date.now();
+      if(now-lastCallout<10000)return; // 25s between callouts
+      lastCallout=now;
+      const agl=(plane.pos.y-(typeof ghPreview!=='undefined'?ghPreview:0))*3.28084;
+      const pool=agl<5000?phrases_approach:phrases_climb;
+      const phrase=pool[(Math.random()*pool.length)|0];
+      speak(phrase);
+    }catch(e){}
+  }
+
+  setInterval(atcTick,5000);
+
+  // Toggle button
+  const btn=document.createElement('button');
+  btn.id='atcBtn';
+  btn.textContent='📻 ATC';
+  btn.title='Toggle ATC chatter (T)';
+  btn.style.cssText='position:fixed;bottom:164px;left:14px;z-index:400;background:#08111f;color:#6a9;border:1px solid #1e4a5a;border-radius:8px;padding:5px 11px;font-size:11px;font-weight:700;cursor:pointer;';
+  document.body.appendChild(btn);
+
+  function toggleATC(){
+    atcEnabled=!atcEnabled;
+    btn.style.background=atcEnabled?'#0a2a1a':'#08111f';
+    btn.style.borderColor=atcEnabled?'#3a8a5a':'#1e4a5a';
+    try{if(typeof showMsg!=='undefined')showMsg(atcEnabled?'📻 ATC CHATTER · ON':'📻 ATC CHATTER · OFF',1500);}catch(e){}
+    if(atcEnabled){lastCallout=0;} // Fire immediately
+    else{window.speechSynthesis.cancel();}
+  }
+
+  btn.onclick=toggleATC;
+  document.addEventListener('keydown',e=>{
+    if(e.code==='KeyT'&&!e.ctrlKey&&!e.altKey&&document.activeElement.tagName!=='INPUT')toggleATC();
+  });
+})();
+
+/* ═══════════════════════════════════════════════════════════════════
+   FEATURE 18 – RAPID DECOMPRESSION ABOVE FL250
+   Forget to… well, it auto-pressurizes but a random event can
+   blow out a window above FL250, requiring emergency descent.
+═══════════════════════════════════════════════════════════════════ */
+(function(){
+  let decompActive=false,decompTimer=0,decompWarnInterval=null;
+  const FL250_M=7620;
+
+  function triggerDecomp(){
+    if(decompActive||typeof plane==='undefined'||plane.crashed)return;
+    if(plane.pos.y<FL250_M)return;
+    decompActive=true;
+    try{if(typeof showMsg!=='undefined')showMsg('💨 RAPID DECOMPRESSION · DESCEND IMMEDIATELY',5000);}catch(e){}
+    // Flash screen
+    try{if(typeof wxFlash!=='undefined'){wxFlash.style.opacity='.8';setTimeout(()=>{wxFlash.style.opacity='0';},300);}}catch(e){}
+    // Urgent blinking alert
+    const alert=document.createElement('div');
+    alert.id='decompAlert';
+    alert.style.cssText='position:fixed;top:15%;left:50%;transform:translateX(-50%);z-index:700;background:rgba(150,0,0,.95);color:#fff;font-family:monospace;font-weight:900;font-size:20px;padding:12px 28px;border-radius:10px;letter-spacing:.1em;pointer-events:none;text-align:center;border:2px solid #ff4444;box-shadow:0 0 40px rgba(255,0,0,.8);display:none;';
+    alert.innerHTML='💨 RAPID DECOMPRESSION<br><span style="font-size:13px;font-weight:400">DESCEND TO 10,000 FT · OXYGEN MASKS</span>';
+    document.body.appendChild(alert);
+
+    let countdown=30;
+    alert.style.display='block';
+    decompWarnInterval=setInterval(()=>{
+      countdown--;
+      alert.style.display=(countdown%2===0)?'block':'none';
+      if(countdown<=0||!decompActive){
+        clearInterval(decompWarnInterval);
+        try{alert.remove();}catch(e){}
+        if(decompActive&&typeof plane!=='undefined'&&!plane.crashed&&plane.pos.y>FL250_M){
+          try{crash('HYPOXIA · DECOMPRESSION AT FL'+Math.round(plane.pos.y*3.28084/100),'',{});}catch(e){}
+        }
+        decompActive=false;
+      }
+      // Auto-cancel if they descended
+      if(typeof plane!=='undefined'&&plane.pos.y<FL250_M-1000){
+        clearInterval(decompWarnInterval);
+        decompActive=false;
+        try{alert.remove();}catch(e){}
+        try{if(typeof showMsg!=='undefined')showMsg('✓ PRESSURIZATION RESTORED',2000);}catch(e){}
+      }
+    },1000);
+  }
+
+  // Random decompression event above FL250
+  function decompCheck(){
+    try{
+      if(!decompActive&&typeof plane!=='undefined'&&!plane.crashed&&!plane.onGround){
+        if(plane.pos.y>FL250_M&&Math.random()<0.00003){triggerDecomp();}
+      }
+    }catch(e){}
+    requestAnimationFrame(decompCheck);
+  }
+  decompCheck();
+
+  // Fault injection via F4
+  window._triggerDecomp=triggerDecomp;
+  document.addEventListener('keydown',e=>{
+    if(e.code==='F4'){e.preventDefault();triggerDecomp();}
+  });
+})();
+
+/* ═══════════════════════════════════════════════════════════════════
+   FEATURE 19 – SHORT FIELD LANDING SCORING
+   Measures landing roll distance from touchdown to full stop
+   Shows scored distance vs target on overlay
+═══════════════════════════════════════════════════════════════════ */
+(function(){
+  let sfActive=false,sfTouchPos=null,sfBest=null;
+  const SF_KEY='sim_sfBest';
+  function getSFBest(){try{return parseFloat(localStorage.getItem(SF_KEY))||null;}catch(e){return null;}}
+  function setSFBest(v){try{localStorage.setItem(SF_KEY,v);}catch(e){}}
+  sfBest=getSFBest();
+
+  // Enable via button
+  const btn=document.createElement('button');
+  btn.id='sfBtn';
+  btn.textContent='⛳ Short Field';
+  btn.title='Short field landing scoring mode';
+  btn.style.cssText='position:fixed;bottom:200px;left:14px;z-index:400;background:#08111f;color:#9fc;border:1px solid #1e5a3a;border-radius:8px;padding:5px 11px;font-size:11px;font-weight:700;cursor:pointer;';
+  document.body.appendChild(btn);
+
+  let sfEnabled=false;
+  btn.onclick=()=>{
+    sfEnabled=!sfEnabled;
+    btn.style.background=sfEnabled?'#0a2a18':'#08111f';
+    btn.style.borderColor=sfEnabled?'#3a8a5a':'#1e5a3a';
+    try{if(typeof showMsg!=='undefined')showMsg(sfEnabled?'⛳ SHORT FIELD MODE · ON · Land and stop ASAP!':'⛳ SHORT FIELD MODE · OFF',2000);}catch(e){}
+  };
+
+  // Hook touchdown
+  const _prevTD=window._onTouchdown;
+  window._onTouchdown=(sink,hs,noGear,water)=>{
+    try{_prevTD&&_prevTD(sink,hs,noGear,water);}catch(e){}
+    if(!sfEnabled||noGear||water||plane.crashed)return;
+    sfTouchPos=plane.pos.clone();
+    sfActive=true;
+  };
+
+  // Monitor for stop
+  function sfTick(){
+    requestAnimationFrame(sfTick);
+    try{
+      if(!sfActive||!sfTouchPos||!sfEnabled)return;
+      const spd=Math.hypot(plane.vel.x,plane.vel.z)*1.944;
+      if(spd<2&&plane.onGround){
+        sfActive=false;
+        const dist=Math.round(BABYLON.Vector3.Distance(sfTouchPos,plane.pos));
+        const prev=getSFBest();
+        const isNew=prev===null||dist<prev;
+        if(isNew)setSFBest(dist);
+        sfBest=isNew?dist:prev;
+
+        const card=document.createElement('div');
+        card.style.cssText='position:fixed;top:22%;left:50%;transform:translateX(-50%);z-index:600;background:linear-gradient(135deg,#051a08,#0a2a10);border:2px solid #3a8;border-radius:14px;padding:20px 36px;font-family:monospace;text-align:center;pointer-events:none;animation:pbPop .4s ease-out;';
+        let scoreColor=dist<400?'#4f8':'#8f4';
+        if(dist>800)scoreColor='#f84';
+        card.innerHTML=`<div style="font-size:11px;color:#6a9;font-weight:700;letter-spacing:.1em">SHORT FIELD SCORE</div><div style="font-size:36px;font-weight:900;color:${scoreColor};margin:4px 0">${dist} m</div><div style="font-size:12px;color:#6a9">${dist<300?'🏆 EXCEPTIONAL':dist<500?'✅ SHORT FIELD':dist<800?'NOMINAL':'⚠ LONG ROLLOUT'}</div>${isNew?'<div style="font-size:11px;color:#5af;margin-top:6px">★ NEW BEST!</div>':''}<div style="font-size:10px;color:#3a5;margin-top:4px">Best: ${sfBest||dist} m</div>`;
+        document.body.appendChild(card);
+        setTimeout(()=>card.remove(),5000);
+        sfTouchPos=null;
+      }
+    }catch(e){}
+  }
+  sfTick();
+})();
+
+/* ═══════════════════════════════════════════════════════════════════
+   FEATURE 20 – ICE BUILDUP ON WINGS (ANTI-ICE SYSTEM)
+   Above FL150 in clouds/storm, ice reduces lift. Anti-ice toggle.
+═══════════════════════════════════════════════════════════════════ */
+(function(){
+  let iceLevel=0; // 0..1
+  let antiIceOn=false;
+
+  // Anti-ice button
+  const btn=document.createElement('button');
+  btn.id='antiIceBtn';
+  btn.textContent='❄ Anti-Ice OFF';
+  btn.style.cssText='position:fixed;top:56px;right:14px;z-index:400;background:#08111f;color:#8cf;border:1px solid #1e4a7a;border-radius:8px;padding:5px 11px;font-size:11px;font-weight:700;cursor:pointer;display:none;';
+  document.body.appendChild(btn);
+
+  btn.onclick=()=>{
+    antiIceOn=!antiIceOn;
+    btn.textContent='❄ Anti-Ice '+(antiIceOn?'ON':'OFF');
+    btn.style.background=antiIceOn?'#0a1a3a':'#08111f';
+    btn.style.borderColor=antiIceOn?'#5af':'#1e4a7a';
+    btn.style.color=antiIceOn?'#5af':'#8cf';
+    try{if(typeof showMsg!=='undefined')showMsg(antiIceOn?'❄ ANTI-ICE · ON':'❄ ANTI-ICE · OFF',1500);}catch(e){}
+  };
+
+  // Ice HUD element
+  const iceHud=document.createElement('div');
+  iceHud.id='iceHud';
+  iceHud.style.cssText='position:fixed;top:96px;right:14px;z-index:400;background:rgba(0,20,50,.85);border:1px solid #3af;border-radius:8px;padding:5px 11px;font-family:monospace;font-size:11px;color:#8cf;display:none;letter-spacing:.05em;';
+  document.body.appendChild(iceHud);
+
+  function iceTick(){
+    requestAnimationFrame(iceTick);
+    try{
+      if(typeof plane==='undefined'||plane.crashed)return;
+      const alt=plane.pos.y*3.28084; // feet
+      const icing_conditions=(alt>6000&&alt<35000)&&
+        (typeof currentWeather!=='undefined')&&
+        (currentWeather===WEATHER.cloudy||currentWeather===WEATHER.storm||currentWeather===WEATHER.rain);
+
+      if(icing_conditions&&!antiIceOn&&!plane.onGround){
+        iceLevel=Math.min(1,iceLevel+0.00003);
+      } else if(antiIceOn||plane.onGround){
+        iceLevel=Math.max(0,iceLevel-0.0001);
+      }
+
+      // Show anti-ice button when conditions exist or ice is present
+      const show=icing_conditions||iceLevel>0.01;
+      btn.style.display=show?'block':'none';
+      iceHud.style.display=(iceLevel>0.02)?'block':'none';
+
+      if(iceLevel>0.02){
+        const pct=Math.round(iceLevel*100);
+        iceHud.textContent='ICE: '+pct+'% · LIFT -'+Math.round(iceLevel*25)+'%';
+        iceHud.style.color=iceLevel>0.5?'#f84':iceLevel>0.25?'#fa4':'#8cf';
+        if(iceLevel>0.3&&Math.random()<0.01)try{if(typeof showMsg!=='undefined')showMsg('⚠ ICE ACCUMULATION · TURN ON ANTI-ICE',3000);}catch(e){}
+      }
+
+      // Apply lift reduction (injected into physics via a patch on plane object)
+      plane._iceLiftPenalty=iceLevel*0.25; // up to 25% lift loss
+      if(iceLevel>0.8&&Math.random()<0.002){
+        try{crash('ICE ACCRETION · LOSS OF LIFT');}catch(e){}
+      }
+    }catch(e){}
+  }
+  iceTick();
+})();
+
+
+/* ============================================================
+   FEATURE 21 — AI TRAFFIC FIRE & ENGINE SMOKE
+   ============================================================ */
+(()=>{
+  'use strict';
+
+  // Per-traffic-entry fire/smoke systems keyed by root ID
+  const trafficFX = new Map();
+
+  function makeTrafficFire(pos, scene) {
+    const fx = {};
+
+    // Engine fire — orange/red particles
+    const fire = new BABYLON.ParticleSystem('tfire', 220, scene);
+    fire.particleTexture = new BABYLON.Texture('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAYAAACp8Z5+AAAAH0lEQVQIW2NkYGD4z8BAAIxgAkYwgQkYGBj+k8ADAB5LA2ULfuiZAAAAAElFTkSuQmCC', scene);
+    fire.emitter = new BABYLON.Vector3(pos.x, pos.y, pos.z);
+    fire.minEmitBox = new BABYLON.Vector3(-1, -0.5, -1);
+    fire.maxEmitBox = new BABYLON.Vector3(1, 0.5, 1);
+    fire.color1 = new BABYLON.Color4(1, 0.5, 0.1, 1);
+    fire.color2 = new BABYLON.Color4(1, 0.15, 0.02, 0.8);
+    fire.colorDead = new BABYLON.Color4(0.2, 0.2, 0.2, 0);
+    fire.minSize = 1.5; fire.maxSize = 4.5;
+    fire.minLifeTime = 0.3; fire.maxLifeTime = 0.9;
+    fire.emitRate = 120;
+    fire.blendMode = BABYLON.ParticleSystem.BLENDMODE_ADD;
+    fire.gravity = new BABYLON.Vector3(0, 4, 0);
+    fire.direction1 = new BABYLON.Vector3(-2, 4, -2);
+    fire.direction2 = new BABYLON.Vector3(2, 8, 2);
+    fire.minAngularSpeed = 0; fire.maxAngularSpeed = Math.PI;
+    fire.minEmitPower = 1.5; fire.maxEmitPower = 3;
+    fire.updateSpeed = 0.025;
+    fire.start();
+    fx.fire = fire;
+
+    // Black smoke trail
+    const smoke = new BABYLON.ParticleSystem('tsmoke', 150, scene);
+    smoke.particleTexture = fire.particleTexture;
+    smoke.emitter = new BABYLON.Vector3(pos.x, pos.y, pos.z);
+    smoke.minEmitBox = new BABYLON.Vector3(-0.5, 0, -0.5);
+    smoke.maxEmitBox = new BABYLON.Vector3(0.5, 0, 0.5);
+    smoke.color1 = new BABYLON.Color4(0.12, 0.10, 0.10, 0.95);
+    smoke.color2 = new BABYLON.Color4(0.05, 0.05, 0.05, 0.7);
+    smoke.colorDead = new BABYLON.Color4(0.05, 0.05, 0.05, 0);
+    smoke.minSize = 4; smoke.maxSize = 12;
+    smoke.minLifeTime = 1.2; smoke.maxLifeTime = 3.0;
+    smoke.emitRate = 55;
+    smoke.blendMode = BABYLON.ParticleSystem.BLENDMODE_STANDARD;
+    smoke.gravity = new BABYLON.Vector3(0, 6, 0);
+    smoke.direction1 = new BABYLON.Vector3(-1, 5, -1);
+    smoke.direction2 = new BABYLON.Vector3(1, 10, 1);
+    smoke.minEmitPower = 2; smoke.maxEmitPower = 5;
+    smoke.updateSpeed = 0.025;
+    smoke.start();
+    fx.smoke = smoke;
+
+    // Flicker point light
+    const light = new BABYLON.PointLight('tfl', new BABYLON.Vector3(pos.x, pos.y, pos.z), scene);
+    light.diffuse = new BABYLON.Color3(1, 0.4, 0.05);
+    light.intensity = 0;
+    light.range = 80;
+    fx.light = light;
+    fx.lightPhase = Math.random() * Math.PI * 2;
+
+    return fx;
+  }
+
+  function disposeFX(fx) {
+    try { fx.fire.dispose(); } catch(e) {}
+    try { fx.smoke.dispose(); } catch(e) {}
+    try { fx.light.dispose(); } catch(e) {}
+  }
+
+  // Chance a traffic plane is on fire (engine trail visible)
+  // About 1-in-8 spawn as "distressed" — gives variety
+  const fxTick = () => {
+    requestAnimationFrame(fxTick);
+    try {
+      if (typeof traffic === 'undefined' || typeof scene === 'undefined') return;
+      const now = performance.now() / 1000;
+
+      // Sync FX entries with current traffic list
+      const alive = new Set();
+      for (const t of traffic) {
+        const id = t.root.uniqueId;
+        alive.add(id);
+        if (!trafficFX.has(id)) {
+          // 25% chance to spawn on fire / smoking
+          if (Math.random() < 0.25) {
+            trafficFX.set(id, makeTrafficFire(t.pos, scene));
+          } else {
+            trafficFX.set(id, null); // mark as checked, no FX
+          }
+        }
+        const fx = trafficFX.get(id);
+        if (!fx) continue;
+
+        // Track position to traffic root
+        const p = t.pos;
+        fx.fire.emitter.set(p.x, p.y - 1, p.z);
+        fx.smoke.emitter.set(p.x, p.y - 1, p.z);
+        fx.light.position.set(p.x, p.y, p.z);
+
+        // Flicker the fire light
+        fx.lightPhase += 0.18;
+        fx.light.intensity = 1.5 + Math.sin(fx.lightPhase * 7.3) * 0.8 + Math.sin(fx.lightPhase * 13.1) * 0.4;
+      }
+
+      // Dispose FX for traffic that no longer exists
+      for (const [id, fx] of trafficFX) {
+        if (!alive.has(id)) {
+          if (fx) disposeFX(fx);
+          trafficFX.delete(id);
+        }
+      }
+    } catch(e) {}
+  };
+  fxTick();
+})();
+
+/* ============================================================
+   FEATURE 22 — ENHANCED CRASH PHYSICS + FIREBALL DEBRIS
+   ============================================================ */
+(()=>{
+  'use strict';
+
+  let crashDebris = [];
+  let crashFireball = null;
+  let crashFireballSmoke = null;
+  let crashFireLight = null;
+  let crashActive = false;
+  let crashTime = 0;
+
+  function clearCrashFX() {
+    for (const d of crashDebris) {
+      try { d.mesh.dispose(); } catch(e) {}
+      try { if(d.trail) d.trail.dispose(); } catch(e) {}
+    }
+    crashDebris = [];
+    if (crashFireball) { try { crashFireball.dispose(); } catch(e) {} crashFireball = null; }
+    if (crashFireballSmoke) { try { crashFireballSmoke.dispose(); } catch(e) {} crashFireballSmoke = null; }
+    if (crashFireLight) { try { crashFireLight.dispose(); } catch(e) {} crashFireLight = null; }
+    crashActive = false;
+  }
+
+  function spawnCrashFX(pos, vel, opts) {
+    clearCrashFX();
+    crashActive = true;
+    crashTime = 0;
+
+    const impactSpd = Math.hypot(vel.x, vel.y, vel.z);
+    const severity = Math.min(1, impactSpd / 120); // 0..1
+
+    // ── Fireball ──────────────────────────────────────────────
+    crashFireball = new BABYLON.ParticleSystem('cfb', 600, scene);
+    crashFireball.particleTexture = new BABYLON.Texture('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAYAAACp8Z5+AAAAH0lEQVQIW2NkYGD4z8BAAIxgAkYwgQkYGBj+k8ADAB5LA2ULfuiZAAAAAElFTkSuQmCC', scene);
+    crashFireball.emitter = pos.clone();
+    crashFireball.minEmitBox = new BABYLON.Vector3(-3,-1,-3);
+    crashFireball.maxEmitBox = new BABYLON.Vector3(3,1,3);
+    crashFireball.color1 = new BABYLON.Color4(1, 0.7, 0.1, 1);
+    crashFireball.color2 = new BABYLON.Color4(1, 0.2, 0.0, 1);
+    crashFireball.colorDead = new BABYLON.Color4(0.1, 0.1, 0.1, 0);
+    crashFireball.minSize = 4 + severity * 8; crashFireball.maxSize = 10 + severity * 18;
+    crashFireball.minLifeTime = 0.5; crashFireball.maxLifeTime = 1.8;
+    crashFireball.emitRate = Math.round(280 + severity * 320);
+    crashFireball.blendMode = BABYLON.ParticleSystem.BLENDMODE_ADD;
+    crashFireball.gravity = new BABYLON.Vector3(0, 5, 0);
+    crashFireball.direction1 = new BABYLON.Vector3(-8, 6, -8);
+    crashFireball.direction2 = new BABYLON.Vector3(8, 22, 8);
+    crashFireball.minEmitPower = 3 + severity * 6; crashFireball.maxEmitPower = 8 + severity * 14;
+    crashFireball.updateSpeed = 0.02;
+    crashFireball.start();
+
+    // Auto-stop emitting after 1.2s — fire dissipates
+    setTimeout(() => { try { crashFireball.emitRate = 0; } catch(e) {} }, 1200);
+
+    // ── Black billowing smoke ──────────────────────────────────
+    crashFireballSmoke = new BABYLON.ParticleSystem('cfsm', 300, scene);
+    crashFireballSmoke.particleTexture = crashFireball.particleTexture;
+    crashFireballSmoke.emitter = pos.clone();
+    crashFireballSmoke.minEmitBox = new BABYLON.Vector3(-4,-1,-4);
+    crashFireballSmoke.maxEmitBox = new BABYLON.Vector3(4,1,4);
+    crashFireballSmoke.color1 = new BABYLON.Color4(0.08, 0.06, 0.06, 1);
+    crashFireballSmoke.color2 = new BABYLON.Color4(0.03, 0.03, 0.03, 0.8);
+    crashFireballSmoke.colorDead = new BABYLON.Color4(0.02, 0.02, 0.02, 0);
+    crashFireballSmoke.minSize = 8 + severity * 12; crashFireballSmoke.maxSize = 22 + severity * 30;
+    crashFireballSmoke.minLifeTime = 3; crashFireballSmoke.maxLifeTime = 8;
+    crashFireballSmoke.emitRate = 80;
+    crashFireballSmoke.blendMode = BABYLON.ParticleSystem.BLENDMODE_STANDARD;
+    crashFireballSmoke.gravity = new BABYLON.Vector3(0, 4, 0);
+    crashFireballSmoke.direction1 = new BABYLON.Vector3(-2, 8, -2);
+    crashFireballSmoke.direction2 = new BABYLON.Vector3(2, 20, 2);
+    crashFireballSmoke.minEmitPower = 1; crashFireballSmoke.maxEmitPower = 3;
+    crashFireballSmoke.updateSpeed = 0.015;
+    crashFireballSmoke.start();
+    setTimeout(() => { try { crashFireballSmoke.emitRate = 0; } catch(e) {} }, 6000);
+
+    // ── Dynamic fire light ─────────────────────────────────────
+    crashFireLight = new BABYLON.PointLight('cfl', pos.clone(), scene);
+    crashFireLight.diffuse = new BABYLON.Color3(1, 0.45, 0.08);
+    crashFireLight.intensity = 8 + severity * 12;
+    crashFireLight.range = 200 + severity * 200;
+
+    // ── Debris chunks ──────────────────────────────────────────
+    const numPieces = Math.round(6 + severity * 12);
+    const debrisMat = new BABYLON.StandardMaterial('cdm', scene);
+    debrisMat.diffuseColor = new BABYLON.Color3(0.2, 0.18, 0.15);
+    debrisMat.emissiveColor = new BABYLON.Color3(0.6, 0.2, 0.02);
+
+    for (let i = 0; i < numPieces; i++) {
+      const s = 0.5 + Math.random() * 2.5;
+      let mesh;
+      const r = Math.random();
+      if (r < 0.33) {
+        mesh = BABYLON.MeshBuilder.CreateBox('cdeb' + i, { width: s * 2.5, height: s * 0.4, depth: s }, scene);
+      } else if (r < 0.66) {
+        mesh = BABYLON.MeshBuilder.CreateCylinder('cdeb' + i, { height: s * 1.5, diameter: s * 0.5, tessellation: 6 }, scene);
+      } else {
+        mesh = BABYLON.MeshBuilder.CreateSphere('cdeb' + i, { diameter: s, segments: 4 }, scene);
+      }
+      mesh.material = debrisMat;
+      mesh.isPickable = false;
+      mesh.position.copyFrom(pos);
+
+      // Random outward velocity
+      const angle = Math.random() * Math.PI * 2;
+      const pitch = (Math.random() - 0.5) * Math.PI;
+      const spd = 8 + Math.random() * (25 + severity * 30);
+      const dv = new BABYLON.Vector3(
+        Math.cos(pitch) * Math.sin(angle) * spd,
+        Math.abs(Math.sin(pitch)) * spd + 4,
+        Math.cos(pitch) * Math.cos(angle) * spd
+      );
+      // Bias in impact direction
+      dv.addInPlace(vel.scale(0.15));
+
+      const spin = new BABYLON.Vector3(
+        (Math.random() - 0.5) * 8,
+        (Math.random() - 0.5) * 8,
+        (Math.random() - 0.5) * 8
+      );
+
+      // Small fire trail on large pieces
+      let trail = null;
+      if (s > 1.5 && Math.random() < 0.5) {
+        trail = new BABYLON.ParticleSystem('dt' + i, 50, scene);
+        trail.particleTexture = crashFireball.particleTexture;
+        trail.emitter = mesh;
+        trail.color1 = new BABYLON.Color4(1, 0.5, 0.1, 0.9);
+        trail.color2 = new BABYLON.Color4(0.4, 0.1, 0.02, 0.5);
+        trail.colorDead = new BABYLON.Color4(0.1, 0.1, 0.1, 0);
+        trail.minSize = 0.8; trail.maxSize = 2.2;
+        trail.minLifeTime = 0.2; trail.maxLifeTime = 0.6;
+        trail.emitRate = 35;
+        trail.blendMode = BABYLON.ParticleSystem.BLENDMODE_ADD;
+        trail.gravity = new BABYLON.Vector3(0, 2, 0);
+        trail.direction1 = new BABYLON.Vector3(-1, 0.5, -1);
+        trail.direction2 = new BABYLON.Vector3(1, 2, 1);
+        trail.minEmitPower = 0.5; trail.maxEmitPower = 1.5;
+        trail.updateSpeed = 0.03;
+        trail.start();
+      }
+
+      crashDebris.push({ mesh, vel: dv, spin, trail, age: 0, landed: false });
+    }
+  }
+
+  // Physics update for debris
+  let _lastCrashT = 0;
+  const crashPhysicsTick = () => {
+    requestAnimationFrame(crashPhysicsTick);
+    try {
+      if (!crashActive) return;
+      const now = performance.now() / 1000;
+      const dt = Math.min(now - _lastCrashT, 0.05);
+      _lastCrashT = now;
+      crashTime += dt;
+
+      // Fade fire light over 4s
+      if (crashFireLight) {
+        crashFireLight.intensity = Math.max(0, crashFireLight.intensity * (1 - dt * 0.6));
+        // Flicker
+        crashFireLight.intensity += Math.sin(crashTime * 23) * 0.5;
+      }
+
+      // Simulate debris with gravity + ground bounce
+      for (const d of crashDebris) {
+        if (d.landed) continue;
+        d.age += dt;
+
+        // Gravity
+        d.vel.y -= 9.8 * dt;
+
+        // Move
+        d.mesh.position.addInPlace(d.vel.scale(dt));
+
+        // Rotate while flying
+        d.mesh.rotation.x += d.spin.x * dt;
+        d.mesh.rotation.y += d.spin.y * dt;
+        d.mesh.rotation.z += d.spin.z * dt;
+
+        // Ground check
+        const groundY = typeof sampleSurface === 'function'
+          ? sampleSurface(d.mesh.position.x, d.mesh.position.z)
+          : 0;
+
+        if (d.mesh.position.y < groundY + 0.5) {
+          d.mesh.position.y = groundY + 0.5;
+          // Bounce with energy loss
+          d.vel.y = Math.abs(d.vel.y) * 0.28;
+          d.vel.x *= 0.55;
+          d.vel.z *= 0.55;
+          d.spin.x *= 0.4;
+          d.spin.z *= 0.4;
+          if (Math.abs(d.vel.y) < 0.8) {
+            d.landed = true;
+            d.vel.setAll(0);
+            if (d.trail) { d.trail.emitRate = 0; }
+          }
+        }
+
+        // Fade out old debris
+        if (d.age > 12) {
+          d.mesh.visibility = Math.max(0, 1 - (d.age - 12) / 4);
+          if (d.age > 16) {
+            d.landed = true;
+            d.mesh.visibility = 0;
+            if (d.trail) d.trail.emitRate = 0;
+          }
+        }
+      }
+    } catch(e) {}
+  };
+  _lastCrashT = performance.now() / 1000;
+  crashPhysicsTick();
+
+  // Hook into crash system
+  window._crashFx = (pos, vel, opts) => {
+    spawnCrashFX(pos, vel, opts);
+  };
+
+  // Clean up on respawn
+  const _origCrashReset = window._crashReset;
+  window._crashReset = () => {
+    clearCrashFX();
+    if (typeof _origCrashReset === 'function') _origCrashReset();
+  };
+})();
+
+/* ============================================================
+   FEATURE 23 — GENERAL IMPROVEMENTS
+   Runway approach lights · G-meter HUD · Altitude alerter ·
+   Wind shear warning · Better stall buffet camera shake
+   ============================================================ */
+(()=>{
+  'use strict';
+
+  // ── G-meter digital readout ────────────────────────────────
+  const gEl = document.createElement('div');
+  gEl.id = 'gMeter';
+  gEl.style.cssText = 'position:fixed;bottom:110px;left:14px;z-index:400;background:rgba(0,8,20,.82);border:1px solid #1a3a5c;border-radius:8px;padding:4px 10px;font-family:monospace;font-size:13px;color:#7de;display:none;letter-spacing:.05em;min-width:80px;text-align:center;';
+  document.body.appendChild(gEl);
+
+  // ── Altitude alerter (approaching target alt) ─────────────
+  const altAlertEl = document.createElement('div');
+  altAlertEl.id = 'altAlert';
+  altAlertEl.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:600;background:rgba(255,140,0,.12);border:2px solid #f80;border-radius:10px;padding:8px 22px;font-family:monospace;font-size:16px;color:#ffa;text-align:center;display:none;pointer-events:none;text-shadow:0 0 8px #f80;';
+  altAlertEl.textContent = '⚠ ALTITUDE';
+  document.body.appendChild(altAlertEl);
+
+  let altAlertTimer = 0;
+  let lastAltFt = 0;
+  let altAlertFired = false;
+
+  // ── Wind shear HUD ─────────────────────────────────────────
+  const wsEl = document.createElement('div');
+  wsEl.id = 'windShearAlert';
+  wsEl.style.cssText = 'position:fixed;top:42%;left:50%;transform:translate(-50%,-50%);z-index:601;background:rgba(255,50,0,.15);border:2px solid #f22;border-radius:10px;padding:10px 26px;font-family:monospace;font-size:17px;color:#f88;display:none;pointer-events:none;text-shadow:0 0 10px #f22;text-align:center;';
+  wsEl.innerHTML = '⚠ WIND SHEAR<br><span style="font-size:12px;color:#faa;">INCREASE THRUST · PULL UP</span>';
+  document.body.appendChild(wsEl);
+
+  let wsTimer = 0;
+  let lastHspd = 0;
+  let wsActive = false;
+
+  // ── Approach lights (ALSF-2 style) ────────────────────────
+  let alsfLights = [];
+  let alsfRunwayCode = null;
+
+  function clearALSF() {
+    for (const m of alsfLights) { try { m.dispose(); } catch(e) {} }
+    alsfLights = [];
+    alsfRunwayCode = null;
+  }
+
+  function spawnALSF(loc) {
+    clearALSF();
+    if (!loc || !loc.code) return;
+    const rwy = (typeof RUNWAYS !== 'undefined') ? RUNWAYS[loc.code] : null;
+    if (!rwy) return;
+
+    const rwyHdg = (rwy.hdg || 0) * Math.PI / 180;
+    // Runway threshold position in world coords (approx — runway was placed at origin)
+    const threshX = -Math.cos(rwyHdg) * rwy.len / 2;
+    const threshZ = -Math.sin(rwyHdg) * rwy.len / 2;
+    const groundY = (typeof sampleSurface === 'function') ? sampleSurface(threshX, threshZ) : (loc.elev || 0);
+
+    // Approach direction (outbound from threshold)
+    const apX = -Math.cos(rwyHdg);
+    const apZ = -Math.sin(rwyHdg);
+    const perpX = -apZ, perpZ = apX;
+
+    const mat = (col) => {
+      const m = new BABYLON.StandardMaterial('alsf' + Math.random(), scene);
+      m.emissiveColor = col;
+      m.disableLighting = true;
+      return m;
+    };
+    const white = mat(new BABYLON.Color3(1, 1, 0.95));
+    const red   = mat(new BABYLON.Color3(1, 0.15, 0.1));
+
+    // 5 crossbars at 30m spacing + centerline dots
+    for (let i = 1; i <= 5; i++) {
+      const dist = i * 30;
+      const cx = threshX + apX * dist;
+      const cz = threshZ + apZ * dist;
+      const cy = groundY + 0.4;
+
+      // Center light
+      const c = BABYLON.MeshBuilder.CreateSphere('alsfc', { diameter: 0.9, segments: 4 }, scene);
+      c.position.set(cx, cy, cz); c.material = white; c.isPickable = false;
+      alsfLights.push(c);
+
+      // Crossbar lights (wider for near bars)
+      const half = (i <= 2) ? 5 : 9;
+      for (let s = -half; s <= half; s += 3) {
+        if (s === 0 && i > 2) continue;
+        const lx = cx + perpX * s, lz = cz + perpZ * s;
+        const l = BABYLON.MeshBuilder.CreateSphere('alsfl', { diameter: 0.7, segments: 4 }, scene);
+        l.position.set(lx, cy, lz);
+        l.material = (i <= 2) ? red : white;
+        l.isPickable = false;
+        alsfLights.push(l);
+      }
+    }
+    alsfRunwayCode = loc.code;
+  }
+
+  // Listen for location changes to update approach lights
+  const _origCreateRunway = (typeof createRunway !== 'undefined') ? createRunway : null;
+  if (typeof window !== 'undefined') {
+    window._onLocChange = (loc) => {
+      try { spawnALSF(loc); } catch(e) {}
+    };
+  }
+
+  // ── Per-frame improvements tick ────────────────────────────
+  let _lastT = performance.now() / 1000;
+  let _stallBuffetPhase = 0;
+  let _stalled = false;
+  let _stallBuffetIntensity = 0;
+
+  const improveTick = () => {
+    requestAnimationFrame(improveTick);
+    try {
+      if (typeof plane === 'undefined') return;
+      const now = performance.now() / 1000;
+      const dt = Math.min(now - _lastT, 0.05);
+      _lastT = now;
+
+      // ── G-meter ──
+      if (!plane.onGround && !plane.crashed && !plane.hold) {
+        const g = typeof plane.gForce !== 'undefined' ? plane.gForce : 1;
+        gEl.style.display = 'block';
+        gEl.textContent = g.toFixed(2) + ' G';
+        gEl.style.color = Math.abs(g) > 4 ? '#f84' : Math.abs(g) > 2.5 ? '#fa4' : '#7de';
+        gEl.style.borderColor = Math.abs(g) > 4 ? '#c32' : Math.abs(g) > 2.5 ? '#a82' : '#1a3a5c';
+      } else {
+        gEl.style.display = 'none';
+      }
+
+      // ── Altitude alerter (±300 ft within round altitudes) ──
+      if (!plane.onGround && !plane.crashed) {
+        const altFt = plane.pos.y * 3.28084;
+        const roundAlts = [1000,2000,3000,4000,5000,6000,7000,8000,9000,10000,11000,12000,13000,14000,15000,18000,20000,25000,29000,30000,35000,40000];
+        const goingUp = altFt > lastAltFt;
+        for (const a of roundAlts) {
+          const diff = altFt - a;
+          if (goingUp && diff > -350 && diff < -50 && !altAlertFired) {
+            altAlertEl.textContent = '⚠  APPROACHING FL' + String(Math.round(a/100)).padStart(3,'0');
+            altAlertEl.style.display = 'block';
+            altAlertTimer = 2.5;
+            altAlertFired = true;
+          }
+          if (!goingUp && diff < 350 && diff > 50 && !altAlertFired) {
+            altAlertEl.textContent = '⚠  APPROACHING FL' + String(Math.round(a/100)).padStart(3,'0');
+            altAlertEl.style.display = 'block';
+            altAlertTimer = 2.5;
+            altAlertFired = true;
+          }
+          if (Math.abs(diff) > 400) altAlertFired = false;
+        }
+        lastAltFt = altFt;
+        if (altAlertTimer > 0) {
+          altAlertTimer -= dt;
+          if (altAlertTimer <= 0) altAlertEl.style.display = 'none';
+        }
+      }
+
+      // ── Wind shear detector ────────────────────────────────
+      if (!plane.onGround && !plane.crashed) {
+        const hspd = Math.hypot(plane.vel.x, plane.vel.z);
+        const dspd = hspd - lastHspd;
+        // Sudden airspeed drop > 18 kt/s AND low altitude
+        const altFt = plane.pos.y * 3.28084;
+        if (dspd < -18 && altFt < 4000) {
+          wsTimer = 5;
+          wsActive = true;
+          wsEl.style.display = 'block';
+          try { if (typeof showMsg !== 'undefined') showMsg('⚠ WIND SHEAR · WIND SHEAR · WIND SHEAR', 5000); } catch(e) {}
+        }
+        lastHspd = hspd;
+        if (wsTimer > 0) {
+          wsTimer -= dt;
+          // Blink effect
+          wsEl.style.opacity = (Math.floor(now * 4) % 2 === 0) ? '1' : '0.4';
+          if (wsTimer <= 0) { wsEl.style.display = 'none'; wsActive = false; }
+        }
+      }
+
+      // ── Stall buffet camera shake ──────────────────────────
+      if (!plane.onGround && !plane.crashed && typeof plane.aoa !== 'undefined') {
+        const stalling = plane.aoa > 0.3 || (typeof plane.cl !== 'undefined' && plane.cl < 0.05);
+        if (stalling) {
+          _stallBuffetIntensity = Math.min(1.2, _stallBuffetIntensity + dt * 3);
+        } else {
+          _stallBuffetIntensity = Math.max(0, _stallBuffetIntensity - dt * 5);
+        }
+        if (_stallBuffetIntensity > 0.05 && typeof camState !== 'undefined') {
+          _stallBuffetPhase += dt * 28;
+          camState.shake = Math.max(camState.shake, _stallBuffetIntensity * 0.6 * (0.7 + Math.sin(_stallBuffetPhase) * 0.3));
+        }
+      }
+
+      // ── Spawn approach lights when near a runway ───────────
+      if (typeof currentLocation !== 'undefined' && currentLocation && currentLocation.code !== alsfRunwayCode) {
+        try { spawnALSF(currentLocation); } catch(e) {}
+      }
+
+    } catch(e) {}
+  };
+  improveTick();
 })();
