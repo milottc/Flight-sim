@@ -1,0 +1,35 @@
+{
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+  "type": "AdaptiveCard",
+  "version": "1.5",
+  "body": [
+    {
+      "type": "TextBlock",
+      "text": "✈️ Flight Sim Status",
+      "weight": "Bolder",
+      "size": "Medium",
+      "color": "Accent"
+    },
+    {
+      "type": "TextBlock",
+      "text": "Pilot Rank: ${rank}",
+      "size": "Large",
+      "weight": "Bolder",
+      "spacing": "Medium"
+    },
+    {
+      "type": "TextBlock",
+      "text": "Total Flight Hours: ${hours}",
+      "size": "Default",
+      "spacing": "None"
+    },
+    {
+      "type": "TextBlock",
+      "text": "${statusMessage}",
+      "size": "Small",
+      "color": "Good",
+      "wrap": true,
+      "spacing": "Medium"
+    }
+  ]
+}
