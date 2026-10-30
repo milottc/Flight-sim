@@ -19,6 +19,7 @@ function loadJS(u){return new Promise(r=>{const t=document.createElement('script
 })();
 
 function main(){
+let _sfxCur=null;
 
 /* ===== KSFO: real FAA threshold coordinates for all four runways (source: AirNav/FAA). World origin = centre of 28L/10R so the
    satellite imagery's real runways line up exactly with the simulated ones. True headings (magnetic variation 14E). ===== */
@@ -5114,7 +5115,7 @@ const SFX_MAP=[
   [/increase descen/,'increase-descend.mp3'],
   [/adjust vertical speed|^adjust$/,'adjust.mp3'],[/startup/,'STRTUP.wav']
 ];
-const SFX_BASES=['','https://milottc.github.io/Flight-sim/'];let _sfxCur=null;window._minsT=0;
+const SFX_BASES=['','https://milottc.github.io/Flight-sim/'];window._minsT=0;
 let _sfxSeq=0;
 /* Only one callout (WAV or speech) may play at a time. Starting a new one cuts the old one off,
    so a repeating warning never stacks on top of itself or on top of text-to-speech. */
@@ -6100,9 +6101,8 @@ startBtn.addEventListener('click',async()=>{
 });
 respawnBtn.addEventListener('click',respawn);
 // Always keep start button enabled after respawn too
-const _origRespawn=_respawnBase;
 function respawn(){
-  _origRespawn();
+  _respawnBase();
   try{startBtn.disabled=false;}catch(e){}
 }
   /* ================================================================== */
