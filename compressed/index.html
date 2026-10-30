@@ -797,6 +797,8 @@ body.cockpit #careerHud{opacity:.8}
 #homeStars {
   position: fixed; inset: 0; pointer-events: none; z-index: 0;
 }
+/* Starfield is mobile-only per request: hide it on desktop */
+body:not(.mobile) #homeStars{display:none!important}
 /* Make homeCard sit above starfield */
 .homeCard { position: relative; z-index: 1; }
 
