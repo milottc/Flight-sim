@@ -8728,7 +8728,7 @@ void main(){
 
   // Toggle button
   const btn=document.createElement('button');
-  btn.id='atcBtn';
+  btn.id='atcToggle';
   btn.textContent='📻 ATC';
   btn.title='Toggle ATC chatter (T)';
   btn.style.cssText='position:fixed;bottom:164px;left:14px;z-index:400;background:#08111f;color:#6a9;border:1px solid #1e4a5a;border-radius:8px;padding:5px 11px;font-size:11px;font-weight:700;cursor:pointer;';
