@@ -447,15 +447,20 @@ function fetchT(url,opts,ms){return Promise.race([fetch(url,opts),new Promise((_
 function withTimeout(p,ms,l){return Promise.race([p,new Promise((_,r)=>setTimeout(()=>r(new Error(l+' timeout')),ms))]);}
 
 const imgCache=new Map(),imgPending=new Map();
+const TILE_CONC=8;let tileActive=0;const tileQ=[];
+function runTileQueue(){while(tileActive<TILE_CONC&&tileQ.length){const job=tileQ.shift();tileActive++;job(()=>{tileActive--;runTileQueue();});}}
 function loadImage(key,url){
   if(imgCache.has(key))return Promise.resolve(imgCache.get(key));
   if(imgPending.has(key))return imgPending.get(key);
   const p=new Promise(resolve=>{
-    const img=new Image();img.crossOrigin='anonymous';let done=false;
-    const fin=ok=>{if(done)return;done=true;imgPending.delete(key);
-      if(ok){imgCache.set(key,img);if(imgCache.size>1000)imgCache.delete(imgCache.keys().next().value);resolve(img);}else resolve(null);};
-    img.onload=()=>fin(true);img.onerror=()=>fin(false);
-    setTimeout(()=>fin(false),CFG.tileTimeout);img.src=url;
+    tileQ.push(release=>{
+      const img=new Image();img.crossOrigin='anonymous';let done=false;
+      const fin=ok=>{if(done)return;done=true;imgPending.delete(key);release();
+        if(ok){imgCache.set(key,img);if(imgCache.size>1000)imgCache.delete(imgCache.keys().next().value);resolve(img);}else resolve(null);};
+      img.onload=()=>fin(true);img.onerror=()=>fin(false);
+      setTimeout(()=>fin(false),CFG.tileTimeout);img.src=url;
+    });
+    runTileQueue();
   });
   imgPending.set(key,p);return p;
 }
@@ -479,7 +484,8 @@ async function ensureHeightTiles(cx,cz){
   let z=CFG.heightZoom,r;
   while(z>5){r=tileRange(nw,se,z);if((r.x1-r.x0+1)*(r.y1-r.y0+1)<=CFG.maxHeightTiles)break;z--;}
   heightZoom=z;const jobs=[];
-  for(let tx=r.x0;tx<=r.x1;tx++)for(let ty=r.y0;ty<=r.y1;ty++)jobs.push(loadHeightTile(z,tx,ty));
+  const hTotal=(r.x1-r.x0+1)*(r.y1-r.y0+1);let hDone=0;
+  for(let tx=r.x0;tx<=r.x1;tx++)for(let ty=r.y0;ty<=r.y1;ty++)jobs.push(loadHeightTile(z,tx,ty).then(v=>{hDone++;lsProgress(0.3*hDone/hTotal,'Loading elevation '+hDone+' / '+hTotal);return v;}));
   await Promise.all(jobs);
 }
 function sampleH(lat,lon){
@@ -3608,28 +3614,146 @@ const colors=new Float32Array(N*N*4).fill(1);terrainVD.colors=colors;terrainVD.p
 terrainVD.applyToMesh(terrainMesh,true);
 let terrainCenter={x:0,z:0};
 
-async function buildTerrainTexture(cx,cz){
+/* ===== LOADING SCREEN ===== */
+const LS={el:null,bar:null,txt:null,pct:null,tip:null,tipIv:null};
+const LS_TIPS=['Keep airspeed above V2 until you have a positive climb.','Use the ATC panel (K) to request taxi and takeoff clearance.','Check the FMS / MAP (J) for your route and waypoints.','Set flaps and gear from the buttons above the attitude indicator.','Short fields need early flaps and firm braking.'];
+function lsCreate(){
+  lsHide(true);
+  if(!document.getElementById('lsStyle')){const st=document.createElement('style');st.id='lsStyle';st.textContent=
+    '#loadScreen{position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,#14233d 0%,#070b14 75%);transition:opacity .5s;font-family:Inter,Segoe UI,system-ui,sans-serif;color:#e6edf6}'+
+    '#loadScreen.ls-out{opacity:0;pointer-events:none}'+
+    '.ls-card{width:min(440px,86vw);text-align:center}'+
+    '.ls-plane{font-size:46px;animation:ls-fly 2.4s ease-in-out infinite;display:inline-block;color:#22d3ee}'+
+    '@keyframes ls-fly{0%,100%{transform:translateY(0) rotate(-6deg)}50%{transform:translateY(-8px) rotate(6deg)}}'+
+    '.ls-title{margin-top:10px;font-size:13px;letter-spacing:4px;font-weight:700;color:#a5f3fc}'+
+    '.ls-txt{margin:14px 0 16px;font-size:14px;color:#94a3b8;min-height:18px}'+
+    '.ls-track{height:8px;border-radius:6px;background:rgba(100,130,170,.18);overflow:hidden;border:1px solid rgba(100,130,170,.3)}'+
+    '.ls-bar{height:100%;width:0%;background:linear-gradient(90deg,#0891b2,#22d3ee);box-shadow:0 0 12px rgba(34,211,238,.6);transition:width .25s ease-out}'+
+    '.ls-row{display:flex;justify-content:space-between;gap:12px;margin-top:10px;font-size:12px;color:#64748b}'+
+    '.ls-pct{font-weight:700;color:#a5f3fc;min-width:40px;text-align:left}'+
+    '.ls-tip{text-align:right;font-style:italic}';
+    document.head.appendChild(st);}
+  const el=document.createElement('div');el.id='loadScreen';
+  el.innerHTML='<div class="ls-card"><div class="ls-plane">✈</div><div class="ls-title">BABYLON FLIGHT 737</div><div class="ls-txt">Preparing…</div><div class="ls-track"><div class="ls-bar"></div></div><div class="ls-row"><span class="ls-pct">0%</span><span class="ls-tip"></span></div></div>';
+  document.body.appendChild(el);
+  LS.el=el;LS.bar=el.querySelector('.ls-bar');LS.txt=el.querySelector('.ls-txt');LS.pct=el.querySelector('.ls-pct');LS.tip=el.querySelector('.ls-tip');
+  let i=0;LS.tip.textContent='Tip: '+LS_TIPS[0];
+  LS.tipIv=setInterval(()=>{i=(i+1)%LS_TIPS.length;LS.tip.textContent='Tip: '+LS_TIPS[i];},3000);
+  lsProgress(0,'Starting engines…');
+}
+function lsProgress(frac,label){
+  if(!LS.el)return;
+  const f=Math.max(0,Math.min(1,frac));
+  LS.bar.style.width=(f*100).toFixed(1)+'%';
+  LS.pct.textContent=Math.round(f*100)+'%';
+  if(label)LS.txt.textContent=label;
+}
+function lsHide(instant){
+  if(LS.tipIv){clearInterval(LS.tipIv);LS.tipIv=null;}
+  const el=LS.el;if(!el)return;LS.el=null;
+  if(instant){el.remove();return;}
+  el.classList.add('ls-out');setTimeout(()=>el.remove(),600);
+}
+/* imagery progress, read by the start-up gate */
+const imgProg={f:0,t:0};
+function imgGate(frac,capMs){return new Promise(res=>{const t0=performance.now();const iv=setInterval(()=>{if((imgProg.t&&imgProg.f/imgProg.t>=frac)||performance.now()-t0>capMs){clearInterval(iv);res();}},150);});}
+
+/* Tiles are drawn into an offscreen canvas as they arrive. When live (start-up), the
+   DynamicTexture is refreshed every ~400ms so the terrain fills in progressively. */
+async function buildTerrainTexture(cx,cz,live){
   const nw=worldToLL(cx-E/2,cz-E/2),se=worldToLL(cx+E/2,cz+E/2);
-let z=Math.min(Imagery.maxZoom,19),r;
+  let z=Math.min(Imagery.maxZoom,19),r;
   while(z>5){r=tileRange(nw,se,z);if((r.x1-r.x0+1)*(r.y1-r.y0+1)<=CFG.maxImageryTiles)break;z--;}
-  const jobs=[],coords=[];
-  for(let tx=r.x0;tx<=r.x1;tx++)for(let ty=r.y0;ty<=r.y1;ty++){
-    coords.push({tx,ty});jobs.push(loadImage(`${Imagery.mode}/${useCanadaImagery?'ca':'ww'}/${z}/${tx}/${ty}`,Imagery.url(z,tx,ty)));}
-  const images=await Promise.all(jobs);
-  const ctx=terrainTex.getContext();
-  ctx.fillStyle='#2c4a55';ctx.fillRect(0,0,CFG.texSize,CFG.texSize);
-  const C=CFG.texSize;let drawn=0;
-  try{ctx.filter='saturate(1.22) contrast(1.07) brightness(1.03)';}catch(e){}
-  for(let n=0;n<coords.length;n++){
-    const img=images[n];if(!img)continue;drawn++;
-    const{tx,ty}=coords[n];
-    const p0=llToWorld(ty2lat(ty,z),tx2lon(tx,z)),p1=llToWorld(ty2lat(ty+1,z),tx2lon(tx+1,z));
-    const px=(p0.x-(cx-E/2))/E*C,py=(p0.z-(cz-E/2))/E*C;
-    const pw=(p1.x-p0.x)/E*C,ph=(p1.z-p0.z)/E*C;
-    try{ctx.drawImage(img,px,py,pw+.5,ph+.5);}catch(e){}
+  const C=CFG.texSize;
+  const off=document.createElement('canvas');off.width=C;off.height=C;
+  const oc=off.getContext('2d');
+  oc.fillStyle='#2c4a55';oc.fillRect(0,0,C,C);
+  try{oc.filter='saturate(1.22) contrast(1.07) brightness(1.03)';}catch(e){}
+  const coords=[];
+  for(let tx=r.x0;tx<=r.x1;tx++)for(let ty=r.y0;ty<=r.y1;ty++)coords.push({tx,ty});
+  const total=coords.length;imgProg.f=0;imgProg.t=total;
+  let drawn=0,lastPush=0;
+  const push=(force)=>{
+    const t=performance.now();
+    if(!force&&(!live||t-lastPush<400))return;
+    lastPush=t;
+    terrainTex.getContext().drawImage(off,0,0,C,C);
+    terrainTex.update(false);
+  };
+  const jobs=coords.map(({tx,ty})=>loadImage(`${Imagery.mode}/${useCanadaImagery?'ca':'ww'}/${z}/${tx}/${ty}`,Imagery.url(z,tx,ty)).then(img=>{
+    imgProg.f++;
+    if(img){
+      drawn++;
+      const p0=llToWorld(ty2lat(ty,z),tx2lon(tx,z)),p1=llToWorld(ty2lat(ty+1,z),tx2lon(tx+1,z));
+      const px=(p0.x-(cx-E/2))/E*C,py=(p0.z-(cz-E/2))/E*C;
+      const pw=(p1.x-p0.x)/E*C,ph=(p1.z-p0.z)/E*C;
+      try{oc.drawImage(img,px,py,pw+.5,ph+.5);}catch(e){}
+    }
+    if(live){push(false);lsProgress(0.3+0.7*imgProg.f/total,'Streaming imagery '+imgProg.f+' / '+total);}
+  }));
+  await Promise.all(jobs);
+  try{oc.filter='none';}catch(e){}
+  push(true);
+  return drawn;
+}
+/* ===== REAL-WORLD LANDMARKS =====
+   Positioned from real lat/lon relative to the current departure airport (the world origin).
+   Only shown when within 40 km. Heights are approximate (metres). */
+const LANDMARKS=[
+  {name:'CN Tower · Toronto',lat:43.6426,lon:-79.3871,parts:[
+    {t:'cyl',db:22,dt:9,h:350,y0:0,c:[.86,.86,.86],n:16},
+    {t:'sph',d:30,y:350,c:[.82,.82,.84]},
+    {t:'cyl',db:9,dt:1.5,h:203,y0:350,c:[.8,.8,.82],n:12}]},
+  {name:'Bank of China Tower · Hong Kong',lat:22.2793,lon:114.1622,parts:[
+    {t:'box',w:44,d:44,h:367,y0:0,c:[.5,.56,.6]},
+    {t:'cyl',db:1.6,dt:.4,h:40,y0:367,c:[.7,.72,.74],n:6}]},
+  {name:'ICC · Hong Kong',lat:22.3033,lon:114.1602,parts:[
+    {t:'box',w:50,d:50,h:484,y0:0,c:[.55,.6,.66]}]},
+  {name:'Tokyo Skytree',lat:35.7101,lon:139.8107,parts:[
+    {t:'cyl',db:62,dt:12,h:530,y0:0,c:[.92,.93,.95],n:3},
+    {t:'cyl',db:8,dt:2,h:104,y0:530,c:[.85,.86,.9],n:8}]},
+  {name:'Tokyo Tower',lat:35.6586,lon:139.7454,parts:[
+    {t:'cyl',db:14,dt:3,h:333,y0:0,c:[.9,.45,.2],n:4}]},
+  {name:'Burj Khalifa · Dubai',lat:25.1972,lon:55.2744,parts:[
+    {t:'cyl',db:40,dt:4,h:828,y0:0,c:[.78,.84,.88],n:3}]},
+  {name:'Taipei 101',lat:25.0330,lon:121.5645,parts:[
+    {t:'box',w:40,d:40,h:440,y0:0,c:[.2,.6,.45]},
+    {t:'cyl',db:6,dt:1,h:68,y0:440,c:[.6,.7,.7],n:8}]},
+  {name:'Empire State Building',lat:40.7484,lon:-73.9857,parts:[
+    {t:'box',w:40,d:60,h:381,y0:0,c:[.8,.8,.78]},
+    {t:'cyl',db:6,dt:1,h:62,y0:381,c:[.8,.8,.8],n:8}]},
+  {name:'Eiffel Tower',lat:48.8584,lon:2.2945,parts:[
+    {t:'cyl',db:90,dt:10,h:330,y0:0,c:[.35,.28,.2],n:4}]},
+  {name:'Petronas Towers',lat:3.1579,lon:101.7116,parts:[
+    {t:'box',w:42,d:42,h:452,y0:0,c:[.85,.87,.88]}]}
+];
+let lmMeshes=null;
+function lmBuild(){
+  if(lmMeshes)return;
+  lmMeshes=LANDMARKS.map(L=>{
+    const root=new BABYLON.TransformNode('lm_'+L.name,scene);
+    L.parts.forEach((p,k)=>{
+      const mat=new BABYLON.StandardMaterial('lmM_'+L.name+'_'+k,scene);
+      mat.diffuseColor=new BABYLON.Color3(p.c[0],p.c[1],p.c[2]);
+      mat.specularColor=new BABYLON.Color3(.15,.15,.15);
+      let m;
+      if(p.t==='cyl'){m=BABYLON.MeshBuilder.CreateCylinder('lp',{height:p.h,diameterTop:p.dt,diameterBottom:p.db,tessellation:p.n||12},scene);m.position.y=p.y0+p.h/2;}
+      else if(p.t==='box'){m=BABYLON.MeshBuilder.CreateBox('lp',{width:p.w,height:p.h,depth:p.d},scene);m.position.y=p.y0+p.h/2;}
+      else{m=BABYLON.MeshBuilder.CreateSphere('lp',{diameter:p.d,segments:12},scene);m.position.y=p.y;}
+      m.material=mat;m.parent=root;m.isPickable=false;
+    });
+    root.setEnabled(false);
+    return {L,root};
+  });
+}
+function placeLandmarks(){
+  lmBuild();
+  for(const {L,root} of lmMeshes){
+    const w=llToWorld(L.lat,L.lon);
+    if(Math.hypot(w.x,w.z)>40000){root.setEnabled(false);continue;}
+    const y=sampleTerrain(w.x,w.z)||0;
+    root.position.set(w.x,y,w.z);root.setEnabled(true);
   }
-  try{ctx.filter='none';}catch(e){}
-  terrainTex.update(false);return drawn;
 }
 function rebuildGeom(cx,cz){
   for(let j=0;j<N;j++){const wz=cz-E/2+j*step;
@@ -3651,6 +3775,7 @@ function rebuildGeom(cx,cz){
   terrainMesh.updateVerticesData(BABYLON.VertexBuffer.NormalKind,normals);
   terrainMesh.updateVerticesData(BABYLON.VertexBuffer.ColorKind,colors);
   try{buildCity(cx,cz);}catch(e){console.error(e);}
+  try{placeLandmarks();}catch(e){console.error(e);}
 }
 let rebuildBusy=false;
 async function rebuildTerrainAsync(cx,cz){
@@ -5923,6 +6048,7 @@ startBtn.addEventListener('click',async()=>{
   }
   // ---------------------------
   
+  lsCreate();
   const key=keyInput.value.trim();
   if(key)localStorage.setItem('gmapsKey',key);else localStorage.removeItem('gmapsKey');
   
@@ -5935,23 +6061,23 @@ startBtn.addEventListener('click',async()=>{
   try{
     loadEl.textContent='Loading elevation…';
     await withTimeout(ensureHeightTiles(0,0),20000,'h');
-    rebuildGeom(0,0);fallback.setEnabled(false);
+    rebuildGeom(0,0);
   }catch(e){
-    rebuildGeom(0,0);fallback.setEnabled(false);
+    rebuildGeom(0,0);
   }
   
   loadEl.textContent='Streaming satellite imagery…';
-  buildTerrainTexture(0,0).then(function(drawn){
-    if(drawn===0)showMsg('IMAGERY UNAVAILABLE',5000);
+  buildTerrainTexture(0,0,true).then(function(drawn){
+    if(drawn===0)showMsg('IMAGERY UNAVAILABLE',5000);else fallback.setEnabled(false);
   }).catch(function(e){console.warn('img',e);});
-  
-  setTimeout(function(){
-    if(typeof showMsg === 'function') showMsg('READY · FLY SAFE',6000);
-  }, 500);
-  
+  // Wait for ~60% of the imagery (or 15s), then let the player fly while the rest streams in
+  await imgGate(0.6,15000);
   createRunway(currentLocation.code);
   resetAircraft(currentLocation.lat,currentLocation.lon,currentLocation.elev);
   plane.hold=false;loadEl.textContent='Ready';status('flying');
+  lsProgress(1,'Ready');
+  lsHide();
+  setTimeout(function(){ if(typeof showMsg==='function') showMsg('READY · FLY SAFE',6000); },500);
   // Re-enable start button so player can fly again without reloading
   startBtn.disabled=false;
 });
