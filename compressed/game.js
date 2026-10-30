@@ -4989,7 +4989,7 @@ const atc=(function(){
   document.body.appendChild(box);const ab=document.createElement('button');ab.id='atcBtn';ab.textContent='📻 ATC (K)';document.body.appendChild(ab);
   const log=document.getElementById('atcLog');
   const say=(who,txt)=>{const d=document.createElement('div');d.className=who==='p'?'p':'a';d.textContent=(who==='p'?'▶ '+st.cs+': ':'◀ ')+txt;log.appendChild(d);log.scrollTop=log.scrollHeight;
-    if(who==='a'&&st.voice&&window.speechSynthesis){try{const u=new SpeechSynthesisUtterance(txt.replace(/Babylon/,'Babylon'));u.rate=1.1;speechSynthesis.cancel();speechSynthesis.speak(u);}catch(e){}}};
+    if(who==='a'&&st.voice&&window.speechSynthesis&&!(_sfxCur&&!_sfxCur.paused&&!_sfxCur.ended)){try{const u=new SpeechSynthesisUtterance(txt.replace(/Babylon/,'Babylon'));u.rate=1.1;speechSynthesis.cancel();speechSynthesis.speak(u);}catch(e){}}};
   const code=()=>(currentLocation.code||'UNKN');
   const rwy=()=>{const R=RUNWAYS[(currentLocation&&currentLocation.code)||''];if(R&&R.des)return R.des[0];let h=Math.round(runwayHdgDeg/10)%36;if(h===0)h=36;return String(h).padStart(2,'0');};
   const wind=()=>{const w=currentWeather||{wind:5};return String(((Math.round(runwayHdgDeg/10)*10+((w.wind*7)%40)-20+360)%360)||360).padStart(3,'0')+' at '+Math.max(2,Math.round(w.wind*1.94));};
@@ -5115,12 +5115,29 @@ const SFX_MAP=[
   [/adjust vertical speed|^adjust$/,'adjust.mp3'],[/startup/,'STRTUP.wav']
 ];
 const SFX_BASES=['','https://milottc.github.io/Flight-sim/'];let _sfxCur=null;window._minsT=0;
-function playSfx(file,onFail){
-  const combos=SFX_BASES.map(b=>b+file);
-  let i=0;const tryNext=()=>{if(i>=combos.length){onFail&&onFail();return;}const a=new Audio(combos[i++]);a.volume=masterVol!==undefined?masterVol:1;a.onerror=tryNext;
-    a.play().then(()=>{if(_sfxCur&&_sfxCur!==a){try{_sfxCur.pause();}catch(e){}}_sfxCur=a;}).catch(()=>{if(a.error)tryNext();else onFail&&onFail();});};tryNext();
+let _sfxSeq=0;
+/* Only one callout (WAV or speech) may play at a time. Starting a new one cuts the old one off,
+   so a repeating warning never stacks on top of itself or on top of text-to-speech. */
+function stopAllCallouts(){
+  _sfxSeq++;
+  try{if(_sfxCur){_sfxCur.onerror=null;_sfxCur.pause();_sfxCur=null;}}catch(e){}
+  try{if(window.speechSynthesis)speechSynthesis.cancel();}catch(e){}
 }
-const _ttsFallback=(t,rate)=>{try{if(window.speechSynthesis&&atc.voice){const u=new SpeechSynthesisUtterance(t);u.rate=rate||1.15;u.pitch=.8;speechSynthesis.speak(u);}}catch(e){}};
+function playSfx(file,onFail){
+  stopAllCallouts();const myId=_sfxSeq;
+  const combos=SFX_BASES.map(b=>b+file);
+  let i=0;
+  const tryNext=()=>{
+    if(myId!==_sfxSeq)return;
+    if(i>=combos.length){onFail&&onFail();return;}
+    const a=new Audio(combos[i++]);a.volume=masterVol!==undefined?masterVol:1;
+    a.onerror=()=>{if(myId===_sfxSeq)tryNext();};
+    _sfxCur=a;
+    a.play().catch(()=>{if(myId!==_sfxSeq)return;if(a.error)tryNext();else onFail&&onFail();});
+  };
+  tryNext();
+}
+const _ttsFallback=(t,rate)=>{try{if(window.speechSynthesis&&atc.voice){speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.rate=rate||1.15;u.pitch=.8;speechSynthesis.speak(u);}}catch(e){}};
 const speak=(t,rate)=>{const l=t.toLowerCase();for(const [re,f,kind] of SFX_MAP){if(re.test(l)){
     if(kind==='alt'&&performance.now()/1000-window._minsT<1.3)return;
     let file;
@@ -5257,7 +5274,7 @@ function xfUpdate(dt){
   if(air&&vs<-150&&!f('RADALT_FAIL')){
     const steps=[[2500,'TWENTY FIVE HUNDRED'],[1000,'ONE THOUSAND'],[500,'FIVE HUNDRED'],[400,'FOUR HUNDRED'],[300,'THREE HUNDRED'],[200,'TWO HUNDRED'],[100,'ONE HUNDRED'],[50,'FIFTY'],[40,'FORTY'],[30,'THIRTY'],[20,'TWENTY'],[10,'TEN']];
     for(const [h,t] of steps){if((XF.lastAgl>h&&agl<=h&&plane.gearPos>.8)||(XF.lastAgl>h&&agl<=h&&h>=500)){
-      showMsg(t,900);speak(t.toLowerCase(),1.3);if(h===500&&plane.gearPos<.8)setTimeout(()=>speak('too low gear'),600);break;}}
+      showMsg(t,900);speak(t.toLowerCase(),1.3);if(h===500&&plane.gearPos<.8)setTimeout(()=>speak('too low gear'),1600);break;}}
     if(agl<2500&&agl>50&&-vs>2200+agl*.6&&now-XF.lastCall>2.5){XF.lastCall=now;showMsg('⚠ SINK RATE',1200);speak('sink rate. pull up',1.2);}
     if(agl<1000&&agl>100&&plane.gearPos<.5&&kts<200&&now-XF.lastCall>6){XF.lastCall=now;showMsg('⚠ TOO LOW GEAR',1500);speak('too low gear');}
     if(agl<1000&&agl>200&&plane.flaps<1&&kts<190&&plane.gearPos>.8&&now-XF.lastCall>8){XF.lastCall=now;showMsg('⚠ TOO LOW FLAPS',1500);speak('too low flaps');}
