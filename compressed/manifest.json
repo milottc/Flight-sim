@@ -1,31 +1,161 @@
 {
-  "name": "Babylon Flight 737",
+  "id": "/Flight-sim/compressed/",
+  "name": "Babylon Flight 737 - Ultimate 3D Flight Simulator",
   "short_name": "FlightSim",
-  "description": "A fully-featured, browser-based 3D flight simulator built entirely with HTML, CSS, and vanilla JavaScript using the Babylon.js engine.",
-  "start_url": "/Flight-sim/compressed/",
-  "scope": "/Flight-sim/compressed/",
+  "description": "A fully-featured, browser-based 3D flight simulator built entirely with HTML, CSS, and vanilla JavaScript using the Babylon.js engine. Features 50+ aircraft, career mode, dynamic satellite imagery, and failure simulation.",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#ffffff",
-  "theme_color": "#ffffff",
+  "background_color": "#0f172a",
+  "theme_color": "#1e293b",
+  "dir": "ltr",
+  "lang": "en-US",
+  "categories": ["games", "simulation", "education", "entertainment", "productivity"],
+  "iarc_rating_id": "e84b072d-71b3-4d3e-86ae-31a8ce4e53b7",
+  "prefer_related_applications": false,
+  
+  "display_override": [
+    "window-controls-overlay",
+    "tabbed",
+    "minimal-ui",
+    "standalone",
+    "fullscreen",
+    "browser"
+  ],
+
+  "launch_handler": {
+    "client_mode": "focus-existing"
+  },
+
+  "scope_extensions": [
+    { "origin": "https://milottc.github.io" },
+    { "origin": "https://cdn.jsdelivr.net" },
+    { "origin": "https://unpkg.com" },
+    { "origin": "https://cdnjs.cloudflare.com" }
+  ],
+
+  "edge_side_panel": {
+    "preferred_width": 500
+  },
+
   "icons": [
+    { "src": "80.png", "sizes": "80x80", "type": "image/png", "purpose": "any" },
+    { "src": "87.png", "sizes": "87x87", "type": "image/png", "purpose": "any" },
+    { "src": "100.png", "sizes": "100x100", "type": "image/png", "purpose": "any" },
+    { "src": "114.png", "sizes": "114x114", "type": "image/png", "purpose": "any" },
+    { "src": "120.png", "sizes": "120x120", "type": "image/png", "purpose": "any" },
+    { "src": "128.png", "sizes": "128x128", "type": "image/png", "purpose": "any" },
+    { "src": "144.png", "sizes": "144x144", "type": "image/png", "purpose": "any" },
+    { "src": "152.png", "sizes": "152x152", "type": "image/png", "purpose": "any" },
+    { "src": "167.png", "sizes": "167x167", "type": "image/png", "purpose": "any" },
+    { "src": "180.png", "sizes": "180x180", "type": "image/png", "purpose": "any" },
+    { "src": "192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "256.png", "sizes": "256x256", "type": "image/png", "purpose": "any" },
+    { "src": "512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "1024.png", "sizes": "1024x1024", "type": "image/png", "purpose": "any" },
+    { "src": "192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+
+  "shortcuts": [
     {
-      "src": "/Flight-sim/compressed/192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
+      "name": "Start Free Flight",
+      "short_name": "Free Flight",
+      "description": "Jump straight into a free flight with no mission objectives.",
+      "url": "./?mode=freeflight",
+      "icons": [{ "src": "192.png", "sizes": "192x192" }]
     },
     {
-      "src": "/Flight-sim/compressed/512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
+      "name": "Career Mode",
+      "short_name": "Career",
+      "description": "Earn money, gain XP, and unlock new aircraft in the Hangar.",
+      "url": "./?mode=career",
+      "icons": [{ "src": "192.png", "sizes": "192x192" }]
     },
     {
-      "src": "/Flight-sim/compressed/512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
+      "name": "Flight Lessons",
+      "short_name": "Lessons",
+      "description": "Learn to fly with generated missions and flight lessons.",
+      "url": "./?mode=lessons",
+      "icons": [{ "src": "192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Aircraft Hangar",
+      "short_name": "Hangar",
+      "description": "View your 50+ aircraft collection.",
+      "url": "./?mode=hangar",
+      "icons": [{ "src": "192.png", "sizes": "192x192" }]
     }
-  ]
+  ],
+
+  "protocol_handlers": [
+    {
+      "protocol": "web+flightsim",
+      "url": "./?protocol=%s"
+    },
+    {
+      "protocol": "web+atc",
+      "url": "./?atc=%s"
+    }
+  ],
+
+  "file_handlers": [
+    {
+      "action": "./index.html",
+      "accept": {
+        "application/json": [".json"],
+        "text/plain": [".txt", ".log", ".csv"],
+        "application/octet-stream": [".fms", ".flt"]
+      }
+    }
+  ],
+
+  "widgets": [
+    {
+      "name": "Flight Simulator Status",
+      "short_name": "FlightSim",
+      "description": "Check your career stats and active missions.",
+      "icons": [
+        {
+          "src": "192.png",
+          "sizes": "192x192"
+        }
+      ],
+      "ms_ac_template": "widgets/flight_widget.json",
+      "data": "widgets/data.json",
+      "type": "application/json",
+      "auth": false
+    }
+  ],
+
+  "related_applications": [
+    {
+      "platform": "play",
+      "url": "https://play.google.com/store/apps/details?id=com.milottc.flightsim",
+      "id": "com.milottc.flightsim"
+    },
+    {
+      "platform": "itunes",
+      "url": "https://apps.apple.com/app/id1234567890"
+    },
+    {
+      "platform": "windows",
+      "url": "https://apps.microsoft.com/store/detail/9NBLGGH4XXXXX"
+    }
+  ],
+
+  "msapplication-TileColor": "#0f172a",
+  "msapplication-TileImage": "144.png",
+  "msapplication-square70x70logo": "80.png",
+  "msapplication-square150x150logo": "152.png",
+  "msapplication-wide310x150logo": "Wide310x150Logo.scale-100.png",
+  "msapplication-square310x310logo": "512.png",
+
+  "custom_fields": {
+    "developer": "milottc",
+    "engine": "Babylon.js",
+    "supported_controls": "keyboard, gamepad, touch",
+    "is_offline_capable": true
+  }
 }
