@@ -1,26 +1,33 @@
 {
-  "background_color": "#ffffff",
+  "name": "Babylon Flight 737",
+  "short_name": "FlightSim",
+  "description": "A browser-based 3D flight simulator built with Babylon.js, featuring 50+ aircraft, career mode, satellite terrain, autopilot, ATC, and failure simulation.",
+  "lang": "en",
   "dir": "ltr",
+  "start_url": "/Flight-sim/compressed/",
+  "scope": "/Flight-sim/compressed/",
   "display": "standalone",
-  "name": "milottc.github",
   "orientation": "any",
-  "scope": "/",
-  "short_name": "milottc.github",
-  "start_url": "/",
-  "theme_color": "#ffffff",
+  "background_color": "#ffffff",
+  "theme_color": "#317EFB",
   "icons": [
     {
-      "src": "https://milottc.github.io/favicon.ico",
-      "type": "image/x-icon",
-      "isSquare": false,
-      "isPng": false,
-      "isWebp": false,
-      "isJpg": false,
-      "width": 0,
-      "is512x512": false,
-      "is256x256": false,
-      "is192x192": false
+      "src": "/Flight-sim/compressed/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/Flight-sim/compressed/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/Flight-sim/compressed/icons/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
-  ],
-  "description": "✈️ Babylon Flight 737\nA fully-featured, browser-based 3D flight simulator built entirely with HTML, CSS, and vanilla JavaScript using the Babylon.js engine.\n\nOriginally a 9,000-line monolith, this project has been heavily optimized for performance, featuring lazy-loading for aircraft models, progressive satellite terrain streaming, and a custom resolution manager.\n\n🌟 Features\n50+ Aircraft: Fly everything from the Cessna 172 to the Airbus A380 and Concorde.\n\nCareer Mode: Earn money and XP, unlock new planes in the Hangar, and complete generated missions and flight lessons.\n\nDynamic Imagery: Streams real-world satellite imagery (ESRI/Google) and 3D elevation data.\n\nAdvanced Systems: Fully functional Autopilot, FMS map with waypoints, and ATC voice clearances.\n\nFailure Simulation: Inject 40+ faults (engine fires, sensor failures, rapid decompression) via the UI or keyboard.\n\nFlight Physics: Custom aerodynamic physics engine, including ground effect, stall buffeting, bounce physics, and crash debris/replay.\n\n🚀 How to Play\nGitHub Pages: You can play the live version hosted on this repository's GitHub Pages.\n\nLocally: Because the game fetches external satellite data, you cannot just double-click index.html (browsers block local CORS requests). You must run a local web server.\n\nVS Code: Install the Live Server extension and click \"Go Live\".\n\nPython: Run python -m http.server in the folder, then open http://localhost:8000.\n\n🎮 Basic Controls\nKey\tAction\nW / S\tPitch (Nose down / up)\nA / D\tRoll (Left / right)\nQ / E\tRudder (Yaw)\nShift / Ctrl\tThrottle up / down\nG\tLanding Gear up / down\nF\tFlaps\nC or V\tCycle Camera (Chase, Cockpit, Flyby)\nP\tAutopilot (Hold HDG &amp; ALT)\nJ\tOpen FMS / Map\nK\tOpen ATC Radio\n(For a full list of controls, including trim and liveries, open the \"Controls &amp; Key Bindings\" dropdown on the main menu).\n\n⚡ Performance Note\nThe game includes a Resolution Dropdown on the main menu. If the game is loading too slowly on a school or public network, change the imagery setting to \"Low\" or \"Medium\". The game will start flying immediately while the satellite map streams in the background."
+  ]
 }
