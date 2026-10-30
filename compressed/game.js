@@ -2772,7 +2772,7 @@ function crash(reason,isWater,opts){
   setTimeout(()=>{if(plane.crashed&&!(window._replayOn&&window._replayOn()))document.getElementById('crashOverlay').classList.add('show');},2600);
   if(isWater){try{waterSplash(1);}catch(e){}}
 }
-function respawn(){try{clearTraffic();}catch(e){}
+function _respawnBase(){try{clearTraffic();}catch(e){}
   try{window._crashReset&&window._crashReset();}catch(e){}
   document.getElementById('crashOverlay').classList.remove('show');
   const loc=currentLocation;
@@ -5957,7 +5957,7 @@ startBtn.addEventListener('click',async()=>{
 });
 respawnBtn.addEventListener('click',respawn);
 // Always keep start button enabled after respawn too
-const _origRespawn=respawn;
+const _origRespawn=_respawnBase;
 function respawn(){
   _origRespawn();
   try{startBtn.disabled=false;}catch(e){}
