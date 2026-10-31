@@ -395,8 +395,8 @@ let M_PER_DEG_LAT=111132,M_PER_DEG_LON=111320*Math.cos(47.4647*Math.PI/180);
 
 const worldToLL=(x,z)=>({lat:CFG.origin.lat-z/M_PER_DEG_LAT,lon:CFG.origin.lon+x/M_PER_DEG_LON});
 const llToWorld=(lat,lon)=>({x:(lon-CFG.origin.lon)*M_PER_DEG_LON,z:-(lat-CFG.origin.lat)*M_PER_DEG_LAT});
-const CFG={origin:{lat:47.4647,lon:8.5492},terrainExtent:18000,terrainGrid:321,texSize:4096,
-  maxImageryTiles:144,maxHeightTiles:12,heightZoom:13,rebuildDist:3000,tileTimeout:12000};
+const CFG={origin:{lat:47.4647,lon:8.5492},terrainExtent:18000,terrainGrid:385,texSize:4096,
+  maxImageryTiles:144,maxHeightTiles:16,heightZoom:13,rebuildDist:3000,tileTimeout:12000};
 const lon2tx=(lon,z)=>(lon+180)/360*Math.pow(2,z);
 const lat2ty=(lat,z)=>{const r=lat*Math.PI/180;return(1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2*Math.pow(2,z);};
 const tx2lon=(x,z)=>x/Math.pow(2,z)*360-180;
@@ -465,7 +465,8 @@ function loadImage(key,url){
   });
   imgPending.set(key,p);return p;
 }
-const hCache=new Map(),hPending=new Map();let heightZoom=CFG.heightZoom;
+const hCache=new Map(),hPending=new Map();let heightZoom=CFG.heightZoom,heightBackupZoom=CFG.heightZoom;
+let lastGoodH=0; // last elevation we actually resolved anywhere - never snap collision ground to sea level (0m) just because a tile hasn't streamed in yet
 function loadHeightTile(z,x,y){
   const k=`${z}/${x}/${y}`;
   if(hCache.has(k))return Promise.resolve(hCache.get(k));
@@ -487,18 +488,37 @@ async function ensureHeightTiles(cx,cz){
   heightZoom=z;const jobs=[];
   const hTotal=(r.x1-r.x0+1)*(r.y1-r.y0+1);let hDone=0;
   for(let tx=r.x0;tx<=r.x1;tx++)for(let ty=r.y0;ty<=r.y1;ty++)jobs.push(loadHeightTile(z,tx,ty).then(v=>{hDone++;lsProgress(0.3*hDone/hTotal,'Loading elevation '+hDone+' / '+hTotal);return v;}));
+  /* Backup coverage: a much wider ring of coarser tiles so sampleH always has
+     *something* real to fall back on. Without this, flying fast (or the terrain
+     rebuild lagging behind) could push the plane outside the fine-detail tiles
+     above before they've streamed in, sampleH would silently return sea level
+     (0m), and the aircraft would appear to sink straight into the ground/imagery
+     even though the visible terrain mesh was built from good data. */
+  const bz=Math.max(5,z-4);heightBackupZoom=bz;
+  const bE=E*3,bnw=worldToLL(cx-bE/2,cz-bE/2),bse=worldToLL(cx+bE/2,cz+bE/2),br=tileRange(bnw,bse,bz);
+  for(let tx=br.x0;tx<=br.x1;tx++)for(let ty=br.y0;ty<=br.y1;ty++)jobs.push(loadHeightTile(bz,tx,ty).catch(()=>null));
   await Promise.all(jobs);
 }
-function sampleH(lat,lon){
-  const z=heightZoom,fx=lon2tx(lon,z),fy=lat2ty(lat,z);
-  const tx=Math.floor(fx),ty=Math.floor(fy),d=hCache.get(`${z}/${tx}/${ty}`);
-  if(!d)return 0;
+function decodeHTile(d,fx,fy,tx,ty){
   const px=(fx-tx)*256-.5,py=(fy-ty)*256-.5;
   const x0=Math.max(0,Math.min(255,Math.floor(px))),y0=Math.max(0,Math.min(255,Math.floor(py)));
   const x1=Math.min(255,x0+1),y1=Math.min(255,y0+1);
   const ax=Math.max(0,Math.min(1,px-x0)),ay=Math.max(0,Math.min(1,py-y0));
   const dec=i=>{const o=i*4;return(d[o]*256+d[o+1]+d[o+2]/256)-32768;};
   return(dec(y0*256+x0)*(1-ax)+dec(y0*256+x1)*ax)*(1-ay)+(dec(y1*256+x0)*(1-ax)+dec(y1*256+x1)*ax)*ay;
+}
+function sampleH(lat,lon){
+  const z=heightZoom,fx=lon2tx(lon,z),fy=lat2ty(lat,z);
+  const tx=Math.floor(fx),ty=Math.floor(fy),d=hCache.get(`${z}/${tx}/${ty}`);
+  if(d){const h=decodeHTile(d,fx,fy,tx,ty);lastGoodH=h;return h;}
+  // Primary tile not ready yet - fall back to the wider backup layer instead of
+  // snapping straight to sea level (this is what used to look like "sinking into
+  // the imagery": the visual mesh still showed real terrain while the collision
+  // height briefly read 0).
+  const bz=heightBackupZoom,bfx=lon2tx(lon,bz),bfy=lat2ty(lat,bz);
+  const btx=Math.floor(bfx),bty=Math.floor(bfy),bd=hCache.get(`${bz}/${btx}/${bty}`);
+  if(bd){const h=decodeHTile(bd,bfx,bfy,btx,bty);lastGoodH=h;return h;}
+  return lastGoodH;
 }
 const sampleTerrain=(x,z)=>{const ll=worldToLL(x,z);return sampleH(ll.lat,ll.lon);};
 /* airport plateau: shared by terrain mesh + collision so the ground you touch is the ground you see.
@@ -3704,44 +3724,61 @@ const LANDMARKS=[
   {name:'CN Tower · Toronto',lat:43.6426,lon:-79.3871,parts:[
     {t:'cyl',db:22,dt:9,h:350,y0:0,c:[.86,.86,.86],n:16},
     {t:'sph',d:30,y:350,c:[.82,.82,.84]},
-    {t:'cyl',db:9,dt:1.5,h:203,y0:350,c:[.8,.8,.82],n:12}]},
+    {t:'cyl',db:9,dt:1.5,h:203,y0:350,c:[.8,.8,.82],n:12,glow:[.9,.2,.2]}]},
   {name:'Bank of China Tower · Hong Kong',lat:22.2793,lon:114.1622,parts:[
-    {t:'box',w:44,d:44,h:367,y0:0,c:[.5,.56,.6]},
+    {t:'box',w:44,d:44,h:367,y0:0,c:[.5,.56,.6],tex:true},
     {t:'cyl',db:1.6,dt:.4,h:40,y0:367,c:[.7,.72,.74],n:6}]},
   {name:'ICC · Hong Kong',lat:22.3033,lon:114.1602,parts:[
-    {t:'box',w:50,d:50,h:484,y0:0,c:[.55,.6,.66]}]},
+    {t:'box',w:50,d:50,h:484,y0:0,c:[.55,.6,.66],tex:true}]},
   {name:'Tokyo Skytree',lat:35.7101,lon:139.8107,parts:[
     {t:'cyl',db:62,dt:12,h:530,y0:0,c:[.92,.93,.95],n:3},
-    {t:'cyl',db:8,dt:2,h:104,y0:530,c:[.85,.86,.9],n:8}]},
+    {t:'cyl',db:8,dt:2,h:104,y0:530,c:[.85,.86,.9],n:8,glow:[.9,.95,1]}]},
   {name:'Tokyo Tower',lat:35.6586,lon:139.7454,parts:[
     {t:'cyl',db:14,dt:3,h:333,y0:0,c:[.9,.45,.2],n:4}]},
   {name:'Burj Khalifa · Dubai',lat:25.1972,lon:55.2744,parts:[
-    {t:'cyl',db:40,dt:4,h:828,y0:0,c:[.78,.84,.88],n:3}]},
+    {t:'cyl',db:40,dt:4,h:828,y0:0,c:[.78,.84,.88],n:3,tex:true},
+    {t:'cyl',db:3,dt:.5,h:40,y0:828,c:[.8,.84,.88],n:6,glow:[1,.95,.8]}]},
   {name:'Taipei 101',lat:25.0330,lon:121.5645,parts:[
-    {t:'box',w:40,d:40,h:440,y0:0,c:[.2,.6,.45]},
+    {t:'box',w:40,d:40,h:440,y0:0,c:[.2,.6,.45],tex:true},
     {t:'cyl',db:6,dt:1,h:68,y0:440,c:[.6,.7,.7],n:8}]},
   {name:'Empire State Building',lat:40.7484,lon:-73.9857,parts:[
-    {t:'box',w:40,d:60,h:381,y0:0,c:[.8,.8,.78]},
-    {t:'cyl',db:6,dt:1,h:62,y0:381,c:[.8,.8,.8],n:8}]},
+    {t:'box',w:40,d:60,h:381,y0:0,c:[.8,.8,.78],tex:true},
+    {t:'cyl',db:6,dt:1,h:62,y0:381,c:[.8,.8,.8],n:8,glow:[.95,.75,.2]}]},
   {name:'Eiffel Tower',lat:48.8584,lon:2.2945,parts:[
-    {t:'cyl',db:90,dt:10,h:330,y0:0,c:[.35,.28,.2],n:4}]},
+    {t:'cyl',db:90,dt:10,h:330,y0:0,c:[.35,.28,.2],n:4,glow:[1,.78,.35]}]},
   {name:'Petronas Towers',lat:3.1579,lon:101.7116,parts:[
-    {t:'box',w:42,d:42,h:452,y0:0,c:[.85,.87,.88]}]}
+    {t:'box',w:42,d:42,h:452,y0:0,c:[.85,.87,.88],tex:true},
+    {t:'cyl',db:4,dt:.6,h:40,y0:452,c:[.85,.87,.88],n:6}]},
+  {name:'Statue of Liberty · New York',lat:40.6892,lon:-74.0445,parts:[
+    {t:'box',w:30,d:30,h:47,y0:0,c:[.58,.55,.48]},                          // granite pedestal
+    {t:'cyl',db:21,dt:15,h:21,y0:47,c:[.4,.6,.54],n:12},                    // robe / base
+    {t:'cyl',db:15,dt:8,h:17,y0:68,c:[.42,.62,.56],n:10},                   // torso
+    {t:'sph',d:7.5,y:89,c:[.44,.63,.57]},                                  // head
+    {t:'cyl',db:1.6,dt:1.2,h:13,y0:76,x:6,z:2,c:[.4,.6,.54],n:6},          // raised arm
+    {t:'sph',d:4.2,y:93,x:6,z:2,c:[1,.86,.4],glow:[1,.82,.3]}]},           // torch flame
+  {name:'Leaning Tower of Pisa',lat:43.7230,lon:10.3966,tilt:0.068,parts:[
+    {t:'cyl',db:15.5,dt:15.5,h:48,y0:0,c:[.92,.88,.78],n:16},
+    {t:'cyl',db:17,dt:17,h:7,y0:48,c:[.9,.86,.76],n:16},
+    {t:'cyl',db:9,dt:2,h:4,y0:55,c:[.55,.5,.4],n:12}]}
 ];
-let lmMeshes=null;
+let lmMeshes=null,lmTexSeed=0;
 function lmBuild(){
   if(lmMeshes)return;
   lmMeshes=LANDMARKS.map(L=>{
     const root=new BABYLON.TransformNode('lm_'+L.name,scene);
+    if(L.tilt){root.rotationQuaternion=null;root.rotation.z=L.tilt;}
     L.parts.forEach((p,k)=>{
       const mat=new BABYLON.StandardMaterial('lmM_'+L.name+'_'+k,scene);
       mat.diffuseColor=new BABYLON.Color3(p.c[0],p.c[1],p.c[2]);
-      mat.specularColor=new BABYLON.Color3(.15,.15,.15);
+      mat.specularColor=new BABYLON.Color3(.18,.18,.2);mat.specularPower=32;
+      if(p.tex){const ny=Math.max(3,Math.round((p.h||40)/11)),tx=winTex(ny,++lmTexSeed+100);tx.uScale=Math.max(1,Math.round((p.w||p.db||30)/11));tx.vScale=ny;
+        mat.diffuseTexture=tx;mat.emissiveTexture=tx;mat.emissiveColor=new BABYLON.Color3(.22,.22,.22);}
+      if(p.glow){mat.emissiveColor=new BABYLON.Color3(p.glow[0],p.glow[1],p.glow[2]).scale(.8);}
       let m;
-      if(p.t==='cyl'){m=BABYLON.MeshBuilder.CreateCylinder('lp',{height:p.h,diameterTop:p.dt,diameterBottom:p.db,tessellation:p.n||12},scene);m.position.y=p.y0+p.h/2;}
-      else if(p.t==='box'){m=BABYLON.MeshBuilder.CreateBox('lp',{width:p.w,height:p.h,depth:p.d},scene);m.position.y=p.y0+p.h/2;}
-      else{m=BABYLON.MeshBuilder.CreateSphere('lp',{diameter:p.d,segments:12},scene);m.position.y=p.y;}
-      m.material=mat;m.parent=root;m.isPickable=false;
+      if(p.t==='cyl'){m=BABYLON.MeshBuilder.CreateCylinder('lp',{height:p.h,diameterTop:p.dt,diameterBottom:p.db,tessellation:p.n||12},scene);m.position.set(p.x||0,p.y0+p.h/2,p.z||0);}
+      else if(p.t==='box'){m=BABYLON.MeshBuilder.CreateBox('lp',{width:p.w,height:p.h,depth:p.d},scene);m.position.set(p.x||0,p.y0+p.h/2,p.z||0);}
+      else{m=BABYLON.MeshBuilder.CreateSphere('lp',{diameter:p.d,segments:12},scene);m.position.set(p.x||0,p.y,p.z||0);}
+      m.material=mat;m.parent=root;m.isPickable=false;m.alwaysSelectAsActiveMesh=true;
     });
     root.setEnabled(false);
     return {L,root};
@@ -3935,18 +3972,32 @@ function applyWeatherVisuals(){
 try{
   const pipeline=new BABYLON.DefaultRenderingPipeline('dp',true,scene,[camera]);
   pipeline.fxaaEnabled=true;pipeline.samples=1;pipeline.sharpenEnabled=true;pipeline.sharpen.edgeAmount=.3;pipeline.sharpen.colorAmount=1;
-  pipeline.bloomEnabled=true;pipeline.bloomThreshold=.9;
-  pipeline.bloomWeight=.22;pipeline.bloomKernel=48;
+  pipeline.bloomEnabled=true;pipeline.bloomThreshold=.82;
+  pipeline.bloomWeight=.28;pipeline.bloomKernel=56;
   pipeline.imageProcessingEnabled=true;
   pipeline.imageProcessing.vignetteEnabled=true;
   pipeline.imageProcessing.vignetteWeight=1.5;
   pipeline.imageProcessing.vignetteStretch=.5;
   pipeline.imageProcessing.vignetteColor=new BABYLON.Color4(0,0,0,0);
   pipeline.imageProcessing.vignetteBlendMode=BABYLON.ImageProcessingConfiguration.VIGNETTEMODE_MULTIPLY;
-  pipeline.imageProcessing.contrast=1.08;
-  pipeline.imageProcessing.exposure=1.15;
+  pipeline.imageProcessing.contrast=1.14;
+  pipeline.imageProcessing.exposure=1.18;
   pipeline.imageProcessing.toneMappingEnabled=true;
   pipeline.imageProcessing.toneMappingType=BABYLON.ImageProcessingConfiguration.TONEMAPPING_ACES;
+  if(pipeline.imageProcessing.colorCurvesEnabled!==undefined){
+    pipeline.imageProcessing.colorCurvesEnabled=true;
+    const cc=new BABYLON.ColorCurves();cc.globalSaturation=22;cc.globalContrast=6;cc.highlightsSaturation=10;cc.shadowsDensity=8;
+    pipeline.imageProcessing.colorCurves=cc;
+  }
+}catch(e){}
+/* SSAO2: cheap ambient-occlusion pass so buildings/terrain/aircraft actually look
+   grounded and 3D instead of flat-shaded blocks. Skipped on touch/low-power devices
+   and folded into the FPS-based quality scaler below (disabled at _gq 0). */
+try{
+  if(!isTouchDev && BABYLON.SSAO2RenderingPipeline && BABYLON.SSAO2RenderingPipeline.IsSupported){
+    const ssao=window._ssao=new BABYLON.SSAO2RenderingPipeline('ssao',scene,{ssaoRatio:.5,blurRatio:.5},[camera]);
+    ssao.radius=3.2;ssao.totalStrength=.9;ssao.base=.15;ssao.expensiveBlur=false;ssao.samples=10;ssao.maxZ=600;
+  }
 }catch(e){}
 
 try{
@@ -4334,13 +4385,30 @@ function updateAutopilot(dt){
   }
 }
 function fpDist(i){const wp=FP.wps[i],w=llToWorld(wp.lat,wp.lon);return Math.hypot(w.x-plane.pos.x,w.z-plane.pos.z);}
+/* Rough top-of-descent point on the active leg, using the standard 3:1 rule
+   (3 nm of track per 1000ft to lose). Returns null if there's nothing to
+   descend for, or the leg is too short to show a meaningful marker. */
+function todInfo(){
+  if(!FP.wps.length||FP.active>=FP.wps.length)return null;
+  const wp=FP.wps[FP.active];
+  if(wp.alt==null)return null;
+  const curFt=plane.pos.y*3.28084,deltaFt=curFt-wp.alt;
+  if(deltaFt<=80)return null;
+  const legNm=fpDist(FP.active)/1852;
+  const todNm=deltaFt/1000*3;
+  if(todNm>=legNm)return null;
+  const f=BABYLON.Scalar.Clamp((legNm-todNm)/legNm,0,1);
+  const w=llToWorld(wp.lat,wp.lon);
+  return {x:plane.pos.x+(w.x-plane.pos.x)*f,z:plane.pos.z+(w.z-plane.pos.z)*f,todNm};
+}
 function addWaypoint(lat,lon,name,alt){FP.n++;FP.wps.push({name:name||('WPT'+String(FP.n).padStart(2,'0')),lat,lon,alt:(alt&&isFinite(alt))?alt:null});if(FP.active>=FP.wps.length-1&&FP.active>FP.wps.length-1)FP.active=FP.wps.length-1;renderFMS();}
-const MAPV={mpp:70,follow:true,cx:0,cz:0,tap:true};
+const MAPV={mpp:70,follow:true,cx:0,cz:0,tap:true,hdgUp:false};
 (function(){
   const fms=document.createElement('div');fms.id='fms';
   fms.innerHTML=`<div class="fh"><span>FMS · MAP · AUTOPILOT</span><button id="fmsX">✕</button></div>
   <canvas id="mapC" width="480" height="400"></canvas>
-  <div class="row"><button id="mZi">＋</button><button id="mZo">－</button><button id="mCtr" class="on">⌖ FOLLOW</button><button id="mTap" class="on">TAP = ADD WPT</button><span class="lbl">WPT ALT</span><input id="wpAlt" type="number" placeholder="ft"></div>
+  <div class="row"><button id="mZi">＋</button><button id="mZo">－</button><button id="mCtr" class="on">⌖ FOLLOW</button><button id="mHup">HDG UP</button><button id="mTap" class="on">TAP = ADD WPT</button><span class="lbl">WPT ALT</span><input id="wpAlt" type="number" placeholder="ft"></div>
+  <div class="st" id="navSt"></div>
   <div class="lbl">AUTOPILOT</div>
   <div class="row"><button id="aAP">AP</button><button id="aHDG">HDG</button><button id="aLNAV">LNAV</button><button id="aALT">ALT</button><button id="aVS">V/S</button><button id="aSPD">A/THR</button><button id="aVNAV">VNAV</button><button id="aAPPR">APPR</button></div>
   <div class="row"><span class="lbl">HDG</span><input id="iHDG" type="number" min="0" max="360"><span class="lbl">ALT</span><input id="iALT" type="number" step="100"><span class="lbl">V/S</span><input id="iVS" type="number" step="100"><span class="lbl">SPD</span><input id="iSPD" type="number" step="5"></div>
@@ -4363,6 +4431,7 @@ const MAPV={mpp:70,follow:true,cx:0,cz:0,tap:true};
   $('mZo').addEventListener('click',()=>{MAPV.mpp=Math.min(6000,MAPV.mpp*1.6);});
   $('mCtr').addEventListener('click',()=>{MAPV.follow=!MAPV.follow;if(!MAPV.follow){MAPV.cx=plane.pos.x;MAPV.cz=plane.pos.z;}$('mCtr').classList.toggle('on',MAPV.follow);});
   $('mTap').addEventListener('click',()=>{MAPV.tap=!MAPV.tap;$('mTap').classList.toggle('on',MAPV.tap);});
+  $('mHup').addEventListener('click',()=>{MAPV.hdgUp=!MAPV.hdgUp;$('mHup').classList.toggle('on',MAPV.hdgUp);$('mHup').textContent=MAPV.hdgUp?'HDG UP':'NORTH UP';});
   const aEn=()=>{if(!AP.master){AP.master=true;if(!AP.hdgMode&&!AP.lnav&&!AP.appr){const m=BABYLON.Matrix.Identity();plane.quat.toRotationMatrix(m);const f=BABYLON.Vector3.TransformNormal(new BABYLON.Vector3(0,0,1),m);AP.hdgTarget=Math.round((Math.atan2(f.x,-f.z)*180/Math.PI+360)%360);AP.hdgMode=true;}
     if(!AP.altMode&&!AP.vsMode&&!AP.appr){AP.altMode=true;AP.altTarget=Math.round(plane.pos.y*3.28084/100)*100;}}};
   $('aAP').addEventListener('click',()=>{if(AP.master){AP.master=false;AP.appr=false;showMsg('AUTOPILOT OFF');}else{aEn();showMsg('AUTOPILOT ENGAGED');}});
@@ -4387,10 +4456,14 @@ const MAPV={mpp:70,follow:true,cx:0,cz:0,tap:true};
   const mc=$('mapC');let pd=null,moved=0;
   const scr=(e)=>{const r=mc.getBoundingClientRect();return[(e.clientX-r.left)*mc.width/r.width,(e.clientY-r.top)*mc.height/r.height];};
   mc.addEventListener('pointerdown',e=>{pd=scr(e);moved=0;mc.setPointerCapture(e.pointerId);});
-  mc.addEventListener('pointermove',e=>{if(!pd)return;const q=scr(e),dx=q[0]-pd[0],dy=q[1]-pd[1];moved+=Math.abs(dx)+Math.abs(dy);
-    if(moved>6){if(MAPV.follow){MAPV.follow=false;$('mCtr').classList.remove('on');MAPV.cx=plane.pos.x;MAPV.cz=plane.pos.z;}MAPV.cx-=dx*MAPV.mpp;MAPV.cz-=dy*MAPV.mpp;pd=q;}});
+  mc.addEventListener('pointermove',e=>{if(!pd)return;const q=scr(e);let dx=q[0]-pd[0],dy=q[1]-pd[1];moved+=Math.abs(dx)+Math.abs(dy);
+    if(moved>6){if(MAPV.follow){MAPV.follow=false;$('mCtr').classList.remove('on');MAPV.cx=plane.pos.x;MAPV.cz=plane.pos.z;}
+      if(_mapRot){const s=Math.sin(-_mapRot),c=Math.cos(-_mapRot),rx=dx*c-dy*s,ry=dx*s+dy*c;dx=rx;dy=ry;}
+      MAPV.cx-=dx*MAPV.mpp;MAPV.cz-=dy*MAPV.mpp;pd=q;}});
   mc.addEventListener('pointerup',e=>{if(pd&&moved<=6&&MAPV.tap){const q=scr(e),cx=MAPV.follow?plane.pos.x:MAPV.cx,cz=MAPV.follow?plane.pos.z:MAPV.cz;
-      const wx=cx+(q[0]-mc.width/2)*MAPV.mpp,wz=cz+(q[1]-mc.height/2)*MAPV.mpp,ll=worldToLL(wx,wz);addWaypoint(ll.lat,ll.lon,null,parseFloat($('wpAlt').value));}
+      let dx=q[0]-mc.width/2,dz=q[1]-mc.height/2;
+      if(_mapRot){const s=Math.sin(-_mapRot),c=Math.cos(-_mapRot),rx=dx*c-dz*s,rz=dx*s+dz*c;dx=rx;dz=rz;}
+      const wx=cx+dx*MAPV.mpp,wz=cz+dz*MAPV.mpp,ll=worldToLL(wx,wz);addWaypoint(ll.lat,ll.lon,null,parseFloat($('wpAlt').value));}
     pd=null;});
   mc.addEventListener('wheel',e=>{e.preventDefault();MAPV.mpp=Math.max(10,Math.min(6000,MAPV.mpp*(e.deltaY>0?1.2:1/1.2)));},{passive:false});
   window.renderFMS=function(){
@@ -4399,21 +4472,33 @@ const MAPV={mpp:70,follow:true,cx:0,cz:0,tap:true};
     L.innerHTML=h||'<div class="lbl">No waypoints. Tap the map or add an airport.</div>';
   };
   const mctx=mc.getContext('2d');
+  // world -> screen transform the pointer handlers also need, kept in sync with drawMap's own
+  let _mapRot=0; // current heading-up rotation (0 in north-up mode), refreshed every drawMap()
+  function mapToScreen(x,z,cx,cz,mpp,W,H,rot){
+    let dx=(x-cx)/mpp,dz=(z-cz)/mpp;
+    if(rot){const s=Math.sin(rot),c=Math.cos(rot);const rx=dx*c-dz*s,rz=dx*s+dz*c;dx=rx;dz=rz;}
+    return[W/2+dx,H/2+dz];
+  }
   function drawMap(){
     const W=mc.width,H=mc.height,cx=MAPV.follow?plane.pos.x:MAPV.cx,cz=MAPV.follow?plane.pos.z:MAPV.cz,mpp=MAPV.mpp;
-    const px=(x,z)=>[W/2+(x-cx)/mpp,H/2+(z-cz)/mpp];
+    const mm=BABYLON.Matrix.Identity();plane.quat.toRotationMatrix(mm);const f=BABYLON.Vector3.TransformNormal(new BABYLON.Vector3(0,0,1),mm),hd=Math.atan2(f.x,-f.z);
+    const rot=MAPV.hdgUp?-hd:0;_mapRot=rot;
+    const px=(x,z)=>mapToScreen(x,z,cx,cz,mpp,W,H,rot);
     mctx.fillStyle='#10202a';mctx.fillRect(0,0,W,H);
     try{
       const c0=worldToLL(cx,cz);let z=Math.round(Math.log2(156543.03*Math.cos(c0.lat*Math.PI/180)/mpp));z=Math.max(3,Math.min(16,z));
       const nw=worldToLL(cx-W/2*mpp,cz-H/2*mpp),se=worldToLL(cx+W/2*mpp,cz+H/2*mpp);let r=tileRange(nw,se,z);
       while(z>3&&(r.x1-r.x0+1)*(r.y1-r.y0+1)>30){z--;r=tileRange(nw,se,z);}
       let loads=0;
+      mctx.save();mctx.translate(W/2,H/2);mctx.rotate(rot);mctx.translate(-W/2,-H/2);
       for(let tx=r.x0;tx<=r.x1;tx++)for(let ty=r.y0;ty<=r.y1;ty++){
         const key=`${Imagery.mode}/${useCanadaImagery?'ca':'ww'}/${z}/${tx}/${ty}`,img=imgCache.get(key);
         if(!img){if(loads<6&&!imgPending.has(key)){loads++;loadImage(key,Imagery.url(z,tx,ty));}continue;}
-        const p0=llToWorld(ty2lat(ty,z),tx2lon(tx,z)),p1=llToWorld(ty2lat(ty+1,z),tx2lon(tx+1,z)),a=px(p0.x,p0.z),b=px(p1.x,p1.z);
+        const p0=llToWorld(ty2lat(ty,z),tx2lon(tx,z)),p1=llToWorld(ty2lat(ty+1,z),tx2lon(tx+1,z));
+        const a=mapToScreen(p0.x,p0.z,cx,cz,mpp,W,H,0),b=mapToScreen(p1.x,p1.z,cx,cz,mpp,W,H,0);
         mctx.drawImage(img,a[0],a[1],b[0]-a[0]+.6,b[1]-a[1]+.6);
       }
+      mctx.restore();
     }catch(e){}
     mctx.fillStyle='rgba(0,8,16,.32)';mctx.fillRect(0,0,W,H);
     const pp=px(plane.pos.x,plane.pos.z);mctx.strokeStyle='rgba(120,220,255,.4)';mctx.lineWidth=1;mctx.font='11px monospace';mctx.fillStyle='#9fe0ff';mctx.textAlign='left';
@@ -4429,12 +4514,24 @@ const MAPV={mpp:70,follow:true,cx:0,cz:0,tap:true};
       for(let i=st;i<FP.wps.length;i++){const w=llToWorld(FP.wps[i].lat,FP.wps[i].lon),q=px(w.x,w.z);mctx.lineTo(q[0],q[1]);}mctx.stroke();
       FP.wps.forEach((wp,i)=>{const w=llToWorld(wp.lat,wp.lon),q=px(w.x,w.z),act=AP.lnav&&i===FP.active;
         mctx.fillStyle=act?'#ff5cff':'#ffd0ff';mctx.beginPath();mctx.moveTo(q[0],q[1]-7);mctx.lineTo(q[0]+6,q[1]);mctx.lineTo(q[0],q[1]+7);mctx.lineTo(q[0]-6,q[1]);mctx.closePath();mctx.fill();
-        mctx.font='bold 11px monospace';mctx.fillText(wp.name,q[0]+8,q[1]+4);});}
-    const mm=BABYLON.Matrix.Identity();plane.quat.toRotationMatrix(mm);const f=BABYLON.Vector3.TransformNormal(new BABYLON.Vector3(0,0,1),mm),hd=Math.atan2(f.x,-f.z);
-    mctx.save();mctx.translate(pp[0],pp[1]);mctx.rotate(hd);mctx.fillStyle='#ffd400';mctx.strokeStyle='#000';mctx.lineWidth=1.5;
+        mctx.font='bold 11px monospace';mctx.fillText(wp.name,q[0]+8,q[1]+4);});
+      if(AP.lnav){try{const tod=todInfo();if(tod){const q=px(tod.x,tod.z);
+        mctx.save();mctx.translate(q[0],q[1]);mctx.strokeStyle='#ffd400';mctx.fillStyle='#ffd400';mctx.lineWidth=2;
+        mctx.beginPath();mctx.moveTo(-7,-7);mctx.lineTo(7,7);mctx.moveTo(7,-7);mctx.lineTo(-7,7);mctx.stroke();
+        mctx.font='bold 10px monospace';mctx.textAlign='center';mctx.fillText('TOD',0,16);mctx.restore();mctx.textAlign='left';}}catch(e){}}}
+    // ground track vector: where the aircraft is actually tracking over the next ~60s, not just where the nose points
+    {const gsp=Math.hypot(plane.vel.x,plane.vel.z);
+      if(gsp>3){const trkHd=Math.atan2(plane.vel.x,-plane.vel.z);const ahead=mapToScreen(plane.pos.x+Math.sin(trkHd)*gsp*60,plane.pos.z-Math.cos(trkHd)*gsp*60,cx,cz,mpp,W,H,rot);
+        mctx.strokeStyle='rgba(255,212,0,.65)';mctx.lineWidth=1.5;mctx.setLineDash([4,4]);mctx.beginPath();mctx.moveTo(pp[0],pp[1]);mctx.lineTo(ahead[0],ahead[1]);mctx.stroke();mctx.setLineDash([]);}}
+    mctx.save();mctx.translate(pp[0],pp[1]);mctx.rotate(hd+rot);mctx.fillStyle='#ffd400';mctx.strokeStyle='#000';mctx.lineWidth=1.5;
     mctx.beginPath();mctx.moveTo(0,-13);mctx.lineTo(8,8);mctx.lineTo(0,4);mctx.lineTo(-8,8);mctx.closePath();mctx.fill();mctx.stroke();mctx.restore();
     for(const t of traffic){const q=px(t.pos.x,t.pos.z);mctx.fillStyle=t.lvl===2?'#ff3030':(t.lvl===1?'#ffb000':'#40e0ff');mctx.beginPath();mctx.arc(q[0],q[1],4,0,6.2832);mctx.fill();}
-    mctx.fillStyle='#fff';mctx.font='bold 13px monospace';mctx.fillText('N ▲',8,18);
+    // compass rose: a small N marker that actually swings around in heading-up mode
+    mctx.save();mctx.translate(28,28);mctx.rotate(rot);mctx.strokeStyle='rgba(255,255,255,.55)';mctx.lineWidth=1;mctx.beginPath();mctx.arc(0,0,16,0,6.2832);mctx.stroke();
+    mctx.fillStyle='#fff';mctx.font='bold 12px monospace';mctx.textAlign='center';mctx.fillText('N',0,-18);
+    mctx.beginPath();mctx.moveTo(0,-16);mctx.lineTo(3,-9);mctx.lineTo(-3,-9);mctx.closePath();mctx.fillStyle='#ff5050';mctx.fill();
+    mctx.restore();mctx.textAlign='left';
+    mctx.fillStyle='#fff';mctx.font='bold 11px monospace';mctx.fillText(MAPV.hdgUp?'HDG '+Math.round(((hd*180/Math.PI)+360)%360)+'°':'NORTH UP',44,24);
   }
   setInterval(()=>{
     if(!fms.classList.contains('show'))return;
@@ -4445,6 +4542,19 @@ const MAPV={mpp:70,follow:true,cx:0,cz:0,tap:true};
     fv('iHDG',AP.hdgTarget);fv('iALT',AP.altTarget);fv('iVS',AP.vsTarget);fv('iSPD',AP.spdTarget);
     let st='';if(AP.appr)st='APPROACH · LOC/GS TRACKING';else if(AP.lnav&&FP.active<FP.wps.length){const d=fpDist(FP.active),g=Math.max(30,Math.hypot(plane.vel.x,plane.vel.z));st='LNAV → '+FP.wps[FP.active].name+' · '+(d/1852).toFixed(1)+' nm · ETA '+Math.round(d/g/60*10)/10+' min';}
     else if(FP.wps.length)st='LNAV OFF · '+FP.wps.length+' waypoints';$('fpSt').textContent=st;
+    {
+      const gs=Math.hypot(plane.vel.x,plane.vel.z),gsKt=gs*1.94384;
+      const mm2=BABYLON.Matrix.Identity();plane.quat.toRotationMatrix(mm2);
+      const trk=gs>3?((Math.atan2(plane.vel.x,-plane.vel.z)*180/Math.PI)+360)%360:null;
+      let navTxt='GS '+Math.round(gsKt)+'kt'+(trk!=null?' · TRK '+Math.round(trk)+'°':'');
+      if(FP.wps.length&&FP.active<FP.wps.length){
+        const wp=FP.wps[FP.active],w=llToWorld(wp.lat,wp.lon),dx=w.x-plane.pos.x,dz=w.z-plane.pos.z,distNm=Math.hypot(dx,dz)/1852;
+        const brg=((Math.atan2(dx,-dz)*180/Math.PI)+360)%360,ete=gs>3?distNm*1852/gs/60:null;
+        navTxt+=' · '+wp.name+' BRG '+Math.round(brg)+'° DTG '+distNm.toFixed(1)+'nm'+(ete!=null?' ETE '+ete.toFixed(1)+'m':'');
+        const tod=todInfo();if(tod)navTxt+=' · TOD IN '+Math.max(0,(distNm-tod.todNm)).toFixed(1)+'nm';
+      }
+      $('navSt').textContent=navTxt;
+    }
     renderFMS();
   },300);
 })();
@@ -7494,6 +7604,7 @@ NJ.forEach(p=>{if(p.analog)ANALOG_SET.add(p.id);if(p.brand==='airbus')AIRBUS_SET
             else if(n<2&&window._vls){window._vls.dispose(camera);window._vls=null;}}catch(e){console.warn('q godrays',e);}
         try{terrainMat.detailMap&&(terrainMat.detailMap.isEnabled=n>=1);}catch(e){}
         try{if(trunkMesh)trunkMesh.isVisible=n>=1;if(window._rtMesh)window._rtMesh.isVisible=n>=1;}catch(e){}
+        try{if(window._ssao)window._ssao.isSupported&&(window._ssao.totalStrength=n<1?0:[0,.6,.9,1.1][n]);scene.postProcessRenderPipelineManager.attachCamerasToRenderPipeline&&(n>=1?scene.postProcessRenderPipelineManager.attachCamerasToRenderPipeline('ssao',camera):scene.postProcessRenderPipelineManager.detachCamerasFromRenderPipeline('ssao',camera));}catch(e){}
         const chip=document.getElementById('gfxChip');if(chip)chip.textContent='GFX · '+NAMES[n];
         if(!quiet)showMsg('GRAPHICS: '+NAMES[n],1500);};
       window.setGraphicsQuality=n=>{auto=false;setQ(n);};
@@ -8241,13 +8352,17 @@ void main(){
         setTimeout(()=>{tireBurstFired=false;},30000);
       }
 
-      // Runway excursion: off paved surface at speed (rough terrain = crash)
+      // Runway excursion: off paved surface at speed. Uses the same airport-plateau
+      // test the ground physics uses (ab===null, or far outside the paved footprint)
+      // rather than guessing from the fractional part of the raw elevation, which
+      // triggered false crashes on perfectly normal runways whose elevation just
+      // happened to have the "wrong" decimal part.
       if(plane.onGround&&spd>80&&plane.gearDown){
         try{
-          if(typeof ghPreview!=='undefined'&&typeof sampleSurface!=='undefined'){
-            const terrH=sampleSurface(plane.pos.x,plane.pos.z);
-            const rough=(terrH%1); // fractional terrain = rough
-            if(rough>0.18&&rough<0.82){
+          if(typeof airportBlend!=='undefined'){
+            const ab=airportBlend(plane.pos.x,plane.pos.z);
+            const offPaved=!ab||ab.e>35; // well outside the runway/taxiway/apron footprint
+            if(offPaved){
               _excTimer+=0.016;
               if(_excTimer>0.8){
                 if(typeof crash!=='undefined')crash('RUNWAY EXCURSION · '+Math.round(spd)+' kt');
@@ -8338,8 +8453,8 @@ void main(){
         setTimeout(()=>{
           try{
             if(typeof faults!=='undefined'){
-              if(!faults.has('HYD_FAIL_L')){
-                faults.inject('HYD_FAIL_L');
+              if(!faults.has('HYD_LOSS')){
+                faults.inject('HYD_LOSS');
                 if(typeof showMsg!=='undefined')showMsg('⚠ HYD SYS 1 FAULT · HARD LANDING DAMAGE',4000);
               }
             }
