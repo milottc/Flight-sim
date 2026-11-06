@@ -1,44 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <style>
-/* ===== SIMPLE HUD: two sidebars, minimal chrome ===== */
-.hid{display:none!important}
-
-#infoBox{left:14px;top:14px;width:auto;padding:0;background:none;border:none;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none;font-size:11px;line-height:1.6;color:#d6e6f5;text-shadow:0 1px 3px #000}
-#infoBox .lbl{color:#fff;letter-spacing:2px;margin-bottom:4px}
-#infoBox .sub{color:#b8cde0}
-
-.sb{position:absolute;top:50%;transform:translateY(-50%);width:120px;text-align:center;color:#fff;text-shadow:0 1px 4px #000;pointer-events:none}
-#sbLeft{left:14px}
-#sbRight{right:58px}
-#sbThr{right:12px;width:40px;top:50%;transform:translateY(-50%)}
-
-.sbHead{font-size:11px;letter-spacing:2px;opacity:.85}
-.sbVal{font-size:40px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums}
-.sbSub{display:flex;justify-content:space-between;font-size:12px;opacity:.85;margin-top:2px}
-.sbVs{margin-top:8px;font-size:18px;font-weight:700;color:#a5f3fc}
-.sbVs small{font-size:11px;font-weight:500;color:#cfe3f5}
-
-.sbTrack{position:relative;width:14px;height:42vh;margin:8px auto 0;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.35);border-radius:4px;overflow:hidden}
-.sbTrack.thr{width:22px}
-.sbFill{position:absolute;bottom:0;left:0;right:0;height:0%;background:linear-gradient(0deg,#22c55e,#fbbf24,#ef4444);transition:height .12s linear}
-.sbFill.alt{background:linear-gradient(0deg,#38bdf8,#e0f2fe)}
-
-#attitude{left:50%;bottom:64px;transform:translateX(-50%);width:150px;height:150px;padding:0;background:none;border:none;box-shadow:none;border-radius:50%;overflow:hidden}
-#attitudeCanvas{width:150px;height:150px}
-#compass{left:50%;bottom:14px;transform:translateX(-50%);width:320px;height:48px;background:none;border:none;box-shadow:none}
-#compassCanvas{width:320px;height:48px}
-
-#tcas{left:14px;right:auto;top:auto;bottom:14px;width:140px;height:140px;padding:0;background:none;border:none;box-shadow:none}
-#tcasCanvas{width:140px;height:140px;border-radius:50%}
-
-#configPanel{top:14px;bottom:auto;gap:4px}
-#configPanel .cfgChip{background:rgba(0,0,0,.35);border-color:rgba(255,255,255,.2);font-size:10px;padding:5px 10px}
-
-#msgBox{top:auto;bottom:210px}
-body.cockpit .sb{opacity:.9}
-</style>
 <meta charset="utf-8">
   <link rel="preconnect" href="https://server.arcgisonline.com" crossorigin>
 <link rel="preconnect" href="https://s3.amazonaws.com" crossorigin>
@@ -1379,35 +1341,25 @@ body.pfd-hidden #compass {
     <div class="sub" id="senTxt" style="color:#ff8060"></div>
   </div>
 
-  <!-- LEFT SIDEBAR: speed -->
-  <div class="sb" id="sbLeft">
-    <div class="sbHead">KIAS</div>
-    <div class="sbVal" id="spdVal">0</div>
-    <div class="sbSub"><span>M <span id="machVal">0.00</span></span><span id="spdState">GS 0 kt</span></div>
-    <div class="sbTrack"><div class="sbFill" id="spdVFill"></div></div>
+  <div class="panelBox" id="airspeed">
+    <div class="lbl">AIRSPEED · KIAS</div>
+    <div class="val"><span id="spdVal">0</span></div>
+    <div class="sub"><span>M <span id="machVal">0.00</span></span><span id="spdState">GS 0 kt</span></div>
+    <div class="bar"><div class="fill" id="spdBar" style="width:0%"></div><div class="mark" id="spdMark" style="left:0%"></div></div>
   </div>
 
-  <!-- RIGHT SIDEBAR: altitude + vertical speed -->
-  <div class="sb" id="sbRight">
-    <div class="sbHead">ALT FT</div>
-    <div class="sbVal" id="altVal">0</div>
-    <div class="sbSub"><span id="altState">AGL 0</span></div>
-    <div class="sbTrack"><div class="sbFill alt" id="altVFill"></div></div>
-    <div class="sbVs"><span id="vsVal">0</span> <small>VS <span id="vsState">LVL</span> · G <span id="gVal">1.0</span></small></div>
+  <div class="panelBox" id="altitude">
+    <div class="lbl">ALTITUDE · FT MSL</div>
+    <div class="val"><span id="altVal">0</span></div>
+    <div class="sub"><span id="altState">AGL 0</span><span>STD 1013</span></div>
+    <div class="bar"><div class="fill" id="altBar" style="width:0%"></div></div>
   </div>
 
-  <!-- FAR-RIGHT: throttle -->
-  <div class="sb" id="sbThr">
-    <div class="sbHead">THR</div>
-    <div class="sbTrack thr"><div class="sbFill" id="thrVFill"></div></div>
+  <div class="panelBox" id="vsi">
+    <div class="lbl">VERT SPEED · FPM</div>
+    <div class="val" id="vsVal">0</div>
+    <div class="sub">G <span id="gVal">1.0</span> · VS <span id="vsState">LVL</span></div>
   </div>
-
-  <!-- hidden elements the sim still writes to -->
-  <div id="airspeed" class="hid">
-    <span id="spdBar"></span><span id="spdMark"></span>
-  </div>
-  <div id="altitude" class="hid"><span id="altBar"></span></div>
-  <div id="vsi" class="hid"></div>
 
   <div class="panelBox" id="tcas"><canvas id="tcasCanvas" width="170" height="170"></canvas></div>
   <div class="panelBox" id="attitude"><canvas id="attitudeCanvas" width="220" height="220"></canvas></div>
@@ -1430,7 +1382,64 @@ body.pfd-hidden #compass {
     <div class="mw" id="mwWarn">MASTER WARNING</div>
     <div class="mc" id="mwCaution">MASTER CAUTION</div>
   </div>
-</div>div id="overlay">
+</div>
+
+<div id="faultTriggers">
+  <button id="faultToggleBtn">⚠ INJECT FAULT</button>
+  <div id="faultButtons">
+    <div class="fgTitle">Inject Fault</div>
+    <button class="faultBtn" data-inject="ENG_FIRE_L">ENG 1 FIRE</button>
+    <button class="faultBtn" data-inject="ENG_FIRE_R">ENG 2 FIRE</button>
+    <button class="faultBtn" data-inject="HYD_LOSS">HYD PRESS LO</button>
+    <button class="faultBtn" data-inject="ELEC_BUS">ELEC BUS OFF</button>
+    <button class="faultBtn" data-inject="ADC_FAULT">AIR DATA FAULT</button>
+    <button class="faultBtn" data-inject="FUEL_LEAK">FUEL LEAK</button>
+    <button class="faultBtn" data-inject="GEAR_FAULT">GEAR DISAGREE</button>
+    <button class="faultBtn" data-inject="BIRD_STRIKE">BIRD STRIKE</button>
+    <button class="faultBtn" data-inject="FLAMEOUT">ENG 1 FLAMEOUT</button>
+    <button class="faultBtn" data-inject="TRIM_RUNAWAY">TRIM RUNAWAY</button>
+    <button class="faultBtn" data-inject="RUDDER_JAM">RUDDER JAM</button>
+    <button class="faultBtn" data-inject="AIL_JAM">AILERON JAM</button>
+    <button class="faultBtn" data-inject="TIRE_BURST">TIRE BURST</button>
+    <div class="fgSep"></div>
+    <div class="fgTitle">More Systems</div>
+    <button class="faultBtn" data-inject="FLAP_JAM">FLAPS JAMMED</button>
+    <button class="faultBtn" data-inject="SPOILER_JAM">SPOILERS STUCK</button>
+    <button class="faultBtn" data-inject="ELEV_JAM">ELEVATOR JAM</button>
+    <button class="faultBtn" data-inject="ICING">WING ICING</button>
+    <button class="faultBtn" data-inject="OIL_PRESS">ENG 2 OIL PRESS LO</button>
+    <button class="faultBtn" data-inject="ENG_SURGE">ENG 1 SURGE</button>
+    <button class="faultBtn" data-inject="BRAKE_FAIL">BRAKES INOP</button>
+    <button class="faultBtn" data-inject="CABIN_ALT">CABIN ALTITUDE</button>
+    <button class="faultBtn" data-inject="GEN_FAIL">GENERATOR 1 FAIL</button>
+    <div class="fgSep"></div>
+    <div class="fgTitle">Sensor Failures</div>
+    <button class="faultBtn" data-inject="PITOT_BLOCK">PITOT BLOCKED (IAS)</button>
+    <button class="faultBtn" data-inject="STATIC_BLOCK">STATIC BLOCKED (ALT/VS)</button>
+    <button class="faultBtn" data-inject="AOA_FAIL">AOA SENSOR FAIL</button>
+    <button class="faultBtn" data-inject="ATT_FAIL">ATTITUDE GYRO FAIL</button>
+    <button class="faultBtn" data-inject="HDG_FAIL">COMPASS FAIL</button>
+    <button class="faultBtn" data-inject="FUEL_QTY">FUEL QTY SENSOR</button>
+    <button class="faultBtn" data-inject="ENG_SENSOR">ENG 1 SENSOR FAIL</button>
+    <button class="faultBtn" data-inject="RADALT_FAIL">RADIO ALT FAIL</button>
+    <button class="faultBtn" data-inject="COCKPIT_SMOKE">COCKPIT SMOKE</button>
+    <button class="faultBtn" data-inject="MICROBURST">MICROBURST</button>
+    <button class="faultBtn" data-inject="LIGHTNING">LIGHTNING STRIKE</button>
+    <button class="faultBtn" data-inject="ASH">VOLCANIC ASH</button>
+    <button class="faultBtn" data-inject="FUEL_IMBAL">FUEL IMBALANCE</button>
+    <button class="faultBtn" data-inject="DUAL_ENG">DUAL ENGINE FAILURE</button>
+    <button class="faultBtn" data-inject="THR_STUCK">THROTTLE STUCK</button>
+    <button class="faultBtn" data-inject="DECOMP">RAPID DECOMPRESSION</button>
+    <button class="faultBtn" data-inject="CHAOS">CHAOS MODE (RANDOM)</button>
+    <button class="faultBtn" data-inject="COLLISION">COLLISION COURSE (TCAS)</button>
+    <div class="fgSep"></div>
+    <button class="faultBtn clear" data-clear="all">CLEAR ALL FAULTS</button>
+    <div class="fgSep"></div>
+    <div class="fgTitle">Imagery Source</div>
+    <button class="faultBtn" id="imgToggle">🌍 GLOBAL · ESRI</button>
+  </div>
+</div>
+<div id="overlay">
   <div class="homeCard">
     <div class="homeHero">
       <div class="heroTitle">BABYLON <span>FLIGHT 737</span></div>
@@ -2050,21 +2059,6 @@ body.pfd-hidden #compass {
     requestAnimationFrame(draw);
   }
   draw();
-})();
-</script>
-  <script>
-/* Mirrors the sim's horizontal bar widths and throttle into the vertical sidebars. */
-(function(){
-  const pairs=[['spdBar','spdVFill'],['altBar','altVFill']];
-  setInterval(()=>{
-    pairs.forEach(([src,dst])=>{
-      const s=document.getElementById(src),d=document.getElementById(dst);
-      if(s&&d)d.style.height=s.style.width;
-    });
-    const t=document.getElementById('thrVFill');
-    const sim=window.__sim;
-    if(t&&sim&&sim.plane)t.style.height=(sim.plane.throttle*100)+'%';
-  },100);
 })();
 </script>
 
