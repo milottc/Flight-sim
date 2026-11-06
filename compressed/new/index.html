@@ -2052,6 +2052,21 @@ body.pfd-hidden #compass {
   draw();
 })();
 </script>
+  <script>
+/* Mirrors the sim's horizontal bar widths and throttle into the vertical sidebars. */
+(function(){
+  const pairs=[['spdBar','spdVFill'],['altBar','altVFill']];
+  setInterval(()=>{
+    pairs.forEach(([src,dst])=>{
+      const s=document.getElementById(src),d=document.getElementById(dst);
+      if(s&&d)d.style.height=s.style.width;
+    });
+    const t=document.getElementById('thrVFill');
+    const sim=window.__sim;
+    if(t&&sim&&sim.plane)t.style.height=(sim.plane.throttle*100)+'%';
+  },100);
+})();
+</script>
 
 </body>
 </html>
