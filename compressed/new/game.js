@@ -21,6 +21,11 @@ function loadJS(u){return new Promise(r=>{const t=document.createElement('script
 function main(){
 let _sfxCur=null;
 
+/* ===== SETTINGS (persisted in localStorage) ===== */
+const SET_DEF={rudder:'simple',purple:false};
+const SET=(()=>{try{return Object.assign({},SET_DEF,JSON.parse(localStorage.getItem('bf737_settings')||'{}'));}catch(e){return Object.assign({},SET_DEF);}})();
+const saveSet=()=>{try{localStorage.setItem('bf737_settings',JSON.stringify(SET));}catch(e){}};
+
 /* ===== KSFO: real FAA threshold coordinates for all four runways (source: AirNav/FAA). World origin = centre of 28L/10R so the
    satellite imagery's real runways line up exactly with the simulated ones. True headings (magnetic variation 14E). ===== */
 const KS_REF={lat:37.619002,lon:-122.375727};
@@ -2601,7 +2606,7 @@ function physicsStep(dt){
   const k=1-Math.exp(-3.2*dt);
   plane.elevator+=(input.pitch-plane.elevator)*k;
   plane.aileron+=(input.roll-plane.aileron)*k;
-  plane.rudder+=(input.yaw-plane.rudder)*k;
+  plane.rudder+=(input.yaw-plane.rudder)*(SET.rudder==='realistic'?1-Math.exp(-1.5*dt):k);
   if(faults.has('ELEV_JAM')){if(plane._ej===undefined)plane._ej=plane.elevator;plane.elevator=plane._ej;}else plane._ej=undefined;
   const effElev=BABYLON.Scalar.Clamp(plane.elevator+plane.elevTrim*.6,-1.5,1.5);
   const effAil=BABYLON.Scalar.Clamp(plane.aileron+plane.ailTrim*.6,-1.5,1.5);
@@ -2701,7 +2706,8 @@ function physicsStep(dt){
     targetPitchRate=Math.max(targetPitchRate,urgency*1.4);
   }
   plane.angVel.x+=(targetPitchRate-plane.angVel.x)*kk;
-  plane.angVel.y+=(effRud*ACFG.maxRudRate*auth*hydFactor-beta*.9*Math.min(1,Va/100)-plane.angVel.y)*kk;
+  const advYaw=SET.rudder==='realistic'?input.roll*ACFG.maxRudRate*0.22*Math.min(1,Va/60):0;
+  plane.angVel.y+=(effRud*ACFG.maxRudRate*auth*hydFactor+advYaw-beta*.9*Math.min(1,Va/100)-plane.angVel.y)*kk;
   plane.angVel.z+=(-effAil*ACFG.maxAilRate*auth*hydFactor-plane.angVel.z)*kk;
   if(AP.yd)plane.angVel.y*=(1-2.5*dt);
   if(!plane.onGround){plane.angVel.x*=(1-.9*dt);plane.angVel.z*=(1-.6*dt);}
@@ -4708,7 +4714,104 @@ function ilsCalc(){
   o.valid=true;o.loc=-ang/2.5;o.gs=(gsAng-3)/0.7;o.d=d;o.angDeg=ang;
   return o;
 }
-const ILSP={on:true};
+/* Purple checkpoints: single source of truth is SET.purple (default off). Any toggle path (\ key, cockpit button, settings) saves it. */
+const ILSP={get on(){return !!SET.purple;},set on(v){SET.purple=!!v;saveSet();}};
+
+/* ===== FLIGHT DECK PANEL: on-screen gear lever + quick-access switches ===== */
+(function flightDeck(){
+  const css='#fdBtn{position:fixed;left:150px;bottom:14px;z-index:70;font:600 12px system-ui,sans-serif;letter-spacing:.06em;padding:7px 11px;border-radius:9px;border:1px solid rgba(120,220,255,.45);background:rgba(10,20,34,.8);color:#bfefff;cursor:pointer}'+
+  '#fdPanel{position:fixed;left:150px;bottom:56px;z-index:71;width:300px;display:none;padding:12px;border-radius:12px;background:rgba(8,14,24,.97);border:1px solid rgba(120,220,255,.35);color:#dff6ff;font:600 11px system-ui,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.6)}'+
+  '#fdPanel.show{display:block}#fdPanel .g{display:grid;grid-template-columns:1fr 1fr;gap:6px}'+
+  '#fdPanel button.sw{font:700 11px system-ui,sans-serif;padding:8px 6px;border-radius:8px;border:1px solid #2a4a66;background:#10203a;color:#bfefff;cursor:pointer;letter-spacing:.04em}'+
+  '#fdPanel button.sw.on{background:#1c5a7a;border-color:#38d6ff;color:#fff}'+
+  '#fdPanel .gear{display:flex;align-items:center;gap:12px;margin-bottom:10px;padding:8px;border-radius:10px;background:#0a1220;border:1px solid #1d3550}'+
+  '#fdPanel .lev{width:46px;height:110px;border-radius:8px;background:#1b2330;border:1px solid #3a4c63;position:relative;cursor:pointer;flex:0 0 auto}'+
+  '#fdPanel .knob{position:absolute;left:8px;right:8px;height:34px;border-radius:6px;background:linear-gradient(#e8edf4,#8d9bb0);transition:top .35s ease;box-shadow:0 2px 6px rgba(0,0,0,.5)}'+
+  '#fdPanel .lbl{font-size:10px;color:#8aa4bb;letter-spacing:.08em}'+
+  '#fdPanel .sd{font-size:10px;color:#8aa4bb;margin-top:8px}';
+  const st=document.createElement('style');st.textContent=css;document.head.appendChild(st);
+  const btn=document.createElement('button');btn.id='fdBtn';btn.textContent='✈ FLIGHT DECK';
+  const pnl=document.createElement('div');pnl.id='fdPanel';
+  pnl.innerHTML='<div class="gear"><div class="lev" id="fdLev"><div class="knob" id="fdKnob"></div></div>'+
+    '<div><div class="lbl">LANDING GEAR</div><div id="fdGear" style="font-size:18px;font-weight:800;margin-top:4px">DN</div><div class="sd" style="margin-top:4px">Click lever or press G</div></div></div>'+
+    '<div class="g" id="fdGrid"></div><div class="sd">Quick switches. Same actions as the keyboard shortcuts.</div>';
+  document.body.appendChild(btn);document.body.appendChild(pnl);
+  const fire=code=>{window.dispatchEvent(new KeyboardEvent('keydown',{code}));window.dispatchEvent(new KeyboardEvent('keyup',{code}));};
+  const SW=[
+    {l:'FLAPS',   on:()=>plane.flaps>0, t:()=>'FLAPS '+FLAPS[plane.flaps].name, act:()=>fire('KeyF')},
+    {l:'SPOILERS',on:()=>plane.spoilerDeploy>.5, act:()=>fire('KeyB')},
+    {l:'REVERSER',on:()=>!!plane.reverserOn, act:()=>fire('KeyN')},
+    {l:'A/P',     on:()=>!!AP.master, act:()=>fire('KeyP')},
+    {l:'A/THR',   on:()=>!!AP.athr, act:()=>fire('KeyT')},
+    {l:'YAW DAMP',on:()=>AP.yd!==false, act:()=>{AP.yd=!(AP.yd!==false);}},
+    {l:'F/D',     on:()=>AP.fd!==false, act:()=>{AP.fd=!(AP.fd!==false);}},
+    {l:'ENG START',on:()=>false, act:()=>fire('KeyI')},
+    {l:'PFD',     on:()=>!document.body.classList.contains('pfd-hidden'), act:()=>fire('KeyX')},
+    {l:'MAP',     on:()=>{const f=document.getElementById('fms');return !!f&&f.classList.contains('show');}, act:()=>fire('KeyJ')},
+    {l:'ATC',     on:()=>{const f=document.getElementById('atc');return !!f&&!f.classList.contains('hidden');}, act:()=>fire('KeyK')},
+    {l:'ILS PATH',on:()=>ILSP.on, act:()=>{ILSP.on=!ILSP.on;}}
+  ];
+  const grid=pnl.querySelector('#fdGrid');
+  SW.forEach((s,i)=>{const b=document.createElement('button');b.className='sw';b.dataset.i=i;grid.appendChild(b);});
+  grid.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;try{SW[+b.dataset.i].act();}catch(err){}refresh();});
+  const gearAct=()=>{fire('KeyG');refresh();};
+  pnl.querySelector('#fdLev').addEventListener('click',gearAct);
+  function refresh(){
+    if(!pnl.classList.contains('show'))return;
+    const gp=plane.gearPos,txt=gp>.9?'DN':(gp<.1?'UP':'TRANSIT');
+    const g=pnl.querySelector('#fdGear');g.textContent=txt;g.style.color=txt==='DN'?'#2fe070':(txt==='UP'?'#9fb5c9':'#ffb000');
+    pnl.querySelector('#fdKnob').style.top=plane.gearDown?'68px':'6px';
+    grid.querySelectorAll('button').forEach(b=>{const s=SW[+b.dataset.i];let on=false,t=s.l;try{on=!!s.on();if(s.t)t=s.t();}catch(e){}b.textContent=t;b.className='sw'+(on?' on':'');});
+  }
+  btn.addEventListener('click',()=>{pnl.classList.toggle('show');refresh();});
+  setInterval(refresh,200);
+})();
+/* ===== SETTINGS PANEL (gear button bottom-left) ===== */
+(function settingsPanel(){
+  const css='#setBtn{position:fixed;left:14px;bottom:14px;z-index:70;font:600 12px system-ui,sans-serif;letter-spacing:.06em;padding:7px 11px;border-radius:9px;border:1px solid rgba(120,220,255,.45);background:rgba(10,20,34,.8);color:#bfefff;cursor:pointer}'+
+  '#setPanel{position:fixed;left:14px;bottom:56px;z-index:71;width:290px;max-height:70vh;overflow:auto;display:none;padding:14px;border-radius:12px;background:rgba(8,14,24,.97);border:1px solid rgba(120,220,255,.35);color:#dff6ff;font:500 13px/1.35 system-ui,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.6)}'+
+  '#setPanel.show{display:block}'+
+  '#setPanel h3{margin:14px 0 6px;font:700 11px system-ui,sans-serif;letter-spacing:.12em;color:#7fc7ff;text-transform:uppercase}'+
+  '#setPanel h3:first-child{margin-top:4px}'+
+  '#setPanel .sr{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:6px 0}'+
+  '#setPanel .sd{font-size:11px;color:#8aa4bb;margin:2px 0 4px}'+
+  '#setPanel button.sb{font:600 12px system-ui,sans-serif;padding:6px 10px;border-radius:8px;border:1px solid #2a4a66;background:#10203a;color:#bfefff;cursor:pointer}'+
+  '#setPanel button.sb.on{background:#1c5a7a;border-color:#38d6ff;color:#fff}'+
+  '#setPanel .seg{display:flex;gap:6px}#setPanel .seg button{flex:1}'+
+  '#setPanel .x{float:right;background:none;border:none;color:#8aa4bb;font-size:16px;cursor:pointer}';
+  const st=document.createElement('style');st.textContent=css;document.head.appendChild(st);
+  const btn=document.createElement('button');btn.id='setBtn';btn.textContent='⚙ SETTINGS';
+  const pnl=document.createElement('div');pnl.id='setPanel';
+  document.body.appendChild(btn);document.body.appendChild(pnl);
+  const onOff=v=>`<button class="sb${v?' on':''}" data-t>${v?'ON':'OFF'}</button>`;
+  function render(){
+    const simple=SET.rudder==='simple';
+    pnl.innerHTML=`<button class="x" data-x title="Close">✕</button>
+      <h3>Flight controls</h3>
+      <div class="sr"><span>Rudder control</span></div>
+      <div class="seg">
+        <button class="sb${simple?' on':''}" data-r="simple">SIMPLE</button>
+        <button class="sb${!simple?' on':''}" data-r="realistic">REALISTIC</button>
+      </div>
+      <div class="sd">${simple?'Ailerons roll the aircraft cleanly. No pedal input needed (auto-coordinated).':'Q/E pedals are needed. Ailerons cause adverse yaw and the rudder responds more slowly.'}</div>
+      <h3>Approach</h3>
+      <div class="sr"><span>Purple ILS checkpoints</span>${onOff(SET.purple).replace('data-t','data-p')}</div>
+      <div class="sd">Purple approach path on the map (during APPR) and the 3D ILS path. Shortcut: \\ key.</div>
+      <h3>System</h3>
+      <div class="sr"><span>Invert mouse pitch</span>${onOff(mouseInvert).replace('data-t','data-m')}</div>
+      <div class="sr"><span>Restore defaults</span><button class="sb" data-reset>RESET</button></div>`;
+  }
+  btn.addEventListener('click',()=>{pnl.classList.toggle('show');if(pnl.classList.contains('show'))render();});
+  pnl.addEventListener('click',e=>{
+    const t=e.target.closest('button');if(!t)return;
+    if(t.hasAttribute('data-x')){pnl.classList.remove('show');return;}
+    if(t.dataset.r){SET.rudder=t.dataset.r;saveSet();showMsg('RUDDER · '+SET.rudder.toUpperCase(),1500);}
+    else if(t.hasAttribute('data-p')){ILSP.on=!ILSP.on;showMsg('PURPLE ILS CHECKPOINTS '+(SET.purple?'ON':'OFF'),1500);}
+    else if(t.hasAttribute('data-m')){mouseInvert=!mouseInvert;try{localStorage.setItem('bf737_mouse_inv',mouseInvert?'1':'0');}catch(e){}const ms=document.getElementById('mouseSel');if(ms)ms.value=mouseInvert?'inv':'std';}
+    else if(t.hasAttribute('data-reset')){Object.assign(SET,SET_DEF);saveSet();mouseInvert=false;try{localStorage.setItem('bf737_mouse_inv','0');}catch(e){}const ms=document.getElementById('mouseSel');if(ms)ms.value='std';showMsg('SETTINGS RESTORED TO DEFAULTS',1500);}
+    render();
+  });
+})();
 (function(){
   const root=new BABYLON.TransformNode('ilsRoot',scene);
   const mk=(n,a)=>{const m=new BABYLON.StandardMaterial(n,scene);m.emissiveColor=new BABYLON.Color3(.80,.34,1);m.diffuseColor=new BABYLON.Color3(0,0,0);m.disableLighting=true;m.alpha=a;m.fogEnabled=false;return m;};
@@ -4857,7 +4960,7 @@ const MAPV={mpp:70,follow:true,cx:0,cz:0,tap:true,hdgUp:false};
     for(let k=1;k<=3;k++){const rr=ring*k*1852/mpp;mctx.beginPath();mctx.arc(pp[0],pp[1],rr,0,6.2832);mctx.stroke();mctx.fillText(ring*k+'nm',pp[0]+rr*.71+2,pp[1]-rr*.71);}
     if(runwayLenM>0){const h=runwayHdgDeg*Math.PI/180,a=px(-Math.sin(h)*runwayLenM/2,Math.cos(h)*runwayLenM/2),b=px(Math.sin(h)*runwayLenM/2,-Math.cos(h)*runwayLenM/2);
       mctx.strokeStyle='#fff';mctx.lineWidth=Math.max(2,runwayWidM/mpp);mctx.beginPath();mctx.moveTo(a[0],a[1]);mctx.lineTo(b[0],b[1]);mctx.stroke();
-      if(AP.appr){const ext=px(-Math.sin(h)*(runwayLenM/2+22000),Math.cos(h)*(runwayLenM/2+22000));mctx.strokeStyle='rgba(205,110,255,.95)';mctx.lineWidth=2.2;mctx.setLineDash([10,6]);mctx.beginPath();mctx.moveTo(a[0],a[1]);mctx.lineTo(ext[0],ext[1]);mctx.stroke();mctx.setLineDash([]);
+      if(ILSP.on&&AP.appr){const ext=px(-Math.sin(h)*(runwayLenM/2+22000),Math.cos(h)*(runwayLenM/2+22000));mctx.strokeStyle='rgba(205,110,255,.95)';mctx.lineWidth=2.2;mctx.setLineDash([10,6]);mctx.beginPath();mctx.moveTo(a[0],a[1]);mctx.lineTo(ext[0],ext[1]);mctx.stroke();mctx.setLineDash([]);
         mctx.fillStyle='#d58bff';mctx.font='bold 10px monospace';
         for(let nm=2;nm<=11;nm+=(nm<4?2:(nm<10?3:1))){const d2=runwayLenM/2+nm*1852;if(d2>runwayLenM/2+22000)break;const q=px(-Math.sin(h)*d2,Math.cos(h)*d2);mctx.beginPath();mctx.arc(q[0],q[1],3.2,0,6.2832);mctx.fill();mctx.fillText(nm+' nm',q[0]+6,q[1]+3);}
         mctx.fillText('ILS '+(RUNWAYS&&currentLocation&&RUNWAYS[currentLocation.code]&&RUNWAYS[currentLocation.code].des?RUNWAYS[currentLocation.code].des[0]:''),ext[0]+6,ext[1]);}}
