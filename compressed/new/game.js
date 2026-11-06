@@ -3586,13 +3586,28 @@ function drawPFD(ctx,W,H,hdg,pitch,bank){
       ctx.beginPath();ctx.moveTo(fx,ay-u*20);ctx.lineTo(fx,ay+u*20);ctx.stroke();ctx.restore();ctx.lineCap='butt';
     }
     if(il&&il.valid){
-      const dm=(x,y,vert)=>{ctx.beginPath();if(vert){ctx.moveTo(x,y-u*2.6);ctx.lineTo(x+u*1.7,y);ctx.lineTo(x,y+u*2.6);ctx.lineTo(x-u*1.7,y);}else{ctx.moveTo(x-u*2.6,y);ctx.lineTo(x,y+u*1.7);ctx.lineTo(x+u*2.6,y);ctx.lineTo(x,y-u*1.7);}ctx.closePath();ctx.fill();};
-      const ly=ay+ah-u*3.2,gx=cx+aw-u*3.2;
-      ctx.fillStyle='rgba(0,0,0,.45)';ctx.fillRect(cx-u*17,ly-u*2.6,u*34,u*5.2);ctx.fillRect(gx-u*2.6,ay-u*17,u*5.2,u*34);
-      ctx.strokeStyle='#fff';ctx.lineWidth=u*.35;
-      for(let k=-2;k<=2;k++){if(!k)continue;ctx.beginPath();ctx.arc(cx+k*u*7,ly,u*.9,0,6.3);ctx.stroke();ctx.beginPath();ctx.arc(gx,ay+k*u*7,u*.9,0,6.3);ctx.stroke();}
-      ctx.strokeStyle='#ffd400';ctx.lineWidth=u*.6;ctx.beginPath();ctx.moveTo(cx,ly-u*2.4);ctx.lineTo(cx,ly+u*2.4);ctx.moveTo(gx-u*2.4,ay);ctx.lineTo(gx+u*2.4,ay);ctx.stroke();
-      ctx.fillStyle=PUR;dm(cx+Math.max(-2.3,Math.min(2.3,il.loc))*u*7,ly,true);dm(gx,ay+Math.max(-2.3,Math.min(2.3,il.gs))*u*7,false);
+      /* ── ILS LOC scale (bottom of attitude area) ── */
+      const ly=ay+ah-u*5,gx=cx+aw-u*4.5;
+      /* scale background */
+      ctx.fillStyle='rgba(0,0,0,.5)';ctx.fillRect(cx-u*18,ly-u*3,u*36,u*6);ctx.fillRect(gx-u*3,ay-u*18,u*6,u*36);
+      /* scale dots at ±1 and ±2 dots */
+      ctx.strokeStyle='rgba(255,255,255,.75)';ctx.lineWidth=u*.4;
+      for(let k=-2;k<=2;k++){if(!k)continue;
+        ctx.beginPath();ctx.arc(cx+k*u*7,ly,u*1.1,0,6.3);ctx.stroke();
+        ctx.beginPath();ctx.arc(gx,ay+k*u*7,u*1.1,0,6.3);ctx.stroke();}
+      /* fixed centre cross-marks (yellow) */
+      ctx.strokeStyle='#ffd400';ctx.lineWidth=u*.65;
+      ctx.beginPath();ctx.moveTo(cx,ly-u*2.8);ctx.lineTo(cx,ly+u*2.8);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(gx-u*2.8,ay);ctx.lineTo(gx+u*2.8,ay);ctx.stroke();
+      /* LOC bar (vertical magenta bar on LOC scale) */
+      const locOff=Math.max(-2.1,Math.min(2.1,il.loc))*u*7;
+      ctx.strokeStyle=PUR;ctx.lineWidth=u*2;ctx.lineCap='round';
+      ctx.beginPath();ctx.moveTo(cx+locOff,ly-u*4.5);ctx.lineTo(cx+locOff,ly+u*4.5);ctx.stroke();
+      /* GS bar (horizontal magenta bar on GS scale) */
+      const gsOff=Math.max(-2.1,Math.min(2.1,il.gs))*u*7;
+      ctx.beginPath();ctx.moveTo(gx-u*4.5,ay+gsOff);ctx.lineTo(gx+u*4.5,ay+gsOff);ctx.stroke();
+      ctx.lineCap='butt';
+      /* ILS distance label */
       ctx.fillStyle=PUR;ctx.font='bold '+(u*3.4)+'px monospace';ctx.textAlign='left';ctx.fillText('ILS '+(il.d/1852).toFixed(1)+'NM',cx-aw+u*1,ay-ah+u*4);
     }
   }catch(e){}
@@ -4842,7 +4857,7 @@ const MAPV={mpp:70,follow:true,cx:0,cz:0,tap:true,hdgUp:false};
     for(let k=1;k<=3;k++){const rr=ring*k*1852/mpp;mctx.beginPath();mctx.arc(pp[0],pp[1],rr,0,6.2832);mctx.stroke();mctx.fillText(ring*k+'nm',pp[0]+rr*.71+2,pp[1]-rr*.71);}
     if(runwayLenM>0){const h=runwayHdgDeg*Math.PI/180,a=px(-Math.sin(h)*runwayLenM/2,Math.cos(h)*runwayLenM/2),b=px(Math.sin(h)*runwayLenM/2,-Math.cos(h)*runwayLenM/2);
       mctx.strokeStyle='#fff';mctx.lineWidth=Math.max(2,runwayWidM/mpp);mctx.beginPath();mctx.moveTo(a[0],a[1]);mctx.lineTo(b[0],b[1]);mctx.stroke();
-      if(AP.appr||mpp<400){const ext=px(-Math.sin(h)*(runwayLenM/2+22000),Math.cos(h)*(runwayLenM/2+22000));mctx.strokeStyle='rgba(205,110,255,.95)';mctx.lineWidth=2.2;mctx.setLineDash([10,6]);mctx.beginPath();mctx.moveTo(a[0],a[1]);mctx.lineTo(ext[0],ext[1]);mctx.stroke();mctx.setLineDash([]);
+      if(AP.appr){const ext=px(-Math.sin(h)*(runwayLenM/2+22000),Math.cos(h)*(runwayLenM/2+22000));mctx.strokeStyle='rgba(205,110,255,.95)';mctx.lineWidth=2.2;mctx.setLineDash([10,6]);mctx.beginPath();mctx.moveTo(a[0],a[1]);mctx.lineTo(ext[0],ext[1]);mctx.stroke();mctx.setLineDash([]);
         mctx.fillStyle='#d58bff';mctx.font='bold 10px monospace';
         for(let nm=2;nm<=11;nm+=(nm<4?2:(nm<10?3:1))){const d2=runwayLenM/2+nm*1852;if(d2>runwayLenM/2+22000)break;const q=px(-Math.sin(h)*d2,Math.cos(h)*d2);mctx.beginPath();mctx.arc(q[0],q[1],3.2,0,6.2832);mctx.fill();mctx.fillText(nm+' nm',q[0]+6,q[1]+3);}
         mctx.fillText('ILS '+(RUNWAYS&&currentLocation&&RUNWAYS[currentLocation.code]&&RUNWAYS[currentLocation.code].des?RUNWAYS[currentLocation.code].des[0]:''),ext[0]+6,ext[1]);}}
