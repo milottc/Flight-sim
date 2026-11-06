@@ -10199,3 +10199,151 @@ void main(){
   };
   improveTick();
 })();
+        /* ===== UPGRADE PACK 1: gear lever, pedestal buttons, landing lights, realistic windows ===== */
+(function upgradePack1(){
+  const S=window.__sim; if(!S||!S.scene)return;
+  const scene=S.scene, BABYLON=S.BABYLON, plane=S.plane;
+  const acRoot=scene.getTransformNodeByName('acRoot');
+  const CKI=window.CKI;
+  if(!acRoot||!CKI)return;
+
+  const dispatchKey=code=>{window.dispatchEvent(new KeyboardEvent('keydown',{code}));window.dispatchEvent(new KeyboardEvent('keyup',{code}));};
+  const toast=t=>{try{const b=document.getElementById('msgBox');if(!b)return;b.textContent=t;b.style.opacity=1;clearTimeout(toast._t);toast._t=setTimeout(()=>{b.style.opacity=0;},1600);}catch(e){}};
+  const isJet737=()=>(window._activeModelId==='737'||window._activeModelId==='787')&&window._simCamMode===1;
+  const mkStd=(n,r,g,b,spec)=>{const m=new BABYLON.StandardMaterial(n,scene);m.diffuseColor=new BABYLON.Color3(r,g,b);const s=spec==null?.15:spec;m.specularColor=new BABYLON.Color3(s,s,s);return m;};
+
+  /* ---------- cockpit extras root (737/787 cockpit only) ---------- */
+  const xc=new BABYLON.TransformNode('xcockpit',scene); xc.parent=acRoot;
+  const reg=m=>{m.parent=xc;m.isPickable=false;return m;};
+  const bx=(n,w,h,d,x,y,z,mat)=>{const b=BABYLON.MeshBuilder.CreateBox(n,{width:w,height:h,depth:d},scene);b.position.set(x,y,z);b.material=mat;return reg(b);};
+  scene.registerBeforeRender(()=>{xc.setEnabled(isJet737());});
+
+  /* ---------- 1. GEAR LEVER (real handle, clickable, animates with gear) ---------- */
+  const chrome=mkStd('gl_chrome',.62,.64,.68,.9);
+  const blk=mkStd('gl_blk',.03,.03,.035,.1);
+  const orange=mkStd('gl_knobM',.85,.34,.08,.35);
+  const GX=-.42,GY=-.29,GZ=14.5;
+  bx('gl_plate',.16,.012,.22,GX,GY,GZ,chrome);
+  bx('gl_slot',.1,.004,.16,GX,GY+.008,GZ,blk);
+  const gPv=new BABYLON.TransformNode('gl_pv',scene);gPv.parent=xc;gPv.position.set(GX,GY+.01,GZ);
+  const gArm=BABYLON.MeshBuilder.CreateCylinder('gl_arm',{height:.2,diameter:.03,tessellation:10},scene);
+  gArm.position.y=.1;gArm.material=chrome;gArm.parent=gPv;gArm.isPickable=false;
+  const gKnob=BABYLON.MeshBuilder.CreateBox('gl_knob',{width:.07,height:.06,depth:.05},scene);
+  gKnob.position.y=.2;gKnob.material=orange;gKnob.parent=gPv;gKnob.isPickable=false;
+  CKI.addMesh(['gl_knob','gl_arm'],{label:'GEAR LEVER · click',
+    state:()=>plane.gearDown?'DOWN':'UP',
+    act:()=>{CKI.snd&&CKI.snd('lever');dispatchKey('KeyG');}});
+
+  /* ---------- 2. PEDESTAL BUTTON BANK (8 lit pushbuttons) + AUTOBRAKE KNOB ---------- */
+  const BTN=[['APU',[.95,.7,.15]],['ANTI-ICE',[.95,.7,.15]],['PACK L',[.1,.9,.3]],['PACK R',[.1,.9,.3]],
+             ['SEAT BELTS',[.95,.7,.15]],['NO SMOKE',[.95,.7,.15]],['GND PWR',[.1,.9,.3]],['PARK BRK',[.95,.2,.15]]];
+  const btnOn=BTN.map(()=>false);
+  const lampMats=[];
+  const btnBody=mkStd('pb_body',.1,.1,.11,.25);
+  BTN.forEach((b,i)=>{
+    const x=-.195+(i%4)*.13, z=13.5+Math.floor(i/4)*.14;
+    bx('pb_btn'+i,.085,.018,.08,x,-.283,z,btnBody);
+    const lm=mkStd('pb_lampM'+i,.08,.08,.08,0);lm.emissiveColor=new BABYLON.Color3(0,0,0);
+    lampMats.push({lm,col:b[1]});
+    bx('pb_lamp'+i,.05,.004,.03,x,-.272,z,lm);
+  });
+  CKI.addMesh(BTN.map((b,i)=>'pb_btn'+i).concat(BTN.map((b,i)=>'pb_lamp'+i)),{label:'PEDESTAL SWITCH',
+    state:()=>'',act:null});
+  // one spec per button so each gets its own label/state
+  BTN.forEach((b,i)=>{
+    CKI.meshSpecs=CKI.meshSpecs.filter(s=>!(s.names&&s.names.indexOf('pb_btn'+i)>=0));
+    CKI.addMesh(['pb_btn'+i,'pb_lamp'+i],{label:b[0],state:()=>btnOn[i]?'ON':'OFF',
+      act:()=>{btnOn[i]=!btnOn[i];CKI.snd&&CKI.snd('sw');toast(b[0]+' '+(btnOn[i]?'ON':'OFF'));}});
+  });
+
+  const abkMat=mkStd('abk_m',.12,.12,.13,.3);
+  const abk=BABYLON.MeshBuilder.CreateCylinder('abk',{height:.03,diameter:.1,tessellation:20},scene);
+  abk.position.set(-.33,-.28,13.55);abk.material=abkMat;reg(abk);
+  const abkMark=bx('abk_mark',.01,.005,.045,-.33,-.262,13.55,mkStd('abk_mk',.95,.95,.95,0));
+  abkMark.parent=abk;abkMark.position.set(0,.02,.025);
+  CKI.addMesh(['abk'],{label:'AUTOBRAKE · click',state:()=>plane._ab?'MED':'OFF',
+    act:()=>{plane._ab=!plane._ab;CKI.snd&&CKI.snd('knob');toast('AUTOBRAKE '+(plane._ab?'MED':'OFF'));}});
+
+  /* ---------- per-frame: gear lever, lamps, knob ---------- */
+  let lever=0,knobA=0;
+  scene.registerBeforeRender(()=>{
+    const dt=Math.min(.05,scene.getEngine().getDeltaTime()/1000);
+    const tgt=plane.gearDown?.32:-.32;lever+=(tgt-lever)*Math.min(1,dt*10);gPv.rotation.x=-lever;
+    const kt=plane._ab?Math.PI*.75:0;knobA+=(kt-knobA)*Math.min(1,dt*8);abk.rotation.y=knobA;
+    for(let i=0;i<lampMats.length;i++){const L=lampMats[i];const on=btnOn[i];
+      L.lm.emissiveColor=on?new BABYLON.Color3(L.col[0],L.col[1],L.col[2]):new BABYLON.Color3(0,0,0);
+      L.lm.diffuseColor=on?new BABYLON.Color3(L.col[0],L.col[1],L.col[2]):new BABYLON.Color3(.08,.08,.08);}
+  });
+
+  /* ---------- 3. BETTER LANDING LIGHTS (soft gradient beams instead of hard cylinders) ---------- */
+  const beamTex=(()=>{
+    const T=new BABYLON.DynamicTexture('lbeamT',{width:8,height:256},scene,false);
+    const c=T.getContext();const img=c.createImageData(8,256);
+    for(let y=0;y<256;y++){
+      const v=1-y/255;
+      const a=Math.min(1,Math.max(0,v/.06))*(.35+.65*(1-v))*(1-Math.min(1,Math.max(0,(v-.9)/.1)));
+      for(let x=0;x<8;x++){const o=(y*8+x)*4;img.data[o]=255;img.data[o+1]=246;img.data[o+2]=225;img.data[o+3]=Math.round(a*255);}
+    }
+    c.putImageData(img,0,0);T.hasAlpha=true;T.update(false);return T;
+  })();
+  const beamMat=new BABYLON.StandardMaterial('lbeamM',scene);
+  beamMat.emissiveColor=new BABYLON.Color3(1,.96,.85);beamMat.diffuseColor=new BABYLON.Color3(0,0,0);
+  beamMat.disableLighting=true;beamMat.opacityTexture=beamTex;beamMat.alphaMode=BABYLON.Engine.ALPHA_ADD;
+  beamMat.backFaceCulling=false;beamMat.disableDepthWrite=true;beamMat.fogEnabled=false;
+  ['llcone-1','llcone1','llcone2-1','llcone21'].forEach(n=>{const m=scene.getMeshByName(n);if(m)m.material=beamMat;});
+  // the base file sets cone alpha each frame; this runs after it and boosts the beam when it is visible (night + lights on)
+  scene.registerBeforeRender(()=>{beamMat.alpha=1.15;});
+
+  /* ---------- 4. REALISTIC WINDOW LAYOUT for every airliner model ---------- */
+  const surfHW=(st,z,y)=>{
+    for(let i=0;i<st.length-1;i++){
+      const a=st[i],b=st[i+1],hi=Math.max(a.z,b.z),lo=Math.min(a.z,b.z);
+      if(z<=hi&&z>=lo&&hi>lo){
+        const t=(a.z-z)/(a.z-b.z),L=k=>a[k]*(1-t)+b[k]*t;
+        const r=L('r'),w=L('w'),h=L('h'),yo=L('yo');
+        const q=(y-yo)/(r*h);
+        return{hw:r*w*Math.sqrt(Math.max(0,1-q*q)),r,w,h,yo};
+      }
+    }
+    return null;
+  };
+  const winFrameM=mkStd('wf_frame',.09,.095,.11,.05);
+  const winGlassM=mkStd('wf_glass',.02,.035,.06,1);winGlassM.specularPower=140;
+  winGlassM.emissiveColor=new BABYLON.Color3(.02,.03,.045);
+  const rebuildWin=(id,g)=>{
+    const D=window._DRESS&&window._DRESS[id];
+    if(!D||!D.windows||!D.fus||!g)return;
+    // hide the old, rougher window meshes
+    g.getChildMeshes().forEach(m=>{if(m.name===id+'_fusWin'){m.setEnabled(false);m.isPickable=false;}});
+    const W=D.windows,span=W.z0-W.z1;
+    const doorZ=[W.z0-span*.20,W.z0-span*.66],hal=Math.max(.7,span*.04); // two door bays, skipped
+    const frame=BABYLON.MeshBuilder.CreateBox(id+'_fusWinP',{width:.03,height:W.h*1.18,depth:W.w*1.5},scene);
+    const glass=BABYLON.MeshBuilder.CreateBox(id+'_fusWinG',{width:.03,height:W.h,depth:W.w*1.05},scene);
+    frame.material=winFrameM;glass.material=winGlassM;
+    frame.parent=g;glass.parent=g;frame.isPickable=false;glass.isPickable=false;
+    let n=0;
+    for(let z=W.z0;z>=W.z1;z-=W.step){
+      if(doorZ.some(d=>Math.abs(z-d)<hal))continue;
+      const sf=surfHW(D.fus,z,W.y);if(!sf||sf.hw<.15)continue;
+      for(const sd of [-1,1]){
+        frame.thinInstanceAdd(BABYLON.Matrix.Translation(sd*(sf.hw+.001),W.y,z),false);
+        glass.thinInstanceAdd(BABYLON.Matrix.Translation(sd*(sf.hw+.007),W.y,z),false);
+        n++;
+      }
+    }
+    if(n>0){frame.thinInstanceBufferUpdated('matrix');glass.thinInstanceBufferUpdated('matrix');}
+    frame.alwaysSelectAsActiveMesh=true;glass.alwaysSelectAsActiveMesh=true;
+  };
+  // apply to models already built, and to any built later
+  Object.keys(window._modelRoots||{}).forEach(id=>{
+    const g=window._modelRoots[id];
+    if(g&&!g._wFix){g._wFix=1;try{rebuildWin(id,g);}catch(e){console.warn('win',id,e);}}
+  });
+  const origEns=window._ensureModel;
+  window._ensureModel=function(id){
+    const g=origEns?origEns(id):null;
+    if(g&&!g._wFix){g._wFix=1;try{rebuildWin(id,g);}catch(e){console.warn('win',id,e);}}
+    return g;
+  };
+  console.log('[UPGRADE PACK 1] gear lever, pedestal bank, landing lights, windows online');
+})();
